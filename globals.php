@@ -518,17 +518,50 @@ function save_user_config($data = array(), $user = null) {
 }
 
 /**
+ * Strips absolute server web root prefix (/var/www/wspa/) to normalize paths into data/... relative paths
+ */
+function strip_web_root_prefix($path) {
+    $clean = str_replace('\\', '/', trim($path));
+    $web_root = '/var/www/wspa/';
+    if (strpos($clean, $web_root) === 0) {
+        $clean = substr($clean, strlen($web_root));
+    }
+    return $clean;
+}
+
+/**
+ * Resolves full raw file path by stripping preceding web root or dataset paths from raw_file
+ */
+function resolve_raw_file_path($raw_file, $data_path) {
+    $raw_clean = strip_web_root_prefix($raw_file);
+    $data_clean = strip_web_root_prefix($data_path);
+    $data_clean = rtrim($data_clean, '/');
+
+    if (!empty($data_clean) && strpos($raw_clean, $data_clean . '/') === 0) {
+        return $raw_clean;
+    }
+    if (strpos($raw_clean, 'data/') === 0) {
+        return $raw_clean;
+    }
+    if (strpos($raw_clean, '/') === 0) {
+        $raw_clean = ltrim($raw_clean, '/');
+    }
+
+    return $data_clean . '/' . ltrim($raw_clean, '/');
+}
+
+/**
  * Resolves process cache directory for a data path.
  * - Custom filter on non-local folder: users/<user>/shadow/<rel_path>/process
- * - Local / writable folder: <data_path>/process
+ * - Local Mode A folder: <data_path>/process
  * - Shared read-only folder default preview: data/.shadow/<rel_path>/process
  */
 function get_process_dir($data_path, $has_custom_filter = false, $user = null) {
     if ($user === null && isset($_SESSION['user'])) $user = $_SESSION['user'];
     if ($user === null) $user = 'admin';
 
-    $clean_path = is_dir($data_path) ? $data_path : dirname($data_path);
-    $clean_path = str_replace('\\', '/', $clean_path);
+    $clean_path = strip_web_root_prefix($data_path);
+    $clean_path = is_dir($clean_path) ? $clean_path : dirname($clean_path);
 
     // 1. Custom filter on shared read-only dataset -> user shadow storage
     if ($has_custom_filter && !is_wspa_localdir($clean_path)) {
@@ -610,7 +643,7 @@ function populate_workspace_tmp_links($data_path, $userdir, $user) {
         if (empty($raw_file)) continue;
 
         $png_name = basename($raw_file) . '.png';
-        $full_raw = rtrim($data_path, '/') . '/' . ltrim($raw_file, '/');
+        $full_raw = resolve_raw_file_path($raw_file, $data_path);
         $flt_file = get_meta_path_for_file($full_raw, 'flt', $user);
         $has_custom_filter = file_exists($flt_file) && filesize($flt_file) > 0;
 
@@ -649,7 +682,7 @@ function sync_process_preview_dir($data_path, $userdir, $user) {
         $tmp_png = $user_ws . 'tmp' . $c_idx . '.png';
 
         if (file_exists($tmp_png)) {
-            $full_raw_file = rtrim($data_path, '/') . '/' . ltrim($raw_file, '/');
+            $full_raw_file = resolve_raw_file_path($raw_file, $data_path);
             $flt_file = get_meta_path_for_file($full_raw_file, 'flt', $user);
             $has_custom_filter = file_exists($flt_file) && filesize($flt_file) > 0;
 
