@@ -138,6 +138,8 @@ if (file_exists($imgoffs_file)) {
 		// Single-line format (9 fields)
 		if (count($p1) >= 8 && is_numeric(trim($p1[0]))) {
 			$c_idx = intval($p1[0]);
+			$raw_path = trim($p1[1]);
+			$chan_title = trim($p1[2]);
 			$xo_v = floatval($p1[3]);
 			$yo_v = floatval($p1[4]);
 			$xs_v = floatval($p1[5]);
@@ -147,6 +149,8 @@ if (file_exists($imgoffs_file)) {
 			if ($xs_v > 1e-3) $xs_v *= 1e-9;
 			if ($ys_v > 1e-3) $ys_v *= 1e-9;
 			$qvud_meta[$c_idx] = array(
+				'filepath' => $raw_path,
+				'chan' => $chan_title,
 				'xo' => $xo_v,
 				'yo' => $yo_v,
 				'xs' => $xs_v > 0 ? $xs_v : 50e-9,
@@ -163,6 +167,8 @@ if (file_exists($imgoffs_file)) {
 			$p2 = explode(';', $l2);
 			if (count($p1) >= 8 && count($p2) >= 5) {
 				$c_idx = intval(trim($p1[0]));
+				$raw_path = isset($p1[1]) ? trim($p1[1]) : '';
+				$chan_title = isset($p1[2]) ? trim($p1[2]) : '';
 				$xo = floatval(trim($p1[7]));
 				$yo = isset($p1[9]) ? floatval(trim($p1[9])) : 0.0;
 				
@@ -173,6 +179,8 @@ if (file_exists($imgoffs_file)) {
 				$ang = floatval(trim($p2[0]));
 
 				$qvud_meta[$c_idx] = array(
+					'filepath' => $raw_path,
+					'chan' => $chan_title,
 					'xo' => $xo,
 					'yo' => $yo,
 					'xs' => $xs,
@@ -209,16 +217,21 @@ if (file_exists($mylist_file)) {
 
 foreach ($chans as $i) {
 	$raw_file = trim(stripslashes($i));
-	$info = pathinfo($raw_file);
-	$value = isset($info['extension']) ? $info['extension'] : '';
-	$bi = basename($raw_file, '.' . $value);
-	$info = pathinfo($bi);
-	$value = isset($info['extension']) ? $info['extension'] : '';
-	$bi = basename($bi, '.' . $value);
+
+	if (isset($qvud_meta[$c]['filepath']) && !empty($qvud_meta[$c]['filepath'])) {
+		$target_raw = $qvud_meta[$c]['filepath'];
+	} else {
+		$target_raw = isset($raw_chans[$c]) ? trim(stripslashes($raw_chans[$c])) : $raw_file;
+	}
+
+	$clean_raw_path = preg_replace('/\.(f|b)\d*$/i', '', $target_raw);
+	$real_file_name = basename($clean_raw_path);
+	$bi = preg_replace('/\.[^.]+$/i', '', $real_file_name);
+	if (empty($bi)) $bi = $real_file_name;
 
 	if ($bi != $obi) {
 		$file_idx++;
-		$full_raw_file = isset($mylist_paths[$file_idx]) ? $mylist_paths[$file_idx] : (isset($raw_chans[$c]) ? trim(stripslashes($raw_chans[$c])) : $raw_file);
+		$full_raw_file = !empty($clean_raw_path) ? $clean_raw_path : (isset($mylist_paths[$file_idx]) ? $mylist_paths[$file_idx] : $target_raw);
 		$mapdir = pathinfo($full_raw_file, PATHINFO_DIRNAME);
 		$mapfile = $mapdir . '/' . $bi . '.map';
 		if (!file_exists($mapfile)) {
@@ -249,14 +262,14 @@ foreach ($chans as $i) {
 					$mc = 0;
 				} else {
 					$curr_graph = basename($mapln);
-					if ($px_dim > 0) {
+					if ($px_dim > 0 && is_finite($px_x) && is_finite($px_y) && is_finite($px_dim)) {
 						$sts_points[] = array(
 							'graph' => $curr_graph,
 							'px_x' => $px_x,
 							'px_y' => $px_y,
 							'dim' => $px_dim,
 							'rel_x' => ($px_x / $px_dim) - 0.5,
-							'rel_y' => 0.5 - ($px_y / $px_dim)
+							'rel_y' => ($px_y / $px_dim) - 0.5
 						);
 					}
 					$mc = 1;
@@ -275,30 +288,38 @@ foreach ($chans as $i) {
 	$hash = @filemtime($img_file);
 	$real_src = 'serve_image.php?file=' . urlencode($img_file) . '&v=' . $hash;
 
-	// Use qvud extracted metadata if available, otherwise fallback to native PHP parser
 	if (isset($qvud_meta[$c])) {
 		$meta = $qvud_meta[$c];
 	} else {
-		$full_raw = isset($mylist_paths[$file_idx]) ? $mylist_paths[$file_idx] : (isset($raw_chans[$c]) ? trim(stripslashes($raw_chans[$c])) : $raw_file);
-		$meta = parse_spm_header($full_raw);
+		$meta = parse_spm_header($target_raw);
 	}
 
-	// Prevent skewing for cropped channels: adjust physical height ys to match actual PNG aspect ratio
 	$img_info = @getimagesize($img_file);
 	if ($img_info && isset($img_info[0]) && isset($img_info[1]) && $img_info[1] > 0) {
 		$png_aspect = floatval($img_info[0]) / floatval($img_info[1]);
-		if ($png_aspect > 0 && isset($meta['xs']) && $meta['xs'] > 0) {
+		if ($png_aspect > 0 && isset($meta['xs']) && $meta['xs'] > 0 && (!isset($meta['ys']) || $meta['ys'] <= 0)) {
 			$meta['ys'] = $meta['xs'] / $png_aspect;
 		}
 	}
 
-	$ch_name = isset($acqchans[$c]) ? clean_channel_name($acqchans[$c]) : 'Channel ' . $c;
+	if (isset($qvud_meta[$c]['chan']) && !empty($qvud_meta[$c]['chan'])) {
+		$ch_name = clean_channel_name($qvud_meta[$c]['chan']);
+	} else if (isset($acqchans[$c])) {
+		$ch_name = clean_channel_name($acqchans[$c]);
+	} else {
+		$ch_name = 'Channel ' . $c;
+	}
+
 	if (!empty($ch_name) && !in_array($ch_name, $unique_channels)) {
 		$unique_channels[] = $ch_name;
 	}
 
 	$current_file_idx = max(0, $file_idx);
-	$actual_file_name = isset($mylist_names[$current_file_idx]) ? $mylist_names[$current_file_idx] : (preg_match('/tmp\d+\.png$/i', basename($raw_file)) ? $bi : basename($raw_file));
+	if (preg_match('/^tmp\d+\./i', $real_file_name) && isset($mylist_names[$current_file_idx])) {
+		$actual_file_name = $mylist_names[$current_file_idx];
+	} else {
+		$actual_file_name = !empty($real_file_name) ? $real_file_name : (isset($mylist_names[$current_file_idx]) ? $mylist_names[$current_file_idx] : 'File #' . ($current_file_idx + 1));
+	}
 
 	$js_images[] = array(
 		'c' => $c,
@@ -537,6 +558,11 @@ html, body {
 				<input type="submit" onclick="stepTime('max', 1)" value="&gt;" style="font-weight:normal;">
 				<span id="gvTimeMaxVal" style="min-width:32px; text-align:right; color:#6cf; font-size:10pt; font-weight:normal;"><?php echo ($active_file_idx + 1); ?></span>
 			</div>
+			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
+				<span style="width:45px; color:#aaa; font-size:10pt; font-weight:normal;">Max img</span>
+				<input type="range" id="gvMaxVisibleImages" min="10" max="500" value="100" step="10" oninput="onMaxVisibleImagesChange()" title="Max preceding images limit">
+				<span id="gvMaxVisibleVal" style="min-width:32px; text-align:right; color:#ff0; font-size:10pt; font-weight:normal;">100</span>
+			</div>
 			<div style="display:flex; align-items:center; gap:4px;">
 				<span style="width:45px; color:#aaa; font-size:10pt; font-weight:normal;">Focus</span>
 				<input type="submit" onclick="stepFocus(-1)" value="&lt;" title="Focus lower image (Down arrow)" style="font-weight:normal;">
@@ -559,9 +585,9 @@ html, body {
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
 				<span style="width:45px; color:#aaa; font-size:10pt; font-weight:normal;">&Delta;Z</span>
 				<input type="submit" onclick="stepZSep(-1)" value="&lt;" style="font-weight:normal;">
-				<input type="range" id="gv3DTimeZ" min="0" max="100" value="18" step="1" oninput="on3DParamChange()" title="Z separation slider (Z / X keys)">
+				<input type="range" id="gv3DTimeZ" min="0" max="1000" value="459" step="1" oninput="on3DParamChange()" title="Z separation slider (Z / X keys)">
 				<input type="submit" onclick="stepZSep(1)" value="&gt;" style="font-weight:normal;">
-				<span id="gv3DTimeZVal" style="min-width:36px; text-align:right; color:#0ff; font-size:10pt; font-weight:normal;">18px</span>
+				<span id="gv3DTimeZVal" style="min-width:36px; text-align:right; color:#0ff; font-size:10pt; font-weight:normal;">5.0 nm</span>
 			</div>
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
 				<span style="width:45px; color:#aaa; font-size:10pt; font-weight:normal;">Yaw</span>
@@ -602,6 +628,9 @@ html, body {
 			</label>
 			<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
 				<input type="checkbox" id="gvShowCenterLine" checked onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Connect centers
+			</label>
+			<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
+				<input type="checkbox" id="gvAutoZSpacing" onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Auto Z
 			</label>
 			<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
 				<input type="checkbox" id="gvShowProjFrame" onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Proj frame
@@ -718,7 +747,12 @@ function isPointInQuad(px, py, quad) {
 	return !(hasPos && hasNeg);
 }
 
-function drawSegmentRun(points, isObs, solidColor, faintColor, dashUnobs) {
+var gvSampleX = new Float64Array(65);
+var gvSampleY = new Float64Array(65);
+var gvSampleObs = new Uint8Array(65);
+
+function drawSampleIndexRun(startIdx, endIdx, isObs, solidColor, faintColor, dashUnobs) {
+	if (startIdx >= endIdx) return;
 	ctx.save();
 	ctx.lineWidth = 2.0;
 	if (isObs) {
@@ -729,9 +763,9 @@ function drawSegmentRun(points, isObs, solidColor, faintColor, dashUnobs) {
 		ctx.setLineDash(dashUnobs ? [4, 4] : []);
 	}
 	ctx.beginPath();
-	ctx.moveTo(points[0].x, points[0].y);
-	for (var j = 1; j < points.length; j++) {
-		ctx.lineTo(points[j].x, points[j].y);
+	ctx.moveTo(gvSampleX[startIdx], gvSampleY[startIdx]);
+	for (var j = startIdx + 1; j <= endIdx; j++) {
+		ctx.lineTo(gvSampleX[j], gvSampleY[j]);
 	}
 	ctx.stroke();
 	ctx.restore();
@@ -739,6 +773,7 @@ function drawSegmentRun(points, isObs, solidColor, faintColor, dashUnobs) {
 
 function drawObscurableEdge(ptA, ptB, targetVisIdx, higherItems, solidColor, faintColor, numSamples, dashUnobs) {
 	if (!numSamples) numSamples = 12;
+	if (numSamples > 64) numSamples = 64;
 
 	if (!higherItems || higherItems.length === 0) {
 		ctx.save();
@@ -753,38 +788,68 @@ function drawObscurableEdge(ptA, ptB, targetVisIdx, higherItems, solidColor, fai
 		return;
 	}
 
-	var samples = [];
+	var edgeMinX = Math.min(ptA.x, ptB.x);
+	var edgeMaxX = Math.max(ptA.x, ptB.x);
+	var edgeMinY = Math.min(ptA.y, ptB.y);
+	var edgeMaxY = Math.max(ptA.y, ptB.y);
+
+	var candidateCount = 0;
+	for (var h = 0; h < higherItems.length; h++) {
+		var itemH = higherItems[h];
+		if (typeof itemH.minX !== 'undefined') {
+			if (!(edgeMaxX < itemH.minX || edgeMinX > itemH.maxX || edgeMaxY < itemH.minY || edgeMinY > itemH.maxY)) {
+				candidateCount++;
+			}
+		} else {
+			candidateCount++;
+		}
+	}
+
+	if (candidateCount === 0) {
+		ctx.save();
+		ctx.lineWidth = 2.0;
+		ctx.strokeStyle = solidColor;
+		ctx.setLineDash(dashUnobs ? [4, 4] : []);
+		ctx.beginPath();
+		ctx.moveTo(ptA.x, ptA.y);
+		ctx.lineTo(ptB.x, ptB.y);
+		ctx.stroke();
+		ctx.restore();
+		return;
+	}
+
 	for (var i = 0; i <= numSamples; i++) {
 		var t = i / numSamples;
 		var sx = ptA.x + t * (ptB.x - ptA.x);
 		var sy = ptA.y + t * (ptB.y - ptA.y);
-		var obs = false;
+		var obs = 0;
 		for (var k = 0; k < higherItems.length; k++) {
-			if (isPointInQuad(sx, sy, higherItems[k].quad)) {
-				obs = true;
+			var h = higherItems[k];
+			if (typeof h.minX !== 'undefined') {
+				if (sx < h.minX || sx > h.maxX || sy < h.minY || sy > h.maxY) continue;
+			}
+			if (isPointInQuad(sx, sy, h.quad)) {
+				obs = 1;
 				break;
 			}
 		}
-		samples.push({ x: sx, y: sy, obscured: obs });
+		gvSampleX[i] = sx;
+		gvSampleY[i] = sy;
+		gvSampleObs[i] = obs;
 	}
 
-	var currentObs = samples[0].obscured || samples[1].obscured;
-	var runPoints = [samples[0]];
+	var currentObs = (gvSampleObs[0] === 1 || gvSampleObs[1] === 1);
+	var runStartIdx = 0;
 
 	for (var i = 0; i < numSamples; i++) {
-		var pEnd = samples[i + 1];
-		var isObs = samples[i].obscured || pEnd.obscured;
-
+		var isObs = (gvSampleObs[i] === 1 || gvSampleObs[i + 1] === 1);
 		if (isObs !== currentObs) {
-			drawSegmentRun(runPoints, currentObs, solidColor, faintColor, dashUnobs);
+			drawSampleIndexRun(runStartIdx, i, currentObs, solidColor, faintColor, dashUnobs);
 			currentObs = isObs;
-			runPoints = [samples[i]];
+			runStartIdx = i;
 		}
-		runPoints.push(pEnd);
 	}
-	if (runPoints.length > 1) {
-		drawSegmentRun(runPoints, currentObs, solidColor, faintColor, dashUnobs);
-	}
+	drawSampleIndexRun(runStartIdx, numSamples, currentObs, solidColor, faintColor, dashUnobs);
 }
 
 function drawObscurableFrame(quad, targetVisIdx, itemsWith3D, solidColor, faintColor, insetPx) {
@@ -823,12 +888,14 @@ var panX = 0, panY = 0;
 var zoomScale = 1.0; // pixels per meter
 var minZoomScale = 1.0;
 var hoveredImg = null;
+var lastRenderedItemsWith3D = null;
 var hoveredSTSPts = [];
 var drawScheduled = false;
 var maxFileIdx = <?php echo $max_file_idx; ?>;
 var activeFileIdx = <?php echo $active_file_idx; ?>;
 var activeFileAng = <?php echo $active_file_ang; ?>;
-var fileMin = 0;
+var maxVisibleImages = 100;
+var fileMin = Math.max(0, activeFileIdx - (maxVisibleImages - 1));
 var fileMax = activeFileIdx;
 var viewAngle = 45;
 var dpr = window.devicePixelRatio || 1;
@@ -836,12 +903,34 @@ var activeAnim = null;
 var VIEW_ANIM_DURATION = 200; // Snappy 200ms animation duration for view transitions
 
 // 3D Isometric View State & Projection Math
-var is3DMode = true;
 var pitch3D = 45; // degrees (10 to 90)
-var timeZSpacing = 18; // slider value (0 to 100)
+var timeZSpacing = 459; // slider value (0 to 1000)
 var overallAvgDim = 100e-9;
 
 var isZoomLoaded = false;
+
+function sliderValToZNm(v) {
+	var frac = Math.max(0, Math.min(1000, parseFloat(v))) / 1000.0;
+	var logVal = -1.0 + frac * 3.6989700043360187;
+	return Math.pow(10, logVal);
+}
+
+function zNmToSliderVal(nm) {
+	var clamped = Math.max(0.1, Math.min(500, parseFloat(nm)));
+	var logVal = Math.log10(clamped);
+	var frac = (logVal - (-1.0)) / 3.6989700043360187;
+	return Math.round(frac * 1000);
+}
+
+function formatZNmDisplay(zNm) {
+	if (zNm < 1.0) {
+		return zNm.toFixed(2) + ' nm';
+	} else if (zNm < 10.0) {
+		return zNm.toFixed(1) + ' nm';
+	} else {
+		return Math.round(zNm) + ' nm';
+	}
+}
 
 function saveSpatialViewState() {
 	try {
@@ -868,11 +957,17 @@ function saveSpatialViewState() {
 		var centerLineEl = document.getElementById('gvShowCenterLine');
 		if (centerLineEl) localStorage.setItem('wspa_gv_show_center_line', centerLineEl.checked ? 'true' : 'false');
 
+		var autoZEl = document.getElementById('gvAutoZSpacing');
+		if (autoZEl) localStorage.setItem('wspa_gv_auto_zspacing', autoZEl.checked ? 'true' : 'false');
+
 		var primChanEl = document.getElementById('gvChanFilter');
 		if (primChanEl) localStorage.setItem('wspa_gv_prim_chan', primChanEl.value);
 
 		var secChanEl = document.getElementById('gvSecChanFilter');
 		if (secChanEl) localStorage.setItem('wspa_gv_sec_chan', secChanEl.value);
+
+		var maxImgEl = document.getElementById('gvMaxVisibleImages');
+		if (maxImgEl) localStorage.setItem('wspa_gv_max_visible_images', maxImgEl.value);
 
 		var formData = new FormData();
 		formData.append('gv_pitch', pitch3D);
@@ -885,8 +980,10 @@ function saveSpatialViewState() {
 		if (tooltipEl) formData.append('gv_show_tooltip', tooltipEl.checked ? 'true' : 'false');
 		if (projFrameEl) formData.append('gv_show_proj_frame', projFrameEl.checked ? 'true' : 'false');
 		if (centerLineEl) formData.append('gv_show_center_line', centerLineEl.checked ? 'true' : 'false');
+		if (autoZEl) formData.append('gv_auto_zspacing', autoZEl.checked ? 'true' : 'false');
 		if (primChanEl) formData.append('gv_prim_chan', primChanEl.value);
 		if (secChanEl) formData.append('gv_sec_chan', secChanEl.value);
+		if (maxImgEl) formData.append('gv_max_visible_images', maxImgEl.value);
 
 		fetch('save_config.php', {
 			method: 'POST',
@@ -903,6 +1000,7 @@ function loadSpatialViewState() {
 		var sPitch = cfg.gv_pitch !== undefined ? cfg.gv_pitch : localStorage.getItem('wspa_gv_pitch');
 		var sYaw = cfg.gv_yaw !== undefined ? cfg.gv_yaw : localStorage.getItem('wspa_gv_yaw');
 		var sZSpace = cfg.gv_zspacing !== undefined ? cfg.gv_zspacing : localStorage.getItem('wspa_gv_zspacing');
+		var sAutoZ = cfg.gv_auto_zspacing !== undefined ? cfg.gv_auto_zspacing : localStorage.getItem('wspa_gv_auto_zspacing');
 		var sZoom = cfg.gv_zoom !== undefined ? cfg.gv_zoom : localStorage.getItem('wspa_gv_zoom');
 		var sAlpha = cfg.gv_alpha !== undefined ? cfg.gv_alpha : localStorage.getItem('wspa_gv_alpha');
 		var sLabels = cfg.gv_show_labels !== undefined ? cfg.gv_show_labels : localStorage.getItem('wspa_gv_show_labels');
@@ -912,6 +1010,15 @@ function loadSpatialViewState() {
 		var sCenterLine = cfg.gv_show_center_line !== undefined ? cfg.gv_show_center_line : localStorage.getItem('wspa_gv_show_center_line');
 		var sSecChan = cfg.gv_sec_chan !== undefined ? cfg.gv_sec_chan : localStorage.getItem('wspa_gv_sec_chan');
 		var sPrimChan = cfg.gv_prim_chan !== undefined ? cfg.gv_prim_chan : localStorage.getItem('wspa_gv_prim_chan');
+		var sMaxImg = cfg.gv_max_visible_images !== undefined ? cfg.gv_max_visible_images : localStorage.getItem('wspa_gv_max_visible_images');
+
+		if (sMaxImg !== null && sMaxImg !== undefined && !isNaN(parseInt(sMaxImg, 10))) {
+			maxVisibleImages = Math.max(10, Math.min(500, parseInt(sMaxImg, 10)));
+			var maxInput = document.getElementById('gvMaxVisibleImages');
+			var maxValSpan = document.getElementById('gvMaxVisibleVal');
+			if (maxInput) maxInput.value = maxVisibleImages;
+			if (maxValSpan) maxValSpan.textContent = maxVisibleImages;
+		}
 
 		var primChanEl = document.getElementById('gvChanFilter');
 		if (sPrimChan !== null && sPrimChan !== undefined && primChanEl) {
@@ -952,11 +1059,18 @@ function loadSpatialViewState() {
 		}
 
 		if (sZSpace !== null && sZSpace !== undefined && !isNaN(parseInt(sZSpace, 10))) {
-			timeZSpacing = Math.max(0, Math.min(100, parseInt(sZSpace, 10)));
+			var parsedZ = parseInt(sZSpace, 10);
+			if (parsedZ <= 100) {
+				var legacyNm = (parsedZ / 50.0) * (overallAvgDim * 1e9);
+				if (legacyNm <= 0) legacyNm = 5.0;
+				timeZSpacing = zNmToSliderVal(legacyNm);
+			} else {
+				timeZSpacing = Math.max(0, Math.min(1000, parsedZ));
+			}
 			var zInput = document.getElementById('gv3DTimeZ');
 			var zVal = document.getElementById('gv3DTimeZVal');
 			if (zInput) zInput.value = timeZSpacing;
-			if (zVal) zVal.textContent = timeZSpacing + 'px';
+			if (zVal) zVal.textContent = formatZNmDisplay(sliderValToZNm(timeZSpacing));
 		}
 
 		if (sZoom !== null && sZoom !== undefined && !isNaN(parseFloat(sZoom))) {
@@ -999,6 +1113,11 @@ function loadSpatialViewState() {
 			var clInput = document.getElementById('gvShowCenterLine');
 			if (clInput) clInput.checked = (String(sCenterLine) === 'true');
 		}
+
+		if (sAutoZ !== null && sAutoZ !== undefined) {
+			var autoZInput = document.getElementById('gvAutoZSpacing');
+			if (autoZInput) autoZInput.checked = (String(sAutoZ) === 'true');
+		}
 	} catch (e) {}
 }
 
@@ -1025,7 +1144,6 @@ function getDatasetCentroid() {
 function update3DOrientation(newViewAngle, newPitch3D) {
 	viewAngle = newViewAngle;
 	pitch3D = newPitch3D;
-	saveSpatialViewState();
 	requestDraw();
 }
 
@@ -1041,8 +1159,9 @@ function stepPitch(dir) {
 function stepZSep(dir) {
 	var zInput = document.getElementById('gv3DTimeZ');
 	if (!zInput) return;
-	var val = parseInt(zInput.value, 10) + dir;
-	val = Math.max(0, Math.min(100, val));
+	var step = 25;
+	var val = parseInt(zInput.value, 10) + dir * step;
+	val = Math.max(0, Math.min(1000, val));
 	zInput.value = val;
 	on3DParamChange();
 }
@@ -1064,7 +1183,10 @@ function on3DParamChange() {
 		if (newZVal !== timeZSpacing) {
 			timeZSpacing = newZVal;
 			var zVal = document.getElementById('gv3DTimeZVal');
-			if (zVal) zVal.textContent = timeZSpacing + 'px';
+			if (zVal) {
+				var zNm = sliderValToZNm(timeZSpacing);
+				zVal.textContent = formatZNmDisplay(zNm);
+			}
 			saveSpatialViewState();
 		}
 	}
@@ -1072,7 +1194,61 @@ function on3DParamChange() {
 }
 
 function getZStepMeters() {
-	return overallAvgDim * (timeZSpacing / 50.0);
+	var zNm = sliderValToZNm(timeZSpacing);
+	return zNm * 1e-9;
+}
+
+function getVisibleZHeights(visibleItems) {
+	if (!visibleItems || visibleItems.length === 0) return [];
+	var zHeights = new Array(visibleItems.length);
+	zHeights[0] = 0;
+	var autoZEl = document.getElementById('gvAutoZSpacing');
+	var isAutoZ = autoZEl ? autoZEl.checked : false;
+	var baseZStep = getZStepMeters();
+
+	if (!isAutoZ) {
+		for (var i = 1; i < visibleItems.length; i++) {
+			zHeights[i] = i * baseZStep;
+		}
+	} else {
+		var physCorners = visibleItems.map(function(item) {
+			return get2DPhysicalCorners(item);
+		});
+
+		for (var i = 1; i < visibleItems.length; i++) {
+			var cornersCurr = physCorners[i];
+			var maxOverlappingZ = -1;
+
+			for (var j = 0; j < i; j++) {
+				var cornersPrev = physCorners[j];
+				if (do2DQuadsIntersect(cornersCurr, cornersPrev)) {
+					if (zHeights[j] > maxOverlappingZ) {
+						maxOverlappingZ = zHeights[j];
+					}
+				}
+			}
+
+			if (maxOverlappingZ >= 0) {
+				zHeights[i] = maxOverlappingZ + baseZStep;
+			} else {
+				zHeights[i] = 0;
+			}
+		}
+	}
+	return zHeights;
+}
+
+function getItemZMeters(visIdx, visibleItems, zHeights) {
+	if (visIdx <= 0) return 0;
+	if (zHeights && typeof zHeights[visIdx] !== 'undefined') {
+		return zHeights[visIdx];
+	}
+	var calculatedHeights = getVisibleZHeights(visibleItems);
+	if (calculatedHeights && typeof calculatedHeights[visIdx] !== 'undefined') {
+		return calculatedHeights[visIdx];
+	}
+	var baseZStep = getZStepMeters();
+	return visIdx * baseZStep;
 }
 
 var cachedFoc = { item: null, x: 0, y: 0, z: 0 };
@@ -1086,8 +1262,7 @@ function updateProjectionCache() {
 		var visibleItems = getVisibleItems();
 		var visIdx = visibleItems.findIndex(function(v) { return v.c === focusedItem.c; });
 		if (visIdx < 0) visIdx = 0;
-		var zStepMeters = getZStepMeters();
-		var zMeters = visIdx * zStepMeters;
+		var zMeters = getItemZMeters(visIdx, visibleItems);
 		cachedFoc = { item: focusedItem, x: focusedItem.xo, y: focusedItem.yo, z: zMeters };
 	}
 
@@ -1108,17 +1283,6 @@ function getFocusedItemAndZ() {
 
 // 3D Point Projection: maps physical ground point (x, y) at height zMeters to 2D screen coordinate (sx, sy)
 function project3DPoint(x, y, zMeters) {
-	if (!is3DMode) {
-		var pivot = getPivot();
-		var dx = x - pivot.x;
-		var dy = y - pivot.y;
-		var radRot = -(viewAngle * Math.PI / 180.0);
-		var rotX = pivot.x + (dx * Math.cos(radRot) - dy * Math.sin(radRot));
-		var rotY = pivot.y + (dx * Math.sin(radRot) + dy * Math.cos(radRot));
-		var center = physToScreen(rotX, rotY);
-		return { x: center.x, y: center.y, depth: 0 };
-	}
-
 	var dx = x - cachedFoc.x;
 	var dy = y - cachedFoc.y;
 	var dz = zMeters - cachedFoc.z;
@@ -1135,13 +1299,15 @@ function project3DPoint(x, y, zMeters) {
 }
 
 // Get 4 projected 3D screen corners of an image item
-function get3DQuadCorners(item, visIdx) {
+function get3DQuadCorners(item, visIdx, zMeters) {
+	var visibleItems = getVisibleItems();
 	if (typeof visIdx === 'undefined') {
-		var visibleItems = getVisibleItems();
 		visIdx = visibleItems.findIndex(function(v) { return v.c === item.c; });
 		if (visIdx < 0) visIdx = 0;
 	}
-	var zMeters = visIdx * getZStepMeters();
+	if (typeof zMeters === 'undefined') {
+		zMeters = getItemZMeters(visIdx, visibleItems);
+	}
 	var hw = item.xs / 2;
 	var hh = item.ys / 2;
 	var rad = -(item.ang * Math.PI / 180.0);
@@ -1160,9 +1326,12 @@ function get3DQuadCorners(item, visIdx) {
 	});
 }
 
-function get3DQuadCornersAtZ(item, visIdx, targetVisIdx) {
+function get3DQuadCornersAtZ(item, visIdx, targetVisIdx, zMeters) {
 	if (typeof targetVisIdx === 'undefined') targetVisIdx = visIdx;
-	var zMeters = targetVisIdx * getZStepMeters();
+	if (typeof zMeters === 'undefined') {
+		var visibleItems = getVisibleItems();
+		zMeters = getItemZMeters(targetVisIdx, visibleItems);
+	}
 	var hw = item.xs / 2;
 	var hh = item.ys / 2;
 	var rad = -(item.ang * Math.PI / 180.0);
@@ -1192,6 +1361,61 @@ function isPointInQuad(px, py, quad) {
 		if (hasPos && hasNeg) return false;
 	}
 	return true;
+}
+
+function isPointInQuadPhys(px, py, quad) {
+	var hasPos = false, hasNeg = false;
+	for (var i = 0; i < 4; i++) {
+		var pA = quad[i];
+		var pB = quad[(i + 1) % 4];
+		var cp = (pB.x - pA.x) * (py - pA.y) - (pB.y - pA.y) * (px - pA.x);
+		if (cp > 1e-25) hasPos = true;
+		if (cp < -1e-25) hasNeg = true;
+		if (hasPos && hasNeg) return false;
+	}
+	return true;
+}
+
+function get2DPhysicalCorners(item) {
+	var hw = item.xs / 2;
+	var hh = item.ys / 2;
+	var rad = -(item.ang * Math.PI / 180.0);
+	var localCorners = [
+		{ x: -hw, y: -hh },
+		{ x:  hw, y: -hh },
+		{ x:  hw, y:  hh },
+		{ x: -hw, y:  hh }
+	];
+	return localCorners.map(function(pt) {
+		return {
+			x: item.xo + (pt.x * Math.cos(rad) - pt.y * Math.sin(rad)),
+			y: item.yo + (pt.x * Math.sin(rad) + pt.y * Math.cos(rad))
+		};
+	});
+}
+
+function lineSegmentsIntersect(p1, p2, p3, p4) {
+	function ccw(A, B, C) {
+		return (C.y - A.y) * (B.x - A.x) > (B.y - A.y) * (C.x - A.x);
+	}
+	return (ccw(p1, p3, p4) !== ccw(p2, p3, p4)) && (ccw(p1, p2, p3) !== ccw(p1, p2, p4));
+}
+
+function do2DQuadsIntersect(cornersA, cornersB) {
+	for (var i = 0; i < 4; i++) {
+		if (isPointInQuadPhys(cornersA[i].x, cornersA[i].y, cornersB)) return true;
+	}
+	for (var j = 0; j < 4; j++) {
+		if (isPointInQuadPhys(cornersB[j].x, cornersB[j].y, cornersA)) return true;
+	}
+	for (var k = 0; k < 4; k++) {
+		var a1 = cornersA[k], a2 = cornersA[(k + 1) % 4];
+		for (var l = 0; l < 4; l++) {
+			var b1 = cornersB[l], b2 = cornersB[(l + 1) % 4];
+			if (lineSegmentsIntersect(a1, a2, b1, b2)) return true;
+		}
+	}
+	return false;
 }
 
 // Aggregate multiple STS file names into bracketed range format (e.g. AALS-PL-hanging4000[02-23].dat)
@@ -1431,17 +1655,8 @@ function getPivot() {
 // Pan viewport by screen pixel deltas (mouseDx, mouseDy) accounting for view angle rotation
 function panScreen(mouseDx, mouseDy) {
 	stopAnimation();
-	if (is3DMode) {
-		panX += mouseDx;
-		panY += mouseDy;
-	} else {
-		var radRot = viewAngle * Math.PI / 180.0;
-		var dPanX = mouseDx * Math.cos(radRot) + mouseDy * Math.sin(radRot);
-		var dPanY = -mouseDx * Math.sin(radRot) + mouseDy * Math.cos(radRot);
-		panX += dPanX;
-		panY += dPanY;
-		clampPan();
-	}
+	panX += mouseDx;
+	panY += mouseDy;
 	requestDraw();
 }
 
@@ -1792,44 +2007,7 @@ function applyZoom(targetScale, pivotX, pivotY) {
 }
 
 function clampPan() {
-	if (is3DMode) return;
-	updateMinZoomScale();
-	var maxScale = getMaxZoomScale();
-	var cw = viewport.clientWidth;
-	var ch = viewport.clientHeight;
-	if (cw <= 0 || ch <= 0) return;
-
-	// Clamp zoomScale to allowed fit range
-	zoomScale = Math.max(minZoomScale, Math.min(maxScale, zoomScale));
-
-	var meta = getDatasetCentroidAndExtents();
-	if (!meta) return;
-
-	// Compute screen coordinates of dataset centroid under current viewAngle
-	var pivot = getPivot();
-	var dx = meta.meanX - pivot.x;
-	var dy = meta.meanY - pivot.y;
-	var radRot = -(viewAngle * Math.PI / 180.0);
-	var rotDx = dx * Math.cos(radRot) - dy * Math.sin(radRot);
-	var rotDy = dx * Math.sin(radRot) + dy * Math.cos(radRot);
-
-	var smX = cw / 2 + rotDx * zoomScale;
-	var smY = ch / 2 - rotDy * zoomScale;
-
-	var extentX = meta.maxDx * zoomScale;
-	var extentY = meta.maxDy * zoomScale;
-
-	// Keep dataset bounding box within screen viewport margins
-	var minSmX = -extentX - cw * 0.4;
-	var maxSmX = extentX + cw * 1.4;
-	var minSmY = -extentY - ch * 0.4;
-	var maxSmY = extentY + ch * 1.4;
-
-	var clampedSmX = Math.max(minSmX, Math.min(maxSmX, smX));
-	var clampedSmY = Math.max(minSmY, Math.min(maxSmY, smY));
-
-	panX += (clampedSmX - smX);
-	panY += (clampedSmY - smY);
+	// Pan clamping is unconstrained in 3D Isometric View
 }
 
 function resizeCanvas() {
@@ -1868,60 +2046,22 @@ function centerOnActiveImage(animate, preserveZoom) {
 	var targetZoom = zoomScale;
 
 	if (!preserveZoom) {
-		if (is3DMode) {
-			var pitchRad = pitch3D * Math.PI / 180.0;
-			var activeW = activeItem.xs;
-			var activeH = activeItem.ys * Math.sin(pitchRad);
-			if (activeW <= 0) activeW = 1e-7;
-			if (activeH <= 0) activeH = 1e-7;
+		var pitchRad = pitch3D * Math.PI / 180.0;
+		var activeW = activeItem.xs;
+		var activeH = activeItem.ys * Math.sin(pitchRad);
+		if (activeW <= 0) activeW = 1e-7;
+		if (activeH <= 0) activeH = 1e-7;
 
-			var scaleX = (0.5 * cw) / activeW;
-			var scaleY = (0.5 * ch) / activeH;
-			var fitActiveScale = Math.min(scaleX, scaleY);
-			targetZoom = Math.max(minZoomScale, Math.min(maxScale, fitActiveScale));
-		} else {
-			// Calculate net rotation angle of active item on screen
-			var netAngle = activeItem.ang - viewAngle;
-			var rad = netAngle * Math.PI / 180.0;
-
-			// Calculate oriented bounding box dimensions of active item on screen
-			var activeW = Math.abs(activeItem.xs * Math.cos(rad)) + Math.abs(activeItem.ys * Math.sin(rad));
-			var activeH = Math.abs(activeItem.xs * Math.sin(rad)) + Math.abs(activeItem.ys * Math.cos(rad));
-			if (activeW <= 0) activeW = 1e-7;
-			if (activeH <= 0) activeH = 1e-7;
-
-			// Scale active image such that width/height does not surpass 50% of screen dimensions
-			var scaleX = (0.5 * cw) / activeW;
-			var scaleY = (0.5 * ch) / activeH;
-			var fitActiveScale = Math.min(scaleX, scaleY);
-
-			// Limit between minZoomScale and maxScale
-			targetZoom = Math.max(minZoomScale, Math.min(maxScale, fitActiveScale));
-		}
+		var scaleX = (0.5 * cw) / activeW;
+		var scaleY = (0.5 * ch) / activeH;
+		var fitActiveScale = Math.min(scaleX, scaleY);
+		targetZoom = Math.max(minZoomScale, Math.min(maxScale, fitActiveScale));
 	} else {
 		targetZoom = Math.max(minZoomScale, Math.min(maxScale, zoomScale));
 	}
 
-	if (is3DMode) {
-		var targetPanX = cw / 2;
-		var targetPanY = ch / 2;
-
-		if (animate) {
-			animateViewTo(targetPanX, targetPanY, targetZoom, viewAngle);
-		} else {
-			stopAnimation();
-			zoomScale = targetZoom;
-			panX = targetPanX;
-			panY = targetPanY;
-			saveSpatialViewState();
-			requestDraw();
-		}
-		return;
-	}
-
-	// Target pan offsets to center active image in viewport
-	var targetPanX = cw / 2 - activeItem.xo * targetZoom;
-	var targetPanY = ch / 2 + activeItem.yo * targetZoom;
+	var targetPanX = cw / 2;
+	var targetPanY = ch / 2;
 
 	if (animate) {
 		animateViewTo(targetPanX, targetPanY, targetZoom, viewAngle);
@@ -1930,7 +2070,6 @@ function centerOnActiveImage(animate, preserveZoom) {
 		zoomScale = targetZoom;
 		panX = targetPanX;
 		panY = targetPanY;
-		clampPan();
 		saveSpatialViewState();
 		requestDraw();
 	}
@@ -1948,57 +2087,35 @@ function fitView(animate) {
 	updateMinZoomScale();
 	var maxScale = getMaxZoomScale();
 
-	if (is3DMode) {
-		var foc = getFocusedItemAndZ();
-		var visibleItems = getVisibleItems();
-		var zStepMeters = getZStepMeters();
-		var count = visibleItems.length;
-		var visibleZSpan = count > 1 ? (count - 1) * zStepMeters : 0;
-		var zMid = count > 0 ? ((count - 1) / 2) * zStepMeters : 0;
-		var pitchRad = pitch3D * Math.PI / 180.0;
+	var foc = getFocusedItemAndZ();
+	var visibleItems = getVisibleItems();
+	var count = visibleItems.length;
+	var maxZMeters = getItemZMeters(count > 0 ? count - 1 : 0, visibleItems);
+	var minZMeters = getItemZMeters(0, visibleItems);
+	var visibleZSpan = count > 1 ? (maxZMeters - minZMeters) : 0;
+	var zMid = count > 0 ? ((maxZMeters + minZMeters) / 2) : 0;
+	var pitchRad = pitch3D * Math.PI / 180.0;
 
-		var spanX = meta.maxDx * 2;
-		var spanY = (meta.maxDy * 2) * Math.sin(pitchRad) + visibleZSpan * Math.cos(pitchRad);
-		if (spanX <= 0) spanX = 1e-7;
-		if (spanY <= 0) spanY = 1e-7;
+	var spanX = meta.maxDx * 2;
+	var spanY = (meta.maxDy * 2) * Math.sin(pitchRad) + visibleZSpan * Math.cos(pitchRad);
+	if (spanX <= 0) spanX = 1e-7;
+	if (spanY <= 0) spanY = 1e-7;
 
-		var scaleX = (cw * 0.75) / spanX;
-		var scaleY = (ch * 0.75) / spanY;
-		var fitScale = Math.min(scaleX, scaleY);
-		var targetZoom = Math.max(minZoomScale, Math.min(maxScale, fitScale));
-
-		var dx = meta.meanX - foc.x;
-		var dy = meta.meanY - foc.y;
-		var dz = zMid - foc.z;
-
-		var totalYawRad = -viewAngle * Math.PI / 180.0;
-		var rotX = dx * Math.cos(totalYawRad) - dy * Math.sin(totalYawRad);
-		var rotY = dx * Math.sin(totalYawRad) + dy * Math.cos(totalYawRad);
-
-		var targetPanX = cw / 2 - rotX * targetZoom;
-		var targetPanY = ch / 2 + (rotY * Math.sin(pitchRad) + dz * Math.cos(pitchRad)) * targetZoom;
-
-		if (animate) {
-			animateViewTo(targetPanX, targetPanY, targetZoom, viewAngle);
-		} else {
-			stopAnimation();
-			zoomScale = targetZoom;
-			panX = targetPanX;
-			panY = targetPanY;
-			requestDraw();
-		}
-		return;
-	}
-
-	// Scale to fit 90% of screen dimensions (45% half-extent)
-	var scaleX = (cw * 0.45) / meta.maxDx;
-	var scaleY = (ch * 0.45) / meta.maxDy;
+	var scaleX = (cw * 0.75) / spanX;
+	var scaleY = (ch * 0.75) / spanY;
 	var fitScale = Math.min(scaleX, scaleY);
 	var targetZoom = Math.max(minZoomScale, Math.min(maxScale, fitScale));
 
-	// Target pan offsets to bring centroid (meanX, meanY) to the center of the viewport
-	var targetPanX = cw / 2 - meta.meanX * targetZoom;
-	var targetPanY = ch / 2 + meta.meanY * targetZoom;
+	var dx = meta.meanX - foc.x;
+	var dy = meta.meanY - foc.y;
+	var dz = zMid - foc.z;
+
+	var totalYawRad = -viewAngle * Math.PI / 180.0;
+	var rotX = dx * Math.cos(totalYawRad) - dy * Math.sin(totalYawRad);
+	var rotY = dx * Math.sin(totalYawRad) + dy * Math.cos(totalYawRad);
+
+	var targetPanX = cw / 2 - rotX * targetZoom;
+	var targetPanY = ch / 2 + (rotY * Math.sin(pitchRad) + dz * Math.cos(pitchRad)) * targetZoom;
 
 	if (animate) {
 		animateViewTo(targetPanX, targetPanY, targetZoom, viewAngle);
@@ -2007,7 +2124,6 @@ function fitView(animate) {
 		zoomScale = targetZoom;
 		panX = targetPanX;
 		panY = targetPanY;
-		clampPan();
 		requestDraw();
 	}
 }
@@ -2137,9 +2253,33 @@ function stepTime(type, dir) {
 	onTimeSliderChange();
 }
 
+function onMaxVisibleImagesChange() {
+	var maxInput = document.getElementById('gvMaxVisibleImages');
+	var maxValSpan = document.getElementById('gvMaxVisibleVal');
+	if (!maxInput) return;
+	maxVisibleImages = parseInt(maxInput.value, 10);
+	if (maxValSpan) maxValSpan.textContent = maxVisibleImages;
+
+	saveSpatialViewState();
+
+	if (timeMaxInput && timeMinInput) {
+		var fMax = parseInt(timeMaxInput.value, 10);
+		var allowedMin = Math.max(0, fMax - (maxVisibleImages - 1));
+		timeMinInput.value = allowedMin;
+	}
+	onTimeSliderChange();
+}
+
 function onTimeSliderChange() {
 	fileMin = parseInt(timeMinInput.value, 10);
 	fileMax = parseInt(timeMaxInput.value, 10);
+
+	if (document.activeElement === timeMaxInput || document.activeElement !== timeMinInput) {
+		if (fileMax - fileMin + 1 > maxVisibleImages) {
+			fileMin = Math.max(0, fileMax - (maxVisibleImages - 1));
+			timeMinInput.value = fileMin;
+		}
+	}
 
 	if (fileMin > fileMax) {
 		if (document.activeElement === timeMinInput) {
@@ -2207,12 +2347,7 @@ function onTimeSliderChange() {
 function onRotChange() {
 	stopAnimation();
 	var newAngle = parseInt(document.getElementById('gvRot').value, 10);
-	if (is3DMode) {
-		update3DOrientation(newAngle, pitch3D);
-	} else {
-		viewAngle = newAngle;
-		saveSpatialViewState();
-	}
+	update3DOrientation(newAngle, pitch3D);
 	document.getElementById('gvRotVal').textContent = viewAngle + '°';
 	requestDraw();
 }
@@ -2264,6 +2399,63 @@ function requestDraw() {
 	}
 }
 
+function buildItemsWith3D(visibleItems) {
+	if (!visibleItems || visibleItems.length === 0) return [];
+	var zHeights = getVisibleZHeights(visibleItems);
+	var showSTS = document.getElementById('gvShowSTS') ? document.getElementById('gvShowSTS').checked : false;
+
+	return visibleItems.map(function(item, visIdx) {
+		var zM = zHeights[visIdx];
+		var quad = get3DQuadCorners(item, visIdx, zM);
+
+		var quadMinX = Math.min(quad[0].x, quad[1].x, quad[2].x, quad[3].x);
+		var quadMaxX = Math.max(quad[0].x, quad[1].x, quad[2].x, quad[3].x);
+		var quadMinY = Math.min(quad[0].y, quad[1].y, quad[2].y, quad[3].y);
+		var quadMaxY = Math.max(quad[0].y, quad[1].y, quad[2].y, quad[3].y);
+
+		var totalMinX = quadMinX;
+		var totalMaxX = quadMaxX;
+		var totalMinY = quadMinY;
+		var totalMaxY = quadMaxY;
+
+		if (showSTS && item.sts_points && item.sts_points.length > 0) {
+			var radScan = -(item.ang * Math.PI / 180.0);
+			var cosRad = Math.cos(radScan);
+			var sinRad = Math.sin(radScan);
+			item.sts_points.forEach(function(pt) {
+				var dimX = (item.ys > 0 && item.xs > 0) ? (pt.dim * (item.xs / item.ys)) : pt.dim;
+				if (!dimX || dimX <= 0) dimX = 1;
+				var lx = (pt.px_x / dimX - 0.5) * item.xs;
+				var ly = (pt.px_y / pt.dim - 0.5) * item.ys;
+				var gx = item.xo + (lx * cosRad - ly * sinRad);
+				var gy = item.yo + (lx * sinRad + ly * cosRad);
+				var ptProj = project3DPoint(gx, gy, zM);
+				if (ptProj.x < totalMinX) totalMinX = ptProj.x;
+				if (ptProj.x > totalMaxX) totalMaxX = ptProj.x;
+				if (ptProj.y < totalMinY) totalMinY = ptProj.y;
+				if (ptProj.y > totalMaxY) totalMaxY = ptProj.y;
+			});
+		}
+
+		var avgDepth = (quad[0].depth + quad[1].depth + quad[2].depth + quad[3].depth) / 4;
+		return {
+			item: item,
+			visIdx: visIdx,
+			zMeters: zM,
+			quad: quad,
+			quadMinX: quadMinX,
+			quadMaxX: quadMaxX,
+			quadMinY: quadMinY,
+			quadMaxY: quadMaxY,
+			minX: totalMinX,
+			maxX: totalMaxX,
+			minY: totalMinY,
+			maxY: totalMaxY,
+			depth: avgDepth
+		};
+	});
+}
+
 function drawScene() {
 	updateProjectionCache();
 	updateZoomSliderReadout();
@@ -2287,287 +2479,77 @@ function drawScene() {
 	var radRot = -(viewAngle * Math.PI / 180.0);
 	var visibleItems = getVisibleItems();
 
-	if (is3DMode) {
-		// 3D Isometric View Rendering
-		var zStepMeters = getZStepMeters();
-		var itemsWith3D = visibleItems.map(function(item, visIdx) {
-			var quad = get3DQuadCorners(item, visIdx);
-			var avgDepth = (quad[0].depth + quad[1].depth + quad[2].depth + quad[3].depth) / 4;
-			return { item: item, visIdx: visIdx, quad: quad, depth: avgDepth };
-		});
+	// 3D Isometric View Rendering
+	var itemsWith3D = buildItemsWith3D(visibleItems);
 
-		// Sort ascending by visible stack index (older drawn first, newer drawn on top)
-		itemsWith3D.sort(function(a, b) {
-			if (a.visIdx !== b.visIdx) {
-				return a.visIdx - b.visIdx;
-			}
-			return a.depth - b.depth;
-		});
-
-		// Draw 3D Time Sequence Connector Lines between consecutive scans in visible order
-		var showCenterLine = document.getElementById('gvShowCenterLine') ? document.getElementById('gvShowCenterLine').checked : true;
-		if (showCenterLine && visibleItems.length > 1) {
-			ctx.save();
-			ctx.strokeStyle = 'rgba(160, 160, 160, 0.6)';
-			ctx.lineWidth = 1.5;
-			ctx.setLineDash([4, 4]);
-			ctx.beginPath();
-			for (var i = 0; i < visibleItems.length - 1; i++) {
-				var itA = visibleItems[i];
-				var itB = visibleItems[i + 1];
-				var zA = i * zStepMeters;
-				var zB = (i + 1) * zStepMeters;
-				var ptA = project3DPoint(itA.xo, itA.yo, zA);
-				var ptB = project3DPoint(itB.xo, itB.yo, zB);
-				ctx.moveTo(ptA.x, ptA.y);
-				ctx.lineTo(ptB.x, ptB.y);
-			}
-			ctx.stroke();
-			ctx.restore();
+	// Sort ascending by visible stack index (older drawn first, newer drawn on top)
+	itemsWith3D.sort(function(a, b) {
+		if (a.visIdx !== b.visIdx) {
+			return a.visIdx - b.visIdx;
 		}
+		return a.depth - b.depth;
+	});
+	lastRenderedItemsWith3D = itemsWith3D;
 
-		// Render items in 3D camera depth order
-		itemsWith3D.forEach(function(entry) {
-			var item = entry.item;
-			var quad = entry.quad;
-			var P0 = quad[0], P1 = quad[1], P2 = quad[2], P3 = quad[3];
-
-			var minX = Math.min(P0.x, P1.x, P2.x, P3.x);
-			var maxX = Math.max(P0.x, P1.x, P2.x, P3.x);
-			var minY = Math.min(P0.y, P1.y, P2.y, P3.y);
-			var maxY = Math.max(P0.y, P1.y, P2.y, P3.y);
-			if (maxX < 0 || minX > cw || maxY < 0 || minY > ch) {
-				return;
-			}
-
-			var wPx = item.xs * zoomScale;
-			var hPx = item.ys * zoomScale;
-			var imgObj = loadedImages[item.c];
-
-			ctx.save();
-			var a = (P1.x - P0.x) / wPx;
-			var b = (P1.y - P0.y) / wPx;
-			var c = (P3.x - P0.x) / hPx;
-			var d = (P3.y - P0.y) / hPx;
-			var e = P0.x;
-			var f = P0.y;
-
-			ctx.transform(a, b, c, d, e, f);
-			if (imgObj && imgObj.complete && imgObj.naturalWidth !== 0) {
-				ctx.imageSmoothingEnabled = false;
-				ctx.mozImageSmoothingEnabled = false;
-				ctx.webkitImageSmoothingEnabled = false;
-				ctx.msImageSmoothingEnabled = false;
-				ctx.globalAlpha = alpha;
-				ctx.save();
-				ctx.scale(1, -1);
-				ctx.drawImage(imgObj, 0, -hPx, wPx, hPx);
-				ctx.restore();
-			}
-			ctx.restore();
-
-			ctx.save();
-			ctx.imageSmoothingEnabled = true;
-			ctx.mozImageSmoothingEnabled = true;
-			ctx.webkitImageSmoothingEnabled = true;
-			ctx.msImageSmoothingEnabled = true;
-
-			// Draw 3D bounding parallelogram
-			ctx.lineWidth = 1;
-			ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-			ctx.beginPath();
-			ctx.moveTo(P0.x, P0.y);
-			ctx.lineTo(P1.x, P1.y);
-			ctx.lineTo(P2.x, P2.y);
-			ctx.lineTo(P3.x, P3.y);
-			ctx.closePath();
-			ctx.stroke();
-
-			if (showLabels) {
-				var corners = [P0, P1, P2, P3];
-				var leftmost = corners[0];
-				for (var k = 1; k < 4; k++) {
-					if (corners[k].x < leftmost.x) {
-						leftmost = corners[k];
-					}
-				}
-
-				ctx.save();
-				ctx.font = 'bold 12px monospace';
-				var txt = item.bi || '';
-				var txtW = ctx.measureText(txt).width;
-				var padX = 4;
-				var badgeH = 16;
-				var badgeW = txtW + padX * 2;
-				var connLen = 10;
-
-				var bx = leftmost.x - connLen - badgeW;
-				var by = leftmost.y - badgeH / 2;
-
-				// Short horizontal connector line from image's leftmost corner to badge box
-				ctx.strokeStyle = '#00ff41';
-				ctx.lineWidth = 1;
-				ctx.beginPath();
-				ctx.moveTo(leftmost.x, leftmost.y);
-				ctx.lineTo(leftmost.x - connLen, leftmost.y);
-				ctx.stroke();
-
-				// Black semitransparent background badge
-				ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-				ctx.fillRect(bx, by, badgeW, badgeH);
-
-				// Bold Green Text (#00ff41)
-				ctx.fillStyle = '#00ff41';
-				ctx.textAlign = 'left';
-				ctx.textBaseline = 'middle';
-				ctx.fillText(txt, bx + padX, leftmost.y);
-				ctx.restore();
-			}
-
-			if (showSTS && item.sts_points && item.sts_points.length > 0) {
-				var zMeters = entry.visIdx * zStepMeters;
-				item.sts_points.forEach(function(pt) {
-					var lx = (pt.px_x / pt.dim - 0.5) * item.xs;
-					var ly = (pt.px_y / pt.dim - 0.5) * item.ys;
-					var rad = -(item.ang * Math.PI / 180.0);
-					var gx = item.xo + (lx * Math.cos(rad) - ly * Math.sin(rad));
-					var gy = item.yo + (lx * Math.sin(rad) + ly * Math.cos(rad));
-					var ptProj = project3DPoint(gx, gy, zMeters);
-
-					var armPx = Math.max(2.5, 0.1e-9 * zoomScale);
-					ctx.save();
-					var isHovered = hoveredSTSPts.some(function(h) { return h.item === item && h.graph === pt.graph; });
-					if (isHovered) {
-						ctx.strokeStyle = '#0ff';
-						ctx.lineWidth = 2.0;
-					} else {
-						ctx.strokeStyle = '#0f0';
-						ctx.lineWidth = 1.5;
-					}
-
-					ctx.beginPath();
-					ctx.moveTo(ptProj.x - armPx, ptProj.y);
-					ctx.lineTo(ptProj.x + armPx, ptProj.y);
-					ctx.moveTo(ptProj.x, ptProj.y - armPx);
-					ctx.lineTo(ptProj.x, ptProj.y + armPx);
-					ctx.stroke();
-
-					if (isHovered) {
-						ctx.strokeStyle = '#0ff';
-						ctx.lineWidth = 1.5;
-						ctx.beginPath();
-						ctx.arc(ptProj.x, ptProj.y, armPx + 3, 0, Math.PI * 2);
-						ctx.stroke();
-					}
-					ctx.restore();
-				});
-			}
-			ctx.restore();
-		});
-
-		// Draw 3D Frame Projections onto underlying image planes with realistic camera depth obscuration
-		var showProjFrame = document.getElementById('gvShowProjFrame') ? document.getElementById('gvShowProjFrame').checked : false;
-		if (showProjFrame && visibleItems.length > 1) {
-			for (var i = 1; i < visibleItems.length; i++) {
-				var itemTop = visibleItems[i];
-				var visIdxTop = i;
-				var visIdxUnder = i - 1;
-
-				var qTop = get3DQuadCornersAtZ(itemTop, visIdxTop, visIdxTop);
-				var qUnder = get3DQuadCornersAtZ(itemTop, visIdxTop, visIdxUnder);
-
-				var higherThanTop = itemsWith3D.filter(function(e) { return e.visIdx > visIdxTop; });
-				var higherThanUnder = itemsWith3D.filter(function(e) { return e.visIdx > visIdxUnder; });
-
-				var solidProjColor = 'rgba(180, 180, 180, 0.9)';
-				var faintProjColor = 'rgba(100, 100, 100, 0.25)';
-				var dashDropColor  = 'rgba(170, 170, 170, 0.75)';
-
-				// 1. Connecting vertical corner drop lines (dashed gray when unobscured, faint dashed gray when obscured)
-				for (var k = 0; k < 4; k++) {
-					drawObscurableEdge(qTop[k], qUnder[k], visIdxTop, higherThanTop, dashDropColor, faintProjColor, 12, true);
-				}
-
-				// 2. Projected 4-corner bounding frame on underlying image plane (solid gray when unobscured, faint dashed gray when obscured)
-				drawObscurableEdge(qUnder[0], qUnder[1], visIdxUnder, higherThanUnder, solidProjColor, faintProjColor, 12, false);
-				drawObscurableEdge(qUnder[1], qUnder[2], visIdxUnder, higherThanUnder, solidProjColor, faintProjColor, 12, false);
-				drawObscurableEdge(qUnder[2], qUnder[3], visIdxUnder, higherThanUnder, solidProjColor, faintProjColor, 12, false);
-				drawObscurableEdge(qUnder[3], qUnder[0], visIdxUnder, higherThanUnder, solidProjColor, faintProjColor, 12, false);
-			}
+	// Draw 3D Time Sequence Connector Lines between consecutive scans in visible order
+	var showCenterLine = document.getElementById('gvShowCenterLine') ? document.getElementById('gvShowCenterLine').checked : true;
+	if (showCenterLine && visibleItems.length > 1) {
+		var zHeights = getVisibleZHeights(visibleItems);
+		ctx.save();
+		ctx.strokeStyle = 'rgba(160, 160, 160, 0.6)';
+		ctx.lineWidth = 1.5;
+		ctx.setLineDash([4, 4]);
+		ctx.beginPath();
+		for (var i = 0; i < visibleItems.length - 1; i++) {
+			var itA = visibleItems[i];
+			var itB = visibleItems[i + 1];
+			var zA = zHeights[i];
+			var zB = zHeights[i + 1];
+			var ptA = project3DPoint(itA.xo, itA.yo, zA);
+			var ptB = project3DPoint(itB.xo, itB.yo, zB);
+			ctx.moveTo(ptA.x, ptA.y);
+			ctx.lineTo(ptB.x, ptB.y);
 		}
-
-		// Draw Active (Yellow #ff0), Focus (Turquoise #0ff), and Hovered (Light Gray #ccc) Frames with 3D Depth Obscuration
-		var qvudEntry = itemsWith3D.find(function(e) { return e.item.c === qvudIndex; });
-		var focusEntry = itemsWith3D.find(function(e) { return e.item.c === focusedIndex; });
-		var hoverEntry = (hoveredImg && !isLeftClickPanning) ? itemsWith3D.find(function(e) { return e.item === hoveredImg; }) : null;
-
-		if (qvudEntry) {
-			drawObscurableFrame(
-				qvudEntry.quad,
-				qvudEntry.visIdx,
-				itemsWith3D,
-				'#ff0',
-				'rgba(255, 255, 0, 0.45)',
-				0
-			);
-		}
-
-		if (focusEntry) {
-			var inset = (qvudIndex === focusedIndex) ? 2.5 : 0;
-			drawObscurableFrame(
-				focusEntry.quad,
-				focusEntry.visIdx,
-				itemsWith3D,
-				'#0ff',
-				'rgba(0, 255, 255, 0.45)',
-				inset
-			);
-		}
-
-		if (hoverEntry && hoverEntry.item.c !== focusedIndex) {
-			var hoverInset = (hoverEntry.item.c === qvudIndex) ? 2.5 : 0;
-			drawObscurableFrame(
-				hoverEntry.quad,
-				hoverEntry.visIdx,
-				itemsWith3D,
-				'#ccc',
-				'rgba(204, 204, 204, 0.45)',
-				hoverInset
-			);
-		}
-
-		drawScaleBar(cssW, cssH);
+		ctx.stroke();
 		ctx.restore();
-		return;
 	}
 
-	// Render scan image thumbnails and their associated STS locations in Z-buffer order (2D View)
-	visibleItems.forEach(function(item) {
-		var dx = item.xo - pivot.x;
-		var dy = item.yo - pivot.y;
-		var rotX = pivot.x + (dx * Math.cos(radRot) - dy * Math.sin(radRot));
-		var rotY = pivot.y + (dx * Math.sin(radRot) + dy * Math.cos(radRot));
+	// Render items in 3D camera depth order
+	itemsWith3D.forEach(function(entry) {
+		var item = entry.item;
+		var quad = entry.quad;
+		var P0 = quad[0], P1 = quad[1], P2 = quad[2], P3 = quad[3];
 
-		var center = physToScreen(rotX, rotY);
+		var minX = entry.minX;
+		var maxX = entry.maxX;
+		var minY = entry.minY;
+		var maxY = entry.maxY;
+		if (maxX < 0 || minX > cw || maxY < 0 || minY > ch) {
+			return;
+		}
+
 		var wPx = item.xs * zoomScale;
 		var hPx = item.ys * zoomScale;
-		var netAngle = item.ang - viewAngle;
-		var rad = -(netAngle * Math.PI / 180.0);
-
-		// Viewport Culling: Skip offscreen images to maximize performance
-		var maxBoundingDim = Math.hypot(wPx, hPx);
-		if (center.x + maxBoundingDim / 2 < 0 || center.x - maxBoundingDim / 2 > cw ||
-			center.y + maxBoundingDim / 2 < 0 || center.y - maxBoundingDim / 2 > ch) {
+		if (wPx <= 1e-6 || hPx <= 1e-6 || !isFinite(wPx) || !isFinite(hPx)) {
 			return;
 		}
 
 		var imgObj = loadedImages[item.c];
 
 		ctx.save();
-		ctx.translate(center.x, center.y);
-		ctx.rotate(rad);
+		var a = (P1.x - P0.x) / wPx;
+		var b = (P1.y - P0.y) / wPx;
+		var c = (P3.x - P0.x) / hPx;
+		var d = (P3.y - P0.y) / hPx;
+		var e = P0.x;
+		var f = P0.y;
 
-		// Draw crisp image thumbnail with nearest-neighbor scaling
+		if (!isFinite(a) || !isFinite(b) || !isFinite(c) || !isFinite(d) || !isFinite(e) || !isFinite(f)) {
+			ctx.restore();
+			return;
+		}
+
+		ctx.transform(a, b, c, d, e, f);
 		if (imgObj && imgObj.complete && imgObj.naturalWidth !== 0) {
 			ctx.imageSmoothingEnabled = false;
 			ctx.mozImageSmoothingEnabled = false;
@@ -2576,86 +2558,282 @@ function drawScene() {
 			ctx.globalAlpha = alpha;
 			ctx.save();
 			ctx.scale(1, -1);
-			ctx.drawImage(imgObj, -wPx / 2, -hPx / 2, wPx, hPx);
+			ctx.drawImage(imgObj, 0, -hPx, wPx, hPx);
 			ctx.restore();
 		}
+		ctx.restore();
 
-		// Re-enable smooth vector antialiasing for borders, text labels & STS crosshairs
+		ctx.save();
 		ctx.imageSmoothingEnabled = true;
 		ctx.mozImageSmoothingEnabled = true;
 		ctx.webkitImageSmoothingEnabled = true;
 		ctx.msImageSmoothingEnabled = true;
 
-		// Draw subtle bounding border around each scan tile
+		// Draw 3D bounding parallelogram
 		ctx.lineWidth = 1;
 		ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-		ctx.strokeRect(-wPx / 2, -hPx / 2, wPx, hPx);
+		ctx.beginPath();
+		ctx.moveTo(P0.x, P0.y);
+		ctx.lineTo(P1.x, P1.y);
+		ctx.lineTo(P2.x, P2.y);
+		ctx.lineTo(P3.x, P3.y);
+		ctx.closePath();
+		ctx.stroke();
 
-		// Active Image in Analysis frame border (Yellow #ff0)
-		if (item.c === activeIndex) {
-			ctx.lineWidth = 2;
-			ctx.strokeStyle = '#ff0';
-			ctx.strokeRect(-wPx / 2, -hPx / 2, wPx, hPx);
-		}
+		if (showLabels) {
+			var corners = [P0, P1, P2, P3];
+			var leftmost = corners[0];
+			for (var k = 1; k < 4; k++) {
+				if (corners[k].x < leftmost.x) {
+					leftmost = corners[k];
+				}
+			}
 
-		// Highlight Frame Border ONLY on hovered item (Light Gray #ccc)
-		if (item === hoveredImg) {
-			ctx.lineWidth = 2;
-			ctx.strokeStyle = '#ccc';
-			ctx.strokeRect(-wPx / 2, -hPx / 2, wPx, hPx);
-		}
+			ctx.save();
+			ctx.font = 'bold 12px monospace';
+			var txt = item.bi || '';
+			var txtW = ctx.measureText(txt).width;
+			var padX = 4;
+			var badgeH = 16;
+			var badgeW = txtW + padX * 2;
+			var connLen = 10;
 
-		// Optional Label in Soylent Green (#00ff41) with vector antialiasing
-		if (showLabels && wPx > 15) {
+			var bx = leftmost.x - connLen - badgeW;
+			var by = leftmost.y - badgeH / 2;
+
+			// Short horizontal connector line from image's leftmost corner to badge box
+			ctx.strokeStyle = '#00ff41';
+			ctx.lineWidth = 1;
+			ctx.beginPath();
+			ctx.moveTo(leftmost.x, leftmost.y);
+			ctx.lineTo(leftmost.x - connLen, leftmost.y);
+			ctx.stroke();
+
+			// Black semitransparent background badge
+			ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+			ctx.fillRect(bx, by, badgeW, badgeH);
+
+			// Bold Green Text (#00ff41)
 			ctx.fillStyle = '#00ff41';
-			ctx.font = '12px monospace';
-			ctx.textAlign = 'center';
-			ctx.fillText(item.bi, 0, -hPx / 2 - 4);
+			ctx.textAlign = 'left';
+			ctx.textBaseline = 'middle';
+			ctx.fillText(txt, bx + padX, leftmost.y);
+			ctx.restore();
 		}
 
-		// STS Crosshairs rendered directly on top of this image in Z-buffer sequence
 		if (showSTS && item.sts_points && item.sts_points.length > 0) {
+			var zMeters = entry.zMeters;
+			var armMeters = Math.max(0.075e-9, 1.875 / zoomScale);
+
+			// Pre-compute 2D screen arm offset vectors for this item tile
+			var radScan = -(item.ang * Math.PI / 180.0);
+			var cosRad = Math.cos(radScan);
+			var sinRad = Math.sin(radScan);
+
+			// Physical X arm vector: (-armMeters * cosRad, -armMeters * sinRad)
+			var vx_x = -armMeters * cosRad;
+			var vx_y = -armMeters * sinRad;
+			var rotVx_X = vx_x * cachedTrig.cosYaw - vx_y * cachedTrig.sinYaw;
+			var rotVx_Y = vx_x * cachedTrig.sinYaw + vx_y * cachedTrig.cosYaw;
+			var armScreenX_X = rotVx_X * zoomScale;
+			var armScreenY_X = -rotVx_Y * cachedTrig.sinPitch * zoomScale;
+
+			// Physical Y arm vector: (armMeters * sinRad, -armMeters * cosRad)
+			var vy_x = armMeters * sinRad;
+			var vy_y = -armMeters * cosRad;
+			var rotVy_X = vy_x * cachedTrig.cosYaw - vy_y * cachedTrig.sinYaw;
+			var rotVy_Y = vy_x * cachedTrig.sinYaw + vy_y * cachedTrig.cosYaw;
+			var armScreenX_Y = rotVy_X * zoomScale;
+			var armScreenY_Y = -rotVy_Y * cachedTrig.sinPitch * zoomScale;
+
+			var hoveredGraphSet = (hoveredSTSPts.length > 0) ? new Set(hoveredSTSPts.map(function(h) { return h.graph; })) : null;
+
+			ctx.save();
+
+			// 1. High-Contrast Black Rim Outline Pass
+			ctx.lineWidth = 3.5;
+			ctx.strokeStyle = '#000000';
+			ctx.beginPath();
 			item.sts_points.forEach(function(pt) {
-				var lx = (pt.px_x / pt.dim - 0.5) * wPx;
-				var ly = (pt.px_y / pt.dim - 0.5) * hPx;
-				var armPx = Math.max(2.5, 0.1e-9 * zoomScale);
+				var dimX = (item.ys > 0 && item.xs > 0) ? (pt.dim * (item.xs / item.ys)) : pt.dim;
+				if (!dimX || dimX <= 0) dimX = 1;
+				var lx = (pt.px_x / dimX - 0.5) * item.xs;
+				var ly = (pt.px_y / pt.dim - 0.5) * item.ys;
+				var gx = item.xo + (lx * cosRad - ly * sinRad);
+				var gy = item.yo + (lx * sinRad + ly * cosRad);
 
-				ctx.save();
-				var isHovered = hoveredSTSPts.some(function(h) { return h.item === item && h.graph === pt.graph; });
-				if (isHovered) {
-					ctx.strokeStyle = '#0ff'; // Cyan highlight for hovered STS crosshair
-					ctx.lineWidth = 2.0;
-				} else {
-					ctx.strokeStyle = '#0f0'; // Standard green crosshair
-					ctx.lineWidth = 1.5;
-				}
+				var dx = gx - cachedFoc.x;
+				var dy = gy - cachedFoc.y;
+				var dz = zMeters - cachedFoc.z;
+				var rotX = dx * cachedTrig.cosYaw - dy * cachedTrig.sinYaw;
+				var rotY = dx * cachedTrig.sinYaw + dy * cachedTrig.cosYaw;
+				var px = panX + rotX * zoomScale;
+				var py = panY - (rotY * cachedTrig.sinPitch + dz * cachedTrig.cosPitch) * zoomScale;
 
-				// Crosshair (+)
-				ctx.beginPath();
-				ctx.moveTo(lx - armPx, ly);
-				ctx.lineTo(lx + armPx, ly);
-				ctx.moveTo(lx, ly - armPx);
-				ctx.lineTo(lx, ly + armPx);
-				ctx.stroke();
+				if (px < -15 || px > cw + 15 || py < -15 || py > ch + 15) return;
 
-				if (isHovered) {
-					ctx.strokeStyle = '#0ff';
-					ctx.lineWidth = 1.5;
-					ctx.beginPath();
-					ctx.arc(lx, ly, armPx + 3, 0, Math.PI * 2);
-					ctx.stroke();
-				}
-
-				ctx.restore();
+				ctx.moveTo(px - armScreenX_X, py - armScreenY_X);
+				ctx.lineTo(px + armScreenX_X, py + armScreenY_X);
+				ctx.moveTo(px - armScreenX_Y, py - armScreenY_Y);
+				ctx.lineTo(px + armScreenX_Y, py + armScreenY_Y);
 			});
-		}
+			ctx.stroke();
 
+			// 2. Green Foreground Pass
+			ctx.lineWidth = 1.5;
+			ctx.strokeStyle = '#0f0';
+			ctx.beginPath();
+			item.sts_points.forEach(function(pt) {
+				if (hoveredGraphSet && hoveredGraphSet.has(pt.graph)) return;
+				var dimX = (item.ys > 0 && item.xs > 0) ? (pt.dim * (item.xs / item.ys)) : pt.dim;
+				if (!dimX || dimX <= 0) dimX = 1;
+				var lx = (pt.px_x / dimX - 0.5) * item.xs;
+				var ly = (pt.px_y / pt.dim - 0.5) * item.ys;
+				var gx = item.xo + (lx * cosRad - ly * sinRad);
+				var gy = item.yo + (lx * sinRad + ly * cosRad);
+
+				var dx = gx - cachedFoc.x;
+				var dy = gy - cachedFoc.y;
+				var dz = zMeters - cachedFoc.z;
+				var rotX = dx * cachedTrig.cosYaw - dy * cachedTrig.sinYaw;
+				var rotY = dx * cachedTrig.sinYaw + dy * cachedTrig.cosYaw;
+				var px = panX + rotX * zoomScale;
+				var py = panY - (rotY * cachedTrig.sinPitch + dz * cachedTrig.cosPitch) * zoomScale;
+
+				if (px < -15 || px > cw + 15 || py < -15 || py > ch + 15) return;
+
+				ctx.moveTo(px - armScreenX_X, py - armScreenY_X);
+				ctx.lineTo(px + armScreenX_X, py + armScreenY_X);
+				ctx.moveTo(px - armScreenX_Y, py - armScreenY_Y);
+				ctx.lineTo(px + armScreenX_Y, py + armScreenY_Y);
+			});
+			ctx.stroke();
+
+			// 3. Cyan Hover Highlight Pass
+			if (hoveredGraphSet && hoveredGraphSet.size > 0) {
+				ctx.lineWidth = 2.0;
+				ctx.strokeStyle = '#0ff';
+				ctx.beginPath();
+				item.sts_points.forEach(function(pt) {
+					if (!hoveredGraphSet.has(pt.graph)) return;
+					var dimX = (item.ys > 0 && item.xs > 0) ? (pt.dim * (item.xs / item.ys)) : pt.dim;
+					if (!dimX || dimX <= 0) dimX = 1;
+					var lx = (pt.px_x / dimX - 0.5) * item.xs;
+					var ly = (pt.px_y / pt.dim - 0.5) * item.ys;
+					var gx = item.xo + (lx * cosRad - ly * sinRad);
+					var gy = item.yo + (lx * sinRad + ly * cosRad);
+
+					var dx = gx - cachedFoc.x;
+					var dy = gy - cachedFoc.y;
+					var dz = zMeters - cachedFoc.z;
+					var rotX = dx * cachedTrig.cosYaw - dy * cachedTrig.sinYaw;
+					var rotY = dx * cachedTrig.sinYaw + dy * cachedTrig.cosYaw;
+					var px = panX + rotX * zoomScale;
+					var py = panY - (rotY * cachedTrig.sinPitch + dz * cachedTrig.cosPitch) * zoomScale;
+
+					if (px < -15 || px > cw + 15 || py < -15 || py > ch + 15) return;
+
+					ctx.moveTo(px - armScreenX_X, py - armScreenY_X);
+					ctx.lineTo(px + armScreenX_X, py + armScreenY_X);
+					ctx.moveTo(px - armScreenX_Y, py - armScreenY_Y);
+					ctx.lineTo(px + armScreenX_Y, py + armScreenY_Y);
+				});
+				ctx.stroke();
+			}
+
+			ctx.restore();
+		}
 		ctx.restore();
 	});
 
-	// Draw Physical Scale Bar
-	drawScaleBar(cssW, cssH);
+	// Draw 3D Frame Projections onto underlying image planes with realistic camera depth obscuration
+	var showProjFrame = document.getElementById('gvShowProjFrame') ? document.getElementById('gvShowProjFrame').checked : false;
+	if (showProjFrame && visibleItems.length > 1) {
+		var all2DCorners = visibleItems.map(function(item) {
+			return get2DPhysicalCorners(item);
+		});
 
+		for (var i = 1; i < visibleItems.length; i++) {
+			var itemTop = visibleItems[i];
+			var visIdxTop = i;
+			var cornersTop2D = all2DCorners[i];
+
+			var visIdxUnder = -1;
+			for (var j = i - 1; j >= 0; j--) {
+				var cornersCand2D = all2DCorners[j];
+				if (do2DQuadsIntersect(cornersTop2D, cornersCand2D)) {
+					visIdxUnder = j;
+					break;
+				}
+			}
+			if (visIdxUnder === -1) {
+				visIdxUnder = i - 1;
+			}
+
+			var qTop = get3DQuadCornersAtZ(itemTop, visIdxTop, visIdxTop);
+			var qUnder = get3DQuadCornersAtZ(itemTop, visIdxTop, visIdxUnder);
+
+			var higherThanTop = itemsWith3D.filter(function(e) { return e.visIdx > visIdxTop; });
+			var higherThanUnder = itemsWith3D.filter(function(e) { return e.visIdx > visIdxUnder; });
+
+			var solidProjColor = 'rgba(180, 180, 180, 0.9)';
+			var faintProjColor = 'rgba(100, 100, 100, 0.25)';
+			var dashDropColor  = 'rgba(170, 170, 170, 0.75)';
+
+			// 1. Connecting vertical corner drop lines (dashed gray when unobscured, faint dashed gray when obscured)
+			for (var k = 0; k < 4; k++) {
+				drawObscurableEdge(qTop[k], qUnder[k], visIdxTop, higherThanTop, dashDropColor, faintProjColor, 12, true);
+			}
+
+			// 2. Projected 4-corner bounding frame on underlying image plane (solid gray when unobscured, faint dashed gray when obscured)
+			drawObscurableEdge(qUnder[0], qUnder[1], visIdxUnder, higherThanUnder, solidProjColor, faintProjColor, 12, false);
+			drawObscurableEdge(qUnder[1], qUnder[2], visIdxUnder, higherThanUnder, solidProjColor, faintProjColor, 12, false);
+			drawObscurableEdge(qUnder[2], qUnder[3], visIdxUnder, higherThanUnder, solidProjColor, faintProjColor, 12, false);
+			drawObscurableEdge(qUnder[3], qUnder[0], visIdxUnder, higherThanUnder, solidProjColor, faintProjColor, 12, false);
+		}
+	}
+
+	// Draw Active (Yellow #ff0), Focus (Turquoise #0ff), and Hovered (Light Gray #ccc) Frames with 3D Depth Obscuration
+	var qvudEntry = itemsWith3D.find(function(e) { return e.item.c === qvudIndex; });
+	var focusEntry = itemsWith3D.find(function(e) { return e.item.c === focusedIndex; });
+	var hoverEntry = (hoveredImg && !isLeftClickPanning) ? itemsWith3D.find(function(e) { return e.item === hoveredImg; }) : null;
+
+	if (qvudEntry) {
+		drawObscurableFrame(
+			qvudEntry.quad,
+			qvudEntry.visIdx,
+			itemsWith3D,
+			'#ff0',
+			'rgba(255, 255, 0, 0.45)',
+			0
+		);
+	}
+
+	if (focusEntry) {
+		var inset = (qvudIndex === focusedIndex) ? 2.5 : 0;
+		drawObscurableFrame(
+			focusEntry.quad,
+			focusEntry.visIdx,
+			itemsWith3D,
+			'#0ff',
+			'rgba(0, 255, 255, 0.45)',
+			inset
+		);
+	}
+
+	if (hoverEntry && hoverEntry.item.c !== focusedIndex) {
+		var hoverInset = (hoverEntry.item.c === qvudIndex) ? 2.5 : 0;
+		drawObscurableFrame(
+			hoverEntry.quad,
+			hoverEntry.visIdx,
+			itemsWith3D,
+			'#ccc',
+			'rgba(204, 204, 204, 0.45)',
+			hoverInset
+		);
+	}
+
+	drawScaleBar(cssW, cssH);
 	ctx.restore();
 }
 
@@ -2707,199 +2885,114 @@ function getNiceScaleM(m) {
 	return niceFrac * Math.pow(10, pow);
 }
 
-function isPointOccludedByNewerImage(screenX, screenY, itemIdx) {
-	var visibleItems = getVisibleItems();
-	if (is3DMode) {
-		var targetItem = visibleItems[itemIdx];
-		if (!targetItem) return false;
+function isPointOccludedByNewerImage(screenX, screenY, itemIdx, itemsWith3D) {
+	if (!itemsWith3D) return false;
+	var alphaVal = parseInt(document.getElementById('gvAlpha').value, 10);
+	if (alphaVal < 95) return false;
 
-		for (var j = itemIdx + 1; j < visibleItems.length; j++) {
-			var otherItem = visibleItems[j];
-			var otherQuad = get3DQuadCorners(otherItem, j);
-			if (isPointInQuad(screenX, screenY, otherQuad)) {
+	for (var j = 0; j < itemsWith3D.length; j++) {
+		var other = itemsWith3D[j];
+		if (other.visIdx <= itemIdx) continue;
+		var qMinX = (typeof other.quadMinX !== 'undefined') ? other.quadMinX : other.minX;
+		var qMaxX = (typeof other.quadMaxX !== 'undefined') ? other.quadMaxX : other.maxX;
+		var qMinY = (typeof other.quadMinY !== 'undefined') ? other.quadMinY : other.minY;
+		var qMaxY = (typeof other.quadMaxY !== 'undefined') ? other.quadMaxY : other.maxY;
+
+		if (screenX < qMinX || screenX > qMaxX || screenY < qMinY || screenY > qMaxY) {
+			continue;
+		}
+		if (isPointInQuad(screenX, screenY, other.quad)) {
+			var imgObj = loadedImages[other.item.c];
+			if (imgObj && imgObj.complete && imgObj.naturalWidth !== 0) {
 				return true;
 			}
-		}
-		return false;
-	}
-
-	var pivot = getPivot();
-	var radRot = -(viewAngle * Math.PI / 180.0);
-
-	for (var j = itemIdx + 1; j < visibleItems.length; j++) {
-		var newerItem = visibleItems[j];
-		var dx = newerItem.xo - pivot.x;
-		var dy = newerItem.yo - pivot.y;
-		var rotX = pivot.x + (dx * Math.cos(radRot) - dy * Math.sin(radRot));
-		var rotY = pivot.y + (dx * Math.sin(radRot) + dy * Math.cos(radRot));
-
-		var center = physToScreen(rotX, rotY);
-		var wPx = newerItem.xs * zoomScale;
-		var hPx = newerItem.ys * zoomScale;
-
-		var pdx = screenX - center.x;
-		var pdy = screenY - center.y;
-		var netAngle = newerItem.ang - viewAngle;
-		var rad = -(netAngle * Math.PI / 180.0);
-
-		var rx = pdx * Math.cos(rad) + pdy * Math.sin(rad);
-		var ry = -pdx * Math.sin(rad) + pdy * Math.cos(rad);
-
-		if (Math.abs(rx) <= wPx / 2 && Math.abs(ry) <= hPx / 2) {
-			return true;
 		}
 	}
 	return false;
 }
 
 // Precision Screen Space Hit-Testing for TOPMOST rendered image
-function findTopmostImageUnderCursor(mouseX, mouseY) {
+function findTopmostImageUnderCursor(mouseX, mouseY, itemsWith3D) {
 	var visibleItems = getVisibleItems();
 
-	if (is3DMode) {
-		var itemsWith3D = visibleItems.map(function(item, visIdx) {
-			var quad = get3DQuadCorners(item, visIdx);
-			var avgDepth = (quad[0].depth + quad[1].depth + quad[2].depth + quad[3].depth) / 4;
-			return { item: item, visIdx: visIdx, quad: quad, depth: avgDepth };
-		});
-		itemsWith3D.sort(function(a, b) {
-			if (a.visIdx !== b.visIdx) {
-				return b.visIdx - a.visIdx;
-			}
-			return b.depth - a.depth;
-		});
-
-		for (var i = 0; i < itemsWith3D.length; i++) {
-			if (isPointInQuad(mouseX, mouseY, itemsWith3D[i].quad)) {
-				return itemsWith3D[i].item;
-			}
-		}
-		return null;
+	if (!itemsWith3D) {
+		itemsWith3D = buildItemsWith3D(visibleItems);
 	}
 
-	var pivot = getPivot();
-	var radRot = -(viewAngle * Math.PI / 180.0);
-	
-	// Iterate BACKWARDS from newest rendered image down to oldest
-	for (var i = visibleItems.length - 1; i >= 0; i--) {
-		var item = visibleItems[i];
+	var topFirst = itemsWith3D.slice().sort(function(a, b) {
+		if (a.visIdx !== b.visIdx) return b.visIdx - a.visIdx;
+		return b.depth - a.depth;
+	});
 
-		var dx = item.xo - pivot.x;
-		var dy = item.yo - pivot.y;
-		var rotX = pivot.x + (dx * Math.cos(radRot) - dy * Math.sin(radRot));
-		var rotY = pivot.y + (dx * Math.sin(radRot) + dy * Math.cos(radRot));
+	for (var i = 0; i < topFirst.length; i++) {
+		var entry = topFirst[i];
+		var qMinX = (typeof entry.quadMinX !== 'undefined') ? entry.quadMinX : entry.minX;
+		var qMaxX = (typeof entry.quadMaxX !== 'undefined') ? entry.quadMaxX : entry.maxX;
+		var qMinY = (typeof entry.quadMinY !== 'undefined') ? entry.quadMinY : entry.minY;
+		var qMaxY = (typeof entry.quadMaxY !== 'undefined') ? entry.quadMaxY : entry.maxY;
 
-		var center = physToScreen(rotX, rotY);
-		var wPx = item.xs * zoomScale;
-		var hPx = item.ys * zoomScale;
-
-		var dx = mouseX - center.x;
-		var dy = mouseY - center.y;
-		var netAngle = item.ang - viewAngle;
-		var rad = -(netAngle * Math.PI / 180.0); // Exact Canvas rotation angle matching drawScene()
-
-		var rx = dx * Math.cos(rad) + dy * Math.sin(rad);
-		var ry = -dx * Math.sin(rad) + dy * Math.cos(rad);
-
-		if (Math.abs(rx) <= wPx / 2 && Math.abs(ry) <= hPx / 2) {
-			return item; // TOPMOST rendered image under pointer
+		if (mouseX < qMinX || mouseX > qMaxX || mouseY < qMinY || mouseY > qMaxY) {
+			continue;
+		}
+		if (isPointInQuad(mouseX, mouseY, entry.quad)) {
+			return entry.item;
 		}
 	}
 	return null;
 }
 
-function findSTSPointsUnderCursor(mouseX, mouseY) {
+function findSTSPointsUnderCursor(mouseX, mouseY, itemsWith3D) {
 	var showSTS = document.getElementById('gvShowSTS') ? document.getElementById('gvShowSTS').checked : false;
 	if (!showSTS) return [];
 
 	var visibleItems = getVisibleItems();
 	var hitPoints = [];
 
-	if (is3DMode) {
-		var zStepMeters = getZStepMeters();
-		var itemsWith3D = visibleItems.map(function(item, visIdx) {
-			var quad = get3DQuadCorners(item, visIdx);
-			var avgDepth = (quad[0].depth + quad[1].depth + quad[2].depth + quad[3].depth) / 4;
-			return { item: item, visIdx: visIdx, quad: quad, depth: avgDepth };
-		});
+	if (!itemsWith3D) {
+		itemsWith3D = buildItemsWith3D(visibleItems);
 		itemsWith3D.sort(function(a, b) {
-			if (a.visIdx !== b.visIdx) {
-				return b.visIdx - a.visIdx;
-			}
+			if (a.visIdx !== b.visIdx) return b.visIdx - a.visIdx;
 			return b.depth - a.depth;
 		});
-
-		for (var i = 0; i < itemsWith3D.length; i++) {
-			var entry = itemsWith3D[i];
-			var item = entry.item;
-			if (!item.sts_points || item.sts_points.length === 0) continue;
-
-			var zMeters = entry.visIdx * zStepMeters;
-			var armPx = Math.max(2.5, 0.1e-9 * zoomScale);
-			var hitRadius = Math.max(7, armPx + 4);
-
-			for (var p = 0; p < item.sts_points.length; p++) {
-				var pt = item.sts_points[p];
-				var lx = (pt.px_x / pt.dim - 0.5) * item.xs;
-				var ly = (pt.px_y / pt.dim - 0.5) * item.ys;
-				var rad = -(item.ang * Math.PI / 180.0);
-				var gx = item.xo + (lx * Math.cos(rad) - ly * Math.sin(rad));
-				var gy = item.yo + (lx * Math.sin(rad) + ly * Math.cos(rad));
-				var ptProj = project3DPoint(gx, gy, zMeters);
-
-				var dist = Math.hypot(mouseX - ptProj.x, mouseY - ptProj.y);
-				if (dist <= hitRadius) {
-					if (!isPointOccludedByNewerImage(ptProj.x, ptProj.y, entry.visIdx)) {
-						hitPoints.push({
-							graph: pt.graph,
-							screenX: ptProj.x,
-							screenY: ptProj.y,
-							item: item
-						});
-					}
-				}
-			}
-			if (hitPoints.length > 0) break;
-		}
-		return hitPoints;
 	}
 
-	var pivot = getPivot();
-	var radRot = -(viewAngle * Math.PI / 180.0);
+	var armPx = Math.max(1.875, 0.075e-9 * zoomScale);
+	var hitRadius = Math.max(8, armPx + 4);
+	var preFilterPad = hitRadius + 15;
 
-	for (var i = visibleItems.length - 1; i >= 0; i--) {
-		var item = visibleItems[i];
+	for (var i = 0; i < itemsWith3D.length; i++) {
+		var entry = itemsWith3D[i];
+		var item = entry.item;
 		if (!item.sts_points || item.sts_points.length === 0) continue;
 
-		var dx = item.xo - pivot.x;
-		var dy = item.yo - pivot.y;
-		var rotX = pivot.x + (dx * Math.cos(radRot) - dy * Math.sin(radRot));
-		var rotY = pivot.y + (dx * Math.sin(radRot) + dy * Math.cos(radRot));
+		// Item Visual Bounds Pre-Filter with preFilterPad padding
+		if (mouseX < entry.minX - preFilterPad || mouseX > entry.maxX + preFilterPad ||
+			mouseY < entry.minY - preFilterPad || mouseY > entry.maxY + preFilterPad) {
+			continue;
+		}
 
-		var center = physToScreen(rotX, rotY);
-		var wPx = item.xs * zoomScale;
-		var hPx = item.ys * zoomScale;
-		var netAngle = item.ang - viewAngle;
-		var rad = -(netAngle * Math.PI / 180.0);
-
-		var armPx = Math.max(2.5, 0.1e-9 * zoomScale);
-		var hitRadius = Math.max(7, armPx + 4);
+		var zMeters = entry.zMeters;
+		var radScan = -(item.ang * Math.PI / 180.0);
+		var cosRad = Math.cos(radScan);
+		var sinRad = Math.sin(radScan);
 
 		for (var p = 0; p < item.sts_points.length; p++) {
 			var pt = item.sts_points[p];
-			var lx = (pt.px_x / pt.dim - 0.5) * wPx;
-			var ly = (0.5 - pt.px_y / pt.dim) * hPx;
+			var dimX = (item.ys > 0 && item.xs > 0) ? (pt.dim * (item.xs / item.ys)) : pt.dim;
+			if (!dimX || dimX <= 0) dimX = 1;
+			var lx = (pt.px_x / dimX - 0.5) * item.xs;
+			var ly = (pt.px_y / pt.dim - 0.5) * item.ys;
+			var gx = item.xo + (lx * cosRad - ly * sinRad);
+			var gy = item.yo + (lx * sinRad + ly * cosRad);
+			var ptProj = project3DPoint(gx, gy, zMeters);
 
-			var ptScreenX = center.x + (lx * Math.cos(rad) - ly * Math.sin(rad));
-			var ptScreenY = center.y + (lx * Math.sin(rad) + ly * Math.cos(rad));
-
-			var dist = Math.hypot(mouseX - ptScreenX, mouseY - ptScreenY);
+			var dist = Math.hypot(mouseX - ptProj.x, mouseY - ptProj.y);
 			if (dist <= hitRadius) {
-				if (!isPointOccludedByNewerImage(ptScreenX, ptScreenY, i)) {
+				if (!isPointOccludedByNewerImage(ptProj.x, ptProj.y, entry.visIdx, itemsWith3D)) {
 					hitPoints.push({
 						graph: pt.graph,
-						screenX: ptScreenX,
-						screenY: ptScreenY,
+						screenX: ptProj.x,
+						screenY: ptProj.y,
 						item: item
 					});
 				}
@@ -2907,7 +3000,6 @@ function findSTSPointsUnderCursor(mouseX, mouseY) {
 		}
 		if (hitPoints.length > 0) break;
 	}
-
 	return hitPoints;
 }
 
@@ -2928,46 +3020,27 @@ function centerImage(item, animate) {
 		}
 	}
 
-	if (is3DMode) {
-		if (focusedIndex !== item.c) {
-			var visItems = getVisibleItems();
-			var vIdx = visItems.findIndex(function(v) { return v.c === item.c; });
-			if (vIdx < 0) vIdx = 0;
-			var zM = vIdx * getZStepMeters();
-			var currScreen = project3DPoint(item.xo, item.yo, zM);
+	if (focusedIndex !== item.c) {
+		var visItems = getVisibleItems();
+		var vIdx = visItems.findIndex(function(v) { return v.c === item.c; });
+		if (vIdx < 0) vIdx = 0;
+		var zM = getItemZMeters(vIdx, visItems);
+		var currScreen = project3DPoint(item.xo, item.yo, zM);
 
-			focusedIndex = item.c;
-			activeIndex = item.c;
-			updateHeaderReadout();
+		focusedIndex = item.c;
+		activeIndex = item.c;
+		updateHeaderReadout();
 
-			panX = currScreen.x;
-			panY = currScreen.y;
-		} else {
-			focusedIndex = item.c;
-			activeIndex = item.c;
-			updateHeaderReadout();
-		}
-
-		var targetPanX = cw / 2;
-		var targetPanY = ch / 2;
-
-		if (animate) {
-			animateViewTo(targetPanX, targetPanY, zoomScale, viewAngle);
-		} else {
-			stopAnimation();
-			panX = targetPanX;
-			panY = targetPanY;
-			requestDraw();
-		}
-		return;
+		panX = currScreen.x;
+		panY = currScreen.y;
+	} else {
+		focusedIndex = item.c;
+		activeIndex = item.c;
+		updateHeaderReadout();
 	}
 
-	focusedIndex = item.c;
-	activeIndex = item.c;
-	updateHeaderReadout();
-
-	var targetPanX = cw / 2 - item.xo * zoomScale;
-	var targetPanY = ch / 2 + item.yo * zoomScale;
+	var targetPanX = cw / 2;
+	var targetPanY = ch / 2;
 
 	if (animate) {
 		animateViewTo(targetPanX, targetPanY, zoomScale, viewAngle);
@@ -3001,14 +3074,98 @@ canvas.addEventListener('mousedown', function(e) {
 	}
 });
 
+var hoverHitTestScheduled = false;
+var lastMousePos = { x: 0, y: 0, clientX: 0, clientY: 0, rectLeft: 0, rectTop: 0 };
+
+function updateHoverState(mouseX, mouseY, clientX, clientY, rectLeft, rectTop) {
+	if (isLeftClickPanning) return;
+
+	var itemsWith3D = lastRenderedItemsWith3D;
+	if (!itemsWith3D) {
+		var visibleItems = getVisibleItems();
+		var zHeights = getVisibleZHeights(visibleItems);
+		itemsWith3D = visibleItems.map(function(item, visIdx) {
+			var zM = zHeights[visIdx];
+			var quad = get3DQuadCorners(item, visIdx, zM);
+			var minX = Math.min(quad[0].x, quad[1].x, quad[2].x, quad[3].x);
+			var maxX = Math.max(quad[0].x, quad[1].x, quad[2].x, quad[3].x);
+			var minY = Math.min(quad[0].y, quad[1].y, quad[2].y, quad[3].y);
+			var maxY = Math.max(quad[0].y, quad[1].y, quad[2].y, quad[3].y);
+			var avgDepth = (quad[0].depth + quad[1].depth + quad[2].depth + quad[3].depth) / 4;
+			return { item: item, visIdx: visIdx, zMeters: zM, quad: quad, minX: minX, maxX: maxX, minY: minY, maxY: maxY, depth: avgDepth };
+		});
+		itemsWith3D.sort(function(a, b) {
+			if (a.visIdx !== b.visIdx) return b.visIdx - a.visIdx;
+			return b.depth - a.depth;
+		});
+	}
+
+	var found = findTopmostImageUnderCursor(mouseX, mouseY, itemsWith3D);
+	if (found !== hoveredImg) {
+		hoveredImg = found;
+		requestDraw();
+	}
+
+	var foundSTSPts = findSTSPointsUnderCursor(mouseX, mouseY, itemsWith3D);
+	var stsChanged = (foundSTSPts.length !== hoveredSTSPts.length);
+	if (!stsChanged && foundSTSPts.length > 0) {
+		stsChanged = foundSTSPts.some(function(p, idx) {
+			return p.graph !== hoveredSTSPts[idx].graph || p.item !== hoveredSTSPts[idx].item;
+		});
+	}
+
+	if (stsChanged) {
+		hoveredSTSPts = foundSTSPts;
+		requestDraw();
+	}
+
+	var showTooltip = document.getElementById('gvShowTooltip') ? document.getElementById('gvShowTooltip').checked : false;
+
+	if (hoveredSTSPts.length > 0) {
+		tooltip.style.display = 'block';
+		tooltip.style.left = (clientX - rectLeft + 15) + 'px';
+		tooltip.style.top = (clientY - rectTop + 15) + 'px';
+
+		var stsNames = hoveredSTSPts.map(function(p) { return p.graph; });
+		var aggregatedParts = aggregateSTSNames(stsNames, true);
+
+		var imgNames = [];
+		hoveredSTSPts.forEach(function(p) {
+			var imgName = p.item.file || p.item.bi;
+			if (imgName && imgNames.indexOf(imgName) === -1) {
+				imgNames.push(imgName);
+			}
+		});
+
+		var imgHeader = imgNames.length > 0 ? imgNames.join(', ') : '';
+		var html = '<span style="color:#0f0; font-weight:bold;">STS</span> <strong style="color:#fff;">' + imgHeader + '</strong>';
+		if (aggregatedParts.length > 0) {
+			html += '<div style="margin-top:2px; color:#ddd;">' + aggregatedParts.join('<br>') + '</div>';
+		}
+		tooltip.innerHTML = html;
+	} else if (hoveredImg && showTooltip) {
+		tooltip.style.display = 'block';
+		tooltip.style.left = (clientX - rectLeft + 15) + 'px';
+		tooltip.style.top = (clientY - rectTop + 15) + 'px';
+		tooltip.innerHTML = '<strong>' + (hoveredImg.file || hoveredImg.bi) + '</strong> (' + hoveredImg.chan + ')<br>' +
+			'Dimensions: ' + formatDist(hoveredImg.xs) + ' × ' + formatDist(hoveredImg.ys) + '<br>' +
+			'Offset: X: ' + formatDist(hoveredImg.xo) + ', Y: ' + formatDist(hoveredImg.yo) + '<br>' +
+			'Angle: ' + hoveredImg.ang + '°' + (hoveredImg.time ? '<br>Time: ' + hoveredImg.time : '');
+	} else {
+		tooltip.style.display = 'none';
+	}
+}
+
 window.addEventListener('mousemove', function(e) {
 	var rect = canvas.getBoundingClientRect();
 	var mouseX = e.clientX - rect.left;
 	var mouseY = e.clientY - rect.top;
 
 	if (isLeftClickPanning) {
-		if (hoveredImg) {
+		if (hoveredImg || hoveredSTSPts.length > 0) {
 			hoveredImg = null;
+			hoveredSTSPts = [];
+			tooltip.style.display = 'none';
 			requestDraw();
 		}
 		var totalDist = Math.hypot(e.clientX - startMouseX, e.clientY - startMouseY);
@@ -3017,7 +3174,7 @@ window.addEventListener('mousemove', function(e) {
 			var dx = e.clientX - lastMouseX;
 			var dy = e.clientY - lastMouseY;
 
-			if (e.ctrlKey && is3DMode) {
+			if (e.ctrlKey) {
 				// Ctrl + Left Mouse Hold: Vertical movement = Inverted Pitch, Horizontal movement = Rotation (viewAngle)
 				var targetAngle = viewAngle - Math.round(dx * 0.5);
 				while (targetAngle > 180) targetAngle -= 360;
@@ -3059,74 +3216,26 @@ window.addEventListener('mousemove', function(e) {
 		return;
 	}
 
-	// Precise screen space hit-test for TOPMOST rendered image under cursor
-	var found = findTopmostImageUnderCursor(mouseX, mouseY);
-
-	if (found !== hoveredImg) {
-		hoveredImg = found;
-		requestDraw();
-	}
-
-	// Precision hit-test for STS points under cursor
-	var foundSTSPts = findSTSPointsUnderCursor(mouseX, mouseY);
-	var stsChanged = (foundSTSPts.length !== hoveredSTSPts.length);
-	if (!stsChanged && foundSTSPts.length > 0) {
-		stsChanged = foundSTSPts.some(function(p, idx) {
-			return p.graph !== hoveredSTSPts[idx].graph || p.item !== hoveredSTSPts[idx].item;
+	lastMousePos = { x: mouseX, y: mouseY, clientX: e.clientX, clientY: e.clientY, rectLeft: rect.left, rectTop: rect.top };
+	if (!hoverHitTestScheduled) {
+		hoverHitTestScheduled = true;
+		requestAnimationFrame(function() {
+			hoverHitTestScheduled = false;
+			updateHoverState(lastMousePos.x, lastMousePos.y, lastMousePos.clientX, lastMousePos.clientY, lastMousePos.rectLeft, lastMousePos.rectTop);
 		});
-	}
-
-	if (stsChanged) {
-		hoveredSTSPts = foundSTSPts;
-		requestDraw();
-	}
-
-	var showTooltip = document.getElementById('gvShowTooltip') ? document.getElementById('gvShowTooltip').checked : false;
-
-	if (hoveredSTSPts.length > 0) {
-		// Standalone STS Tooltip listing aggregated curves vertically below image header
-		tooltip.style.display = 'block';
-		tooltip.style.left = (e.clientX - rect.left + 15) + 'px';
-		tooltip.style.top = (e.clientY - rect.top + 15) + 'px';
-
-		var stsNames = hoveredSTSPts.map(function(p) { return p.graph; });
-		var aggregatedParts = aggregateSTSNames(stsNames, true);
-
-		var imgNames = [];
-		hoveredSTSPts.forEach(function(p) {
-			var imgName = p.item.file || p.item.bi;
-			if (imgName && imgNames.indexOf(imgName) === -1) {
-				imgNames.push(imgName);
-			}
-		});
-
-		var imgHeader = imgNames.length > 0 ? imgNames.join(', ') : '';
-		var html = '<span style="color:#0f0; font-weight:bold;">STS</span> <strong style="color:#fff;">' + imgHeader + '</strong>';
-		if (aggregatedParts.length > 0) {
-			html += '<div style="margin-top:2px; color:#ddd;">' + aggregatedParts.join('<br>') + '</div>';
-		}
-		tooltip.innerHTML = html;
-	} else if (hoveredImg && showTooltip) {
-		// Standalone Image Metadata Tooltip
-		tooltip.style.display = 'block';
-		tooltip.style.left = (e.clientX - rect.left + 15) + 'px';
-		tooltip.style.top = (e.clientY - rect.top + 15) + 'px';
-		tooltip.innerHTML = '<strong>' + (hoveredImg.file || hoveredImg.bi) + '</strong> (' + hoveredImg.chan + ')<br>' +
-			'Dimensions: ' + formatDist(hoveredImg.xs) + ' × ' + formatDist(hoveredImg.ys) + '<br>' +
-			'Offset: X: ' + formatDist(hoveredImg.xo) + ', Y: ' + formatDist(hoveredImg.yo) + '<br>' +
-			'Angle: ' + hoveredImg.ang + '°' + (hoveredImg.time ? '<br>Time: ' + hoveredImg.time : '');
-	} else {
-		tooltip.style.display = 'none';
 	}
 });
 
 window.addEventListener('mouseup', function(e) {
 	if (e.button === 0) {
-		isLeftClickPanning = false;
-		canvas.style.cursor = 'crosshair';
-		if (hoveredImg) {
-			hoveredImg = null;
-			requestDraw();
+		if (isLeftClickPanning) {
+			isLeftClickPanning = false;
+			canvas.style.cursor = 'crosshair';
+			if (hoveredImg) {
+				hoveredImg = null;
+				requestDraw();
+			}
+			saveSpatialViewState();
 		}
 	}
 });
