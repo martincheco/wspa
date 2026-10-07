@@ -1,0 +1,938 @@
+function palgen,filt,wc,ro=ro,bo=bo,go=go
+;takes color pallettes specified in filter at index wc and returns as a structure
+
+;getting palette number, inversions and gamma factors
+	pal1=(fix((filt).par1[wc])<32)>(-32)
+	gm1=abs((filt).par1[wc]-fix((filt).par1[wc]))
+	l=((abs((filt).par2[wc] mod 1)>0.)<1.)
+	sw=(abs((filt).par2[wc]-l))<50
+	l=round((l*255>0))<255
+	pal2=(fix((filt).par3[wc])<32)>(-32)
+	gm2=abs((filt).par3[wc]-fix((filt).par3[wc]))
+	if gm2 lt 0.0001 then gm2=0.5
+	if gm1 lt 0.0001 then gm1=0.5
+	gm2=(gm2>0.01)<0.99
+	gm1=(gm1>0.01)<0.99
+	i1=sgn(pal1)
+	i2=sgn(pal2)
+
+;original values, taking as default for pal1 and pal2
+	rr=ro
+	gg=go
+	bb=bo
+	r2=ro
+	g2=go
+	b2=bo    
+;loading palettes
+if pal1 ne 0 then begin
+		loadct,abs(pal1)-1 
+		tvlct,rr,gg,bb,/get
+end
+if pal2 ne 0 then begin
+		loadct,abs(pal2)-1 
+		tvlct,r2,g2,b2,/get
+end
+;inversion
+if i1 lt 0 then begin 
+	rr=reverse(rr)
+	gg=reverse(gg)
+	bb=reverse(bb)
+end
+if i2 lt 0 then begin 
+	r2=reverse(r2)
+	g2=reverse(g2)
+	b2=reverse(b2)
+end
+;gamma corrections
+if gm1 ne 0.5 then begin
+	gm=(0.5/gm1)^1.5
+	xgm=findgen(256)/255
+	xgmod=xgm^gm
+	rr=round(interpol(rr,xgm,xgmod))
+	gg=round(interpol(gg,xgm,xgmod))
+	bb=round(interpol(bb,xgm,xgmod))
+end
+
+if gm2 ne 0.5 then begin
+	gm=(0.5/gm2)^1.5
+	xgm=findgen(256)/255
+	xgmod=xgm^gm
+	r2=round(interpol(r2,xgm,xgmod))
+	g2=round(interpol(g2,xgm,xgmod))
+	b2=round(interpol(b2,xgm,xgmod))
+end
+
+
+
+
+if l gt 0 AND l lt 255 then begin
+    w1=round(findgen(l)*255/l)<255
+    w2=round(findgen(256-l)*255/(256-l))<255
+    rr(0:l-1)=rr(w1)
+    gg(0:l-1)=gg(w1)
+    bb(0:l-1)=bb(w1)
+    rr(l:255)=r2(w2)
+    gg(l:255)=g2(w2)
+    bb(l:255)=b2(w2)
+end 
+
+;overlap of the palettes
+if sw ge 2 then begin
+l1=((l-sw)>0)<255
+l2=((l+sw-1)>0)<255
+rr(l1:l2)=smooth(rr(l1:l2),sw)
+gg(l1:l2)=smooth(gg(l1:l2),sw)
+bb(l1:l2)=smooth(bb(l1:l2),sw)
+end
+
+return,{r:rr,g:gg,b:bb}
+end
+
+
+function sclgen,filt,i,imf,imxsize
+	lngth=(filt.par1(i))
+	s=size(imf)
+        return,mkscl(imf,s(1)*lngth/imxsize)
+end
+
+
+
+function gridgen,filt,i,imf,dots=dots
+	ax1=(decomp(filt.par1(i)))
+        ax2=(decomp(filt.par2(i)))
+        ax3=(decomp(filt.par3(i)))
+        x0=real_part(ax1)
+        a1=real_part(ax2)/10.
+        r1=real_part(ax3)/10.
+        y0=imaginary(ax1)
+        a2=imaginary(ax2)/10.
+        r2=imaginary(ax3)/10.
+        print,x0,y0,r1,a1,r2,a2
+        if not(keyword_set(dots)) then return,grids(imf,x0,y0,r1,a1,r2,a2,dim=15,/circ,/unrel,/autocol) else return,grids(imf,x0,y0,r1,a1,r2,a2,dim=50,/unrel,/dots) 
+
+end
+
+
+
+function gencomment,st,fctr,extended=extended
+
+angle=getval(st.par,"Scan angle:","float");
+ampsu=" "
+voltsu=" "
+volts=getval(st.par,"Topography Bias:","float",unit=voltsu)
+amps=getval(st.par,"Set Point:","float",unit=ampsu)
+;help,ampsu
+xs=st.xsize*fctr(0)
+ys=st.ysize*fctr(1)
+
+date=getval(st.par,'Acquisition time:')
+file=FILE_basename(getval(st.par,"Filename:"))
+biascurrent="U = "+strtrim(string(volts,format='(I5)'),2)+voltsu+"  I = "+strtrim(string(amps,format='(F6.2)'),2)+ampsu
+angle=strtrim(string(angle,format='(F03)'),2)
+yscandir=getval(st.par,'Y scanning direction:')
+comments=(getval(st.par,"Comments:"))
+
+xss=strtrim(string(xs,format='(F6.1)'),2)
+yss=strtrim(string(ys,format='(F6.1)'),2)
+runit=""
+if st.runit ne "none" and st.runit ne "" then runit=st.runit
+
+if not(keyword_set(extended)) then comm=xss+" x "+yss+runit+"!U2  !N"+biascurrent $
+else comm="extended"
+return,comm
+end
+
+pro qvud,f,preprocess=preprocess
+
+help,!GDL,/struct
+
+cmdargs=command_line_args() ;read args from the launcher
+if n_elements(cmdargs) ge 2 then serverpath=cmdargs(1) else serverpath=""
+
+;preventive cleanup
+heap_gc,/ptr,/verbose
+goldpalette,/pure
+tvlct,r,g,b,/get
+close,/all
+
+;temporary
+if keyword_set(f) then begin
+print,"list of files obtained: ",f
+f=loadlist(f)
+;help,f
+end else $
+begin
+print,"no input data specified"
+exit
+end
+
+
+;load data
+
+print,'*********File loading***********'
+
+;for the files that have spaces
+nf=n_elements(f)
+for i=0,nf-1 do begin
+    f(i)=strjoin(strsplit(f(i), ' ', /extract), '\ ')
+end
+
+if not(keyword_set(pmdata)) then pmdata=mloadwsxm(f)
+n=n_elements(pmdata)
+if not(ptr_valid(pmdata(0))) or n eq 0 then return
+;help,n
+;sort by date
+print,"Sorting by date"
+dts=strarr(n)
+dur=fltarr(n)
+
+for i=0,n-1 do begin
+    dts(i)=getval((*pmdata(i)).par,'Acquisition time:')
+end
+pmdata=pmdata(sort(dts))
+dts=dts(sort(dts))
+
+
+;predefined filters
+if not(keyword_set(topofilt)) then topofilt={type:["subtrplane","",""],par1:[0.,0.,0.],par2:[0.,0.,0],par3:[0.,0.,0]}
+if not(keyword_set(curfilt)) then curfilt={type:[""],par1:[0.],par2:[0.],par3:[0.]}
+if not(keyword_set(curfiltneg)) then curfiltneg={type:["invert",""],par1:[0.,0.],par2:[0.,0.],par3:[0.,0.]}
+
+
+filt=ptrarr(n)
+topo=intarr(n)
+bias=fltarr(n)
+acqchan=strarr(n)
+filtname=strarr(n)
+filename=strarr(n)
+bfname=strarr(n)
+yscandir=strarr(n)
+xscandir=strarr(n)
+
+marked=bytarr(n)
+scale_on=0
+;cretaing scale and histogram bkg
+hi=indgen(256)
+sclimg=intarr(256,15)
+histimg=intarr(256,50)
+
+for i=0,14 do sclimg(*,i)=hi
+
+print,'*********Filter loading***********'
+for i=0,n-1 do begin
+    filename(i)=getval((*pmdata(i)).par,"Filename:")
+    bias(i)=getval((*pmdata(i)).par,"Topography Bias:","float")
+    filtname(i)=filename(i)+'.flt'
+    xscandir(i)=getval((*pmdata(i)).par,'X scanning direction:')
+    yscandir(i)=getval((*pmdata(i)).par,'Y scanning direction:')
+    acqchan(i)=(getval((*pmdata(i)).par,"Acquisition channel:"))
+    dur(i)=getval((*pmdata(i)).par,'Duration:','float')
+
+
+;what to do if a filter is empty or default    
+    ffff={type:["none"],par1:[0],par2:[0],par3:[0]}
+    if file_test(filtname(i)) then begin
+	ffff=filter_load(filtname(i))
+	filt(i)=ptr_new(ffff)
+    end
+    if not(file_test(filtname(i))) then $
+	case acqchan(i) of
+	    "Z": filt(i)=ptr_new(topofilt)
+	"Topography": filt(i)=ptr_new(topofilt)
+	    "I": if bias(i) lt 0 then filt(i)=ptr_new(curfiltneg) else filt(i)=ptr_new(curfilt)
+	    "Current": if bias(i) lt 0 then filt(i)=ptr_new(curfiltneg) else filt(i)=ptr_new(curfilt)
+	    else: filt(i)=ptr_new(curfilt)
+	endcase
+end
+
+
+;write additional channel information
+
+openw,1,'chan.dat'
+openw,2,'acqchan.dat'
+for kl=0,n_elements(acqchan)-1 do begin
+    printf,1,filename(kl)
+    printf,2,acqchan(kl)+" "+yscandir(kl)+" "+xscandir(kl)
+    bfnamex=file_basename(filename(kl))
+    bfnamex=strsplit(bfnamex,'.',/extract)
+    nbfn=n_elements(bfnamex)
+    if nbfn eq 1 or nbfn eq 2 then bfname[kl]=bfnamex[0] ;omicron and other
+    if nbfn ge 3 then bfname[kl]=strjoin(bfnamex[0:(nbfn-3)],'.') ;nanonis, nanotec
+    if nbfn eq 3 then if bfnamex[2] eq 'dat' then bfname[kl]=strjoin(bfnamex[0:1],'.')
+
+end
+close,1
+close,2
+
+print,bfname
+
+print,'*********Useful list loading***********'
+
+;print,file_dirname(filename(0))+"/useful.lst"
+
+    if file_test(file_dirname(filename(0))+"/useful.lst") then begin
+	useful=loadlist(file_dirname(filename(0))+"/useful.lst")
+	;help,useful
+
+	buseful=file_basename(useful)
+	;help,buseful
+	;help,buseful
+	;help,filename
+
+	if 1 eq 0 then for kl=0,n-1 do begin
+		wb=where(buseful eq file_basename(filename(kl)))
+		if wb(0) ne -1 then marked(kl)=1
+	end
+    end
+
+
+IF KEYWORD_SET(preprocess) then begin
+print,'*********Preprocessing***********'
+
+    npmdata=ptrarr(n)
+    for i=0,n-1 do begin
+	print,'processing image '+string(i)+" of "+string(n)
+	current= (getval((*pmdata(i)).par,"Acquisition channel:")) eq "Current"
+	imf=filter((*pmdata(i)).img,*filt(i),fctr=fctr)
+	if (size(imf))(0) ne 2 then imf=reform(imf,n_elements(imf),1)
+	temp={img:imf,xsize:fctr(0)*(*pmdata(i)).xsize,ysize:fctr(1)*(*pmdata(i)).ysize}
+	npmdata(i)=ptr_new(temp)
+	;special color filter
+	wc=where((*filt(i)).type eq "color")
+	rr=r
+	gg=g
+	bb=b
+	if wc(0) ne -1 then begin 
+	    pal=palgen((*filt(i)),wc(0),ro=r,bo=b,go=g)
+	    rr=pal.r
+	    gg=pal.g
+	    bb=pal.b
+	end
+
+	si=strtrim(string(i),2)
+	help,imf
+	smm=size(imf)
+	if smm(2) eq 1 then imfb=bytscl([[imf],[imf]]) else imfb=bytscl(imf)
+	help,imfb
+	;special filter grids
+	wg=where((*filt(i)).type eq "grid")
+	if wg(0) ne -1 then imfb=gridgen((*filt(i)),wg(0),imfb)
+	wg=where((*filt(i)).type eq "dots")
+	if wg(0) ne -1 then imfb=gridgen((*filt(i)),wg(0),imfb,/dots)
+	wg=where((*filt(i)).type eq "scale")
+	if wg(0) ne -1 then imfb=sclgen((*filt(i)),wg(0),imfb,(*pmdata(i)).xsize)
+	
+
+
+
+
+	write_png,'tmp'+si+'.png',imfb,rr,gg,bb
+	write_png,'scl'+si+'.png',sclimg,rr,gg,bb
+
+	wh=histogram(imfb,min=0,max=256)
+	mxc=max(wh)>1
+	wh=(round(wh*46/mxc)>0)<46
+	histimg=histimg*0
+	hi=indgen(256)
+	histimg(hi,wh(hi))=hi
+	histimg=histimg+shift(histimg,0,1)
+	histimg(findgen(11)/10*255<255,45:49)=255
+	histimg(findgen(11)/10*255<255,0:4)=255
+	;write_png,'hist'+si+'.png',histimg,rr,gg,bb
+
+    end
+
+end
+
+i=0
+
+
+heap_gc,/ptr,/verbose
+
+print,"READY"
+;******************************LOOP************************************
+comm='none'
+
+repeat begin ; menu loop
+
+	si=strtrim(string(i),2)
+
+;    parameters read
+	;acqchan=(getval((*pmdata(i)).par,"Acquisition channel:"))
+	angle=getval((*pmdata(i)).par,"Scan angle:","float")
+;	yscandir=getval((*pmdata(i)).par,'Y scanning direction:')
+	;help,yscandir
+	ampsu=" "
+	voltsu=" "
+	volts=getval((*pmdata(i)).par,"Topography Bias:","float",unit=voltsu);
+	amps=getval((*pmdata(i)).par,"Set Point:","float",unit=ampsu);
+	fctr=[1.,1.]
+	if not(keyword_set(preprocess)) then begin
+	    imf=filter((*pmdata(i)).img,*filt(i),fctr=fctr) 
+	    print,"factor",fctr
+	    xs=(*pmdata(i)).xsize*fctr(0)
+	    ys=(*pmdata(i)).ysize*fctr(1)
+	    runit=(*pmdata(i)).runit
+	    zunit=(*pmdata(i)).zunit
+	end $
+	    else $ 
+	begin
+	    imf=(*npmdata(i)).img
+	    xs=(*npmdata(i)).xsize
+	    ys=(*npmdata(i)).ysize
+	    runit=(*pmdata(i)).runit
+	    zunit=(*pmdata(i)).zunit
+	end
+	
+	s=size(imf)
+	sr=size((*npmdata(i)).img)
+	s1=strtrim(string(sr(1)),2)
+	s2=strtrim(string(sr(2)),2)
+	mnf=min(imf)
+	mxf=max(imf)
+	avf=mmean(imf)
+	avf=avf>mnf
+	avf=avf<mxf
+	avfp=mmean((*pmdata(i)).img)
+;	avfp=avfp>mnf
+;	avfp=avfp<mxf
+
+	stats=string(mnf,format='(E11.4)')+"/"+string(avf,format='(E11.4)')+"/"+string(mxf,format='(E11.4)')+"/("+string(avfp,format='(E11.4)')+")"
+	
+	msg=strarr(9)
+	if strpos(filename(i),serverpath) eq 0 then msg(0)=strmid(filename(i),strlen(serverpath)+1) else msg(0)=filename(i)
+	cd,current=mydir
+	msg(2)="Creation: "+dts(i)
+	;msg(2)=FILE_basename(filename(i))
+	msg(1)="Slice: "+string(i+1)+" of "+string(n)
+	msg(3)="Channel: "+acqchan(i)+" ["+zunit+"]  "+yscandir(i)+"-"+xscandir(i)
+	msg(4)="U = "+strtrim(string(volts),2)+voltsu+"  Setpoint = "+strtrim(string(amps),2)+" "+ampsu
+	msg(5)="Size: "+strtrim(string(xs),2)+" x "+strtrim(string(ys),2)+" "+runit+" ("+s1+"x"+s2+")"+"  Angle:"+strtrim(string(angle),2)
+	msg(6)="Comments: "+(getval((*pmdata(i)).par,"Comments:"))
+	msg(7)="MIN/AVG/MAX(AVG): "+stats
+;	msg(8)="Matrix identifier: "+(getval((*pmdata(i)).par,"Matrix identifier:"))
+	if marked(i) eq 1 then $
+	    begin
+		msg(8)="MARKED"
+	    end
+
+
+		;special color filter
+		wc=where((*filt(i)).type eq "color")
+		rr=r
+		gg=g
+		bb=b
+		if wc(0) ne -1 then begin 
+		    pal=palgen((*filt(i)),wc(0),ro=r,bo=b,go=g)
+		    rr=pal.r
+		    gg=pal.g
+		    bb=pal.b
+		end
+
+
+;redrawing - can be skipped if no change occured
+    redraw:
+	if finite(imf(0)) and comm eq "filter" then begin
+		imfb=bytscl(imf)
+		png_save,'tmp'+si+'.png',imfb,r=rr,g=gg,b=bb
+
+;redrawing of histogram and scale - can be skipped if no change occured
+
+		si=strtrim(string(i),2)
+		imfb=bytscl(imf)
+		
+		;special filter grids
+		wg=where((*filt(i)).type eq "grid")
+		help,wg
+		if wg(0) ne -1 then begin 
+			print,'Applying grid..'
+	    		imfb=gridgen((*filt(i)),wg(0),imfb)
+		end
+		wg=where((*filt(i)).type eq "dots")
+		if wg(0) ne -1 then imfb=gridgen((*filt(i)),wg(0),imfb,/dots)
+
+		wg=where((*filt(i)).type eq "scale")
+		if wg(0) ne -1 then imfb=sclgen((*filt(i)),wg(0),imfb,(*pmdata(i)).xsize)
+
+
+
+
+		write_png,'tmp'+si+'.png',imfb,rr,gg,bb
+		write_png,'scl'+si+'.png',sclimg,rr,gg,bb
+
+		wh=histogram(imfb,min=0,max=256)
+		mxc=max(wh)>1
+		wh=(round(wh*46/mxc)>0)<46
+		histimg=histimg*0
+		hi=indgen(256)
+		histimg(hi,wh(hi))=hi
+		histimg=histimg+shift(histimg,0,1)
+		histimg(findgen(11)/10*255<255,45:49)=255
+		histimg(findgen(11)/10*255<255,0:4)=255
+		write_png,'hist'+si+'.png',histimg,rr,gg,bb
+	end
+
+;writing of the file with parameters
+
+	
+	openw,1,'tmp.dat'
+	    for kl=0,n_elements(msg)-1 do printf,1,msg(kl)
+;	    for kl=0,n_elements(msg2)-1 do printf,1,msg2(kl)
+	    msg=""
+	    msg2=""
+;	    printf,1,"READY"
+	close,1
+
+
+	
+
+	;menu
+	
+    ;reading the command!!
+
+	comm=""
+	read,comm
+	print,"You wrote:",comm
+	command=strlowcase(strtrim(comm,2))
+	commands=strsplit(command,/extract)
+	comm=commands(0)
+	ncomm=n_elements(commands)
+	;print,command
+	;print,ncomm
+
+			
+
+
+case comm of
+
+
+    "prev":	i=(i-1)>0 
+    "next":	i=(i+1)<(n-1)
+    "prevs":	begin
+		    ;skips to the previous measurement
+		    buniq=bfname(uniq(bfname))
+		    w=where(buniq eq bfname(i))
+		    ww=where(bfname eq buniq((w(0)-1)>0))
+		    i=ww(0)
+		end
+    "nexts":	begin
+		    ;skips to the next measurement
+		    buniq=bfname(uniq(bfname))
+		    bn=n_elements(buniq)
+		    w=where(buniq eq bfname(i))
+		    ww=where(bfname eq buniq((w(0)+1)<(bn-1)))
+		    i=ww(0)
+		end
+    "prevch":	begin
+		    wacq=where(acqchan+xscandir eq acqchan(i)+xscandir(i))
+		    if wacq(0) ne -1 then begin
+			wwacq=where(wacq lt i)
+			if wwacq(0) ne -1 then i=wacq(wwacq(N_elements(wwacq)-1))
+		    end
+		end
+    "nextch":	begin
+		    wacq=where(acqchan+xscandir eq acqchan(i)+xscandir(i))
+		    if wacq(0) ne -1 then begin
+			wwacq=where(wacq gt i)
+			if wwacq(0) ne -1 then i=wacq(wwacq(0))
+		    end
+		end
+    "move":	if ncomm gt 1 then if isnumeric(commands(1)) then i=(round(i+commands(1))>0)<(n-1) else print,"You have to put number here"
+    "goto":	if ncomm gt 1 then if isnumeric(commands(1)) then i=(round(commands(1)-1)>0)<(n-1) else print,"You have to put number here"
+;    "color":	begin 
+;		    if ncomm gt 1 then if isnumeric(commands(1)) then cpal=(round(commands(1))>0)<(32) else print,"You have to put number here"
+;		    if round(cpal) eq 0 then goldpalette,/pure else loadct,cpal-1
+;		    tvlct,r,g,b,/get
+;		end
+    "filter": 	begin ;rereads a filter edited in the gui, acts only on the image
+		    heap_free,temp,/verbose
+		    temp=filter_load('tmp.flt')
+		    ptr_free,filt(i)
+		    filt(i)=ptr_new(temp)
+		    if (keyword_set(preprocess)) then $
+		    begin
+			fctr=[1D,1D]
+			imf=filter((*pmdata(i)).img,*filt(i),fctr=fctr)
+			temp={img:imf,xsize:fctr(0)*(*pmdata(i)).xsize,ysize:fctr(1)*(*pmdata(i)).ysize}
+			ptr_free,npmdata(i) ;avoid memory leaks
+			npmdata(i)=ptr_new(temp)
+		    end
+		    ;saving filters
+		    filter_save,filtname(i),*filt(i)
+		end
+
+    "process": 	begin ;rereads processors and applies them, works on the whole structure
+		    proct=proc_load('tmp.plt')
+			;help,proct,/struct
+			;print,proct
+		    if (keyword_set(preprocess)) then begin
+			fct=(*npmdata(i)).xsize/(*pmdata(i)).xsize
+			fct=[fct,fct]
+			imp=process(*pmdata(i),imf,proct,fctr=fct,r=rr,g=gg,b=bb) ;imf and fctr are both needed for a case of resizing, fctr can begin at <>1.0
+		    end else $
+			imp=process(*pmdata(i),imf,proct,fctr=fctr,r=rr,g=gg,b=bb) ;imf and fctr are both needed for a case of resizing, fctr can begin at <>1.0
+		    ;imp is for nothing at this moment
+		    ;saving processors
+		    procname=getval((*pmdata(i)).par,"Filename:")+'.plt'
+		    proc_save,procname,proct
+		    ptr_free,proct
+		end
+
+
+
+;    "exit": print,"Exiting.."
+    
+    "bug": bug=bug(0:10)
+
+    "wsxmsave":$
+	begin 
+	    wf=filename(i)
+	    ;wfd=file_dirname(wf)
+	    ;wfb=file_basename(wf)
+	    ;cd,wfd,current=wd_old
+	    fnm=wf+'.stp';dialog_pickfile(file="mod_"+wfb,/write,/overwrite_prompt)
+	    print,'Exporting to WSXM'
+	    ;if fnm ne "" then begin
+	    ;help,imf
+	    imf=filter((*pmdata(i)).img,*filt(i),fctr=fctr) 
+	    ;help,imf
+	    xs=(*pmdata(i)).xsize*fctr(0)
+	    ys=(*pmdata(i)).ysize*fctr(1)
+
+		savedata=(*pmdata(i))
+		savedata.xsize=xs
+		savedata.ysize=ys
+		savewsxm,refitwsxm(savedata,imf),fnm
+		;savewsxm,savedata,fnm
+
+	    ;end
+	    
+	    ;cd,wd_old
+	end
+
+    "mark": begin
+		marked(i)=(marked(i)+1) mod 2
+		;print,marked(i)
+		w=where(marked ne 0)
+		if w(0) ne -1 then uselist=file_basename(filename(w)) else uselist=""
+		savelist,file_dirname(filtname(0))+"/useful.lst",uselist
+    	    end
+
+    "pngsave":$ ;save current img as png file
+	begin 
+		    pngf=filename(i)
+		    IF not(KEYWORD_SET(preprocess)) then begin
+			imf=filter((*pmdata(i)).img,*filt(i),fctr=fctr)
+		    end else imf=(*npmdata(i)).img
+		    print,pngf+".png"
+
+		;special filter grids
+		wg=where((*filt(i)).type eq "grid")
+		bimf=bytscl(imf)
+		if wg(0) ne -1 then begin 
+	    		bimf=gridgen((*filt(i)),wg(0),bimf)
+		end
+		wg=where((*filt(i)).type eq "dots")
+		if wg(0) ne -1 then bimf=gridgen((*filt(i)),wg(0),bimf,/dots)
+		wg=where((*filt(i)).type eq "scale")
+		if wg(0) ne -1 then bimf=sclgen((*filt(i)),wg(0),bimf,(*pmdata(i)).xsize)
+
+
+
+		    png_save,pngf+".png",bimf,r=rr,g=gg,b=bb
+	    print,"Finished."
+	end
+
+
+    "dump":$ ;dumps all marked, as png files
+	begin 
+	    wm=where(marked)
+	    if wm(0) ne -1 then begin
+	    pngf=filename(wm(0))
+	    print,"Writing PNG files:"
+	    for ii=0,n-1 do begin
+		if marked(ii) eq 1 then begin
+		
+		    pngf=filename(ii)
+		    IF not(KEYWORD_SET(preprocess)) then begin
+			imf=filter((*pmdata(ii)).img,*filt(ii),fctr=fctr)
+		    end else imf=(*npmdata(ii)).img
+		    print,pngf+".png"
+
+		    wc=where((*filt(ii)).type eq "color")
+		    rr=r
+		    gg=g
+		    bb=b
+		    if wc(0) ne -1 then begin 
+			pal=palgen(*filt(ii),wc(0),ro=r,bo=b,go=g)
+			rr=pal.r
+			gg=pal.g
+			bb=pal.b
+		    end
+		;special filter grids
+		wg=where((*filt(i)).type eq "grid")
+		bimf=bytscl(imf)
+		if wg(0) ne -1 then begin 
+	    		bimf=gridgen((*filt(i)),wg(0),bimf)
+		end
+		wg=where((*filt(i)).type eq "dots")
+		if wg(0) ne -1 then imfb=gridgen((*filt(i)),wg(0),imfb,/dots)
+		wg=where((*filt(i)).type eq "scale")
+		if wg(0) ne -1 then imfb=sclgen((*filt(i)),wg(0),imfb,(*pmdata(i)).xsize)
+
+
+
+
+		    png_save,pngf+".png",bimf,r=rr,g=gg,b=bb
+		end
+	    end
+	    print,"Finished."
+	    end
+	end
+
+    "imgstartepoch":$
+	;flushes image epoch times into a file
+	begin
+	    openw,1,"imgstartepochs"
+	    for iii=0,n-1 do begin
+		spawn,'date -d "'+dts(iii)+'" +%s',epoch
+		printf,1,long(epoch(0))
+	    end
+	    close,1
+	end
+
+    "imgendepoch":$
+	;flushes image epoch times into a file
+	begin
+	    openw,1,"imgendepochs"
+	    for iii=0,n-1 do begin
+		;duration of the measurement
+		spawn,'date -d "'+dts(iii)+'" +%s',epoch
+		printf,1,long(epoch(0))+long(dur(iii))
+	    end
+	    close,1
+	end
+
+    "sts":$
+	;creates a global sts map and flushes files with epochs and coordinates
+	begin
+
+	    uniqd=uniq(dts)
+	    tuniq=dts(uniqd)
+	    tn=n_elements(tuniq)
+	
+            stsdir=file_dirname(filename(0))
+	    if File_Test(stsdir,/directory) then begin
+		;read files with sts, headers only
+		stsf=getfiles(stsdir,mask='/*.dat')
+		if stsf(0) ne "" then begin
+		    nsts=n_elements(stsf)
+		    xap=dblarr(nsts)
+		    yap=dblarr(nsts)
+		    ;pepoch=lonarr(nsts)
+		    strpepoch=strarr(nsts)
+	
+		    for si=0,nsts-1 do begin
+			    ststmp=loadnanonis_sts(stsf(si),/head)
+			    xap(si)=double(ststmp.p.x)
+			    yap(si)=double(ststmp.p.y)
+			    strpepoch(si)=ststmp.p.date
+		    end
+		end	
+	    end
+	   
+	    print,'finished reading sts headers and dates'
+ 
+	    print,'cycling image indices'		
+	    
+	    for mmi=0,tn-1 do begin
+		mi=uniqd(mmi)
+		help,mi
+	    	w=where(tuniq eq dts(mi))
+	    	wwn=where(dts eq tuniq((w(0)+1)<(tn-1)))
+	    	wwp=where(dts eq tuniq((w(0))>0))
+		print,dts(w(0))
+		print,dts(wwp(0))
+		print,dts(wwn(0))
+		xsmi=(*pmdata(mi)).xsize*fctr(0)
+		ysmi=(*pmdata(mi)).ysize*fctr(1)
+		srmi=size((*pmdata(mi)).img)
+		xa=0
+		ya=0
+		stsi=0
+	
+	    	xo=getval((*pmdata(mi)).par,"X Offset:",'float')
+		yo=getval((*pmdata(mi)).par,"Y Offset:",'float')
+		sxize=getval((*pmdata(mi)).par,"X Amplitude:",'float')
+		syize=getval((*pmdata(mi)).par,"Y Amplitude:",'float')
+		angl=getval((*pmdata(mi)).par,"Scan angle:","float");
+		rang=angl/180.*!PI
+		ic=dcomplex(0,1)
+		centerpoint=dcomplex(xo,yo)+dcomplex(sxize/2,syize/2)*exp(-ic*rang)
+		xc=real_part(centerpoint)
+		yc=imaginary(centerpoint)
+	
+    	for si=0,nsts-1 do begin
+			if dts(mi) eq dts(wwn(0)) then dtswwn=strpepoch(si) else dtswwn=dts(wwn(0))
+
+			if strpepoch(si) ge dts(wwp(0)) and strpepoch(si) le dtswwn then begin
+			    stsi=[stsi,si]
+			    xa=[xa,xap(si)]
+			    ya=[ya,yap(si)]
+			end
+		end
+		print,"finished cycling sts"
+	
+		if n_elements(stsi) gt 1 then begin
+			stsi=stsi(1:*)
+
+			xa=xa(1:*)-xc ;TODO:rotation needed!!
+			ya=ya(1:*)-yc ;TODO:rotation needed!!
+			vct=dcomplex(xa,ya)*exp(ic*rang)
+			xa=real_part(vct)+sxize/2
+			ya=imaginary(vct)+syize/2
+
+
+			xp=round(((1E9*xa/xsmi)+0.5)*float(srmi(1)))
+			yp=round((0.5+(1E9*ya/ysmi))*float(srmi(2)))
+			wf=stsdir+'/'+bfname(mi)
+			fnm=wf+'.map'
+			openw,1,fnm
+			print,"writing "+fnm
+			;help,stsi
+			;print,stsi
+			nstsi=n_elements(stsi)
+;			printf,1,srmi(1),srmi(2),xo,yo,ang
+			for kl=0,n_elements(stsi)-1 do printf,1,xp(kl),yp(kl),srmi(2),stsf(stsi(kl))
+			close,1
+			print,stsf(stsi)
+		end else print, "No matching STS found for "+bfname(mi)
+		
+	    end
+
+	end
+	   
+    "imgoffs": $
+	begin
+	;writes centers of the images
+		    openw,4,"stsxc"
+		    openw,5,"stsyc"
+			
+		    for iii=0,n-1 do begin
+			    xo=getval((*pmdata(iii)).par,"X Offset:",'float')
+			    yo=getval((*pmdata(iii)).par,"Y Offset:",'float')
+			    sxize=getval((*pmdata(iii)).par,"X Amplitude:",'float')
+			    syize=getval((*pmdata(iii)).par,"Y Amplitude:",'float')
+			    angl=getval((*pmdata(iii)).par,"Scan angle:","float");
+			    rang=angl/180.*!PI
+				ic=dcomplex(0,1)
+				centerpoint=dcomplex(xo,yo)+dcomplex(sxize/2,syize/2)*exp(-ic*rang)
+				
+			    printf,4,real_part(centerpoint),format='(E16.8)'
+			    printf,5,imaginary(centerpoint),format='(E16.8)'
+
+
+
+
+		    end
+		    close,4	
+		    close,5
+			print,'image centers written to file'	
+	end
+
+
+    "stsmap":$
+	;creates sts map for current file, at this moment supports only nanonis, qplus maybe in the future
+	begin
+	    stsdir=file_dirname(filename(i))
+	    if File_Test(stsdir,/directory) then begin
+		;find out which is the next imageset by time
+		tuniq=dts(uniq(dts))
+		tn=n_elements(tuniq)
+		w=where(tuniq eq dts(i))
+		wwn=where(dts eq tuniq((w(0)+1)<(tn-1)))
+		wwp=where(dts eq tuniq((w(0)-1)>0))
+		;help,ww
+		;read files with sts, headers only
+		spawn,'ls '+stsdir+'/*.dat',stsf
+		help,stsf
+		stsi=-1
+		xa=0
+		ya=0
+		la=0
+		if stsf(0) ne "" then begin
+		    nsts=n_elements(stsf)
+			    spawn,'date -d "'+dts(i)+'" +%s',epoch1
+			    epoch1=long(epoch1(0))
+
+		    stsdur=0
+		    for si=0,nsts-1 do begin
+		        ststmp=loadnanonis_sts(stsf(si),/head)
+			if dts(i) eq dts(wwn(0)) then dtswwn=ststmp.p.date else dtswwn=dts(wwn(0))
+		        ;print,wwn(0),wwp(0)
+
+			if ststmp.p.date ge dts(wwp(0)) and ststmp.p.date le dtswwn then begin
+			    ;ststmp=loadnanonis_sts(stsf(si))
+			    nstspts=size(ststmp.data)
+			    stsdur=stsdur+(ststmp.p.settime+ststmp.p.inttime)*nstspts(2)*(ststmp.p.bwd+1)
+			    stsi=[stsi,si]
+			    xa=[xa,ststmp.p.x]
+			    ya=[ya,ststmp.p.y]
+			    spawn,'date -d "'+ststmp.p.date+'" +%s',epoch
+			    spawn,'date -d "'+dtswwn+'" +%s',epoch2
+			    ;print,epoch,epoch1,epoch2
+			    epoch=long(epoch(0))
+			    epoch2=long(epoch2(0))
+			    epochx=epoch-epoch1
+			    help,epoch
+			    help,epoch1
+			    help,epoch2
+			    help,epochx
+			    help,dur(i)
+			    help,stsdur
+			    la=[la,double(epochx)]
+			end
+		    end
+		
+		    if n_elements(stsi) gt 1 then begin
+			stsi=stsi(1:*)
+			xo=getval((*pmdata(i)).par,"X Offset:",'float')
+			yo=getval((*pmdata(i)).par,"Y Offset:",'float')
+			xa=xa(1:*)-xo
+			ya=ya(1:*)-yo
+			la=round(la(1:*)*double(s(2))/(epoch2-epoch1))
+			xp=round(((1E9*xa/xs)+0.5)*float(sr(1)))
+			yp=round((0.5+(1E9*ya/ys))*float(sr(2)))
+			wf=stsdir+'/'+bfname(i)
+			fnm=wf+'.map'
+			openw,1,fnm
+			;help,stsi
+			;print,stsi
+			nstsi=n_elements(stsi)
+			for kl=0,n_elements(stsi)-1 do printf,1,xp(kl),yp(kl),la(kl),file_basename(stsf(stsi(kl)))
+			close,1
+			print,stsf(stsi)
+			print,file_basename(stsf(stsi))
+		    end $
+		    else print, "No matching STS found" 
+		end
+	    end
+	end
+
+    else: begin
+	    print,"Unassociated command"
+	end
+
+endcase
+
+	
+endrep until comm eq "exit"  ;exit
+    
+;    print,file_dirname(filename(i))
+    ptr_free,filt
+    ptr_free,pmdata
+    if keyword_set(npmdata) then ptr_free,npmdata
+    
+end
+
+

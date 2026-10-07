@@ -1,0 +1,34 @@
+function varwidthfilt,y,a,b,edge_wrap=edge_wrap
+;variable width filter, starts with width a, ends with b
+;assumes a < b
+
+n=n_elements(y)
+ix=dindgen(n)*double(b-a)/n+a
+ny=y
+
+
+if keyword_set(edge_wrap) then begin
+	edge_wrap=(edge_wrap>1)<b
+	ny=dblarr(n+2*edge_wrap)
+	ny(edge_wrap:n+edge_wrap-1)=y
+	ny(0:edge_wrap)=mmean(y(0:a))
+	ny(-edge_wrap:-1)=mmean(y(-b-1:-1))
+help,y(-1)
+	ix=(dindgen(n+2*edge_wrap)-edge_wrap)*double(b-a)/n+a
+
+
+end
+
+ffy=ny*0D
+for w=a,b do begin
+	fy=ftgauss1d(ny,double(w))
+	wr=where(round(ix) eq w,count)
+	if count ne 0 then ffy(wr)=fy(wr)
+end
+
+if keyword_set(edge_wrap) then begin
+	ffy=ffy(edge_wrap:n+edge_wrap-1)
+end
+
+return,ffy
+end

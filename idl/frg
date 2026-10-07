@@ -1,0 +1,11 @@
+ndf(0)=ptr_new(adds(df,z,'041','040',f))
+ndf(1)=ptr_new(adds(df,z,'038','039',f))
+ndf(2)=ptr_new(adds(df,z,'037','036',f))
+ndf(3)=ptr_new(adds(df,z,'035','034',f))
+ndf(4)=ptr_new(adds(df,z,'033','032',f))
+ndf(5)=ptr_new(adds(df,z,'030','031',f))
+ndf(6)=ptr_new(adds(df,z,'029','028',f))
+ndf(7)=ptr_new(adds(df,z,'026','027',f))
+ndf(8)=ptr_new(adds(df,z,'025','024',f))
+ndf(9)=ptr_new(adds(df,z,'023','022',f))
+

@@ -1,0 +1,27 @@
+
+pro distort_draw,res,zoom=zoom,decim=decim,offs=offs
+if not(keyword_set(decim)) then decim=1
+
+if keyword_set(zoom) then begin
+    s=size(res.a)
+    a=congrid(res.a,s(1)*zoom,s(2)*zoom)
+    b=congrid(res.b,s(1)*zoom,s(2)*zoom)
+    xy0=res.xy0*zoom
+    xy=res.dxy*zoom
+end else begin
+    a=res.a
+    b=res.b
+    xy0=res.xy0
+    xy=res.dxy
+end
+
+if keyword_set(offs) then xy=xy-total(xy,/double)/n_elements(xy)
+
+tvscl,[a,b]
+s=size(xy0)
+for i=0,s(1)-1,decim do for j=0,s(2)-1,decim do begin
+    plots,[real_part(xy0(i,j)),real_part(xy0(i,j)+xy(i,j))],[imaginary(xy0(i,j)),imaginary(xy0(i,j)+xy(i,j))],psym=-3,color=255
+    plots,[real_part(xy0(i,j)+xy(i,j))],[imaginary(xy0(i,j)+xy(i,j))],psym=3
+end
+end
+

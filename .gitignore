@@ -9,6 +9,17 @@ process/
 *.png
 comm
 
+# IDL Swap & Backup Files
+*.swp
+*.swo
+*.swn
+*.swm
+*.swl
+*.swk
+*.swj
+*.swi
+*.sav
+
 # Python Cache
 __pycache__/
 *.pyc

@@ -1,0 +1,701 @@
+;unused
+;function sum_it,x,y,error
+;mn=min(x)
+;mx=max(x)
+;
+;end
+
+function reduce_angle,angle,half=half
+;half reduces only to -30..30DEG
+if not(keyword_set(half)) then rangle=30-abs(((angle +180) mod 60)-30) else rangle=(((angle) mod 60)) 
+return,rangle
+end
+
+;moved out as a separate routine
+;function mreplicate,v,dim
+;m=dcomplexarr(n_elements(v),n_elements(v))
+;for i=0,dim-1 do m(*,i)=v
+;return,m
+;end
+
+function module,i,j,a
+a1=a*0.5*dcomplex(1.,-3.^0.5)
+a2=a*0.5*dcomplex(1.,3.^0.5)
+aa=a1*i+a2*j
+return,abs(aa)
+end
+
+function vector,indexes
+a1=0.5*dcomplex(1.,-3.^0.5)
+a2=0.5*dcomplex(1.,3.^0.5)
+aa=a1*real_part(indexes)+a2*imaginary(indexes)
+return,aa
+end
+
+function minimo,angles,misfit,per,tol=tol
+;this function extracts only the minimum misfit for all unique angles, ignores zero values
+;if per(idodicity) is set, minimizes also by periodicity
+if keyword_set(per) then sper=per else sper=misfit
+if not(keyword_set(tol)) then tol=0.00001
+if not(keyword_set(per)) then tol=0.000001
+sangles=angles(sort(angles))
+smisfit=misfit(sort(angles))
+sper=sper(sort(angles))
+angulos=sangles(uniq(sangles)) ;unique angles
+windex=lonarr(n_elements(angulos))
+
+for i=0L,n_elements(angulos)-1 do begin
+    w=where(sangles eq angulos(i)) ;all misfits with this angulo
+    ;print,angulos(i),w,smisfit(w) 
+    ww=where((smisfit(w)) ne 0) ;all misfits that aren't zero
+    if ww(0) eq -1 then ww=0 ;if there is only zero value, solve it later
+
+    www=where( abs(smisfit(w(ww)) - min(smisfit(w(ww)))) le tol) ;modification for the strain calculation
+    
+    wi=w(ww(www)) ;this should be indexes with the lowest mismatch within the tolerance for a given angle
+   	print,"angles, mismatches, periodicities" 
+	vip=transpose([[sangles(wi)],[smisfit(wi)],[sper(wi)]]) ;debug
+    ;minimization of periodicity, if requested
+    if keyword_set(per) then begin
+	wip=where(sper(wi) eq min(sper(wi)))
+	wi=wi(wip)
+	vip(*,wip)=-1*vip(*,wip) ;debug
+    end 
+;    vip(*,wip)=-1*vip(*,wip) ;debug
+    print,vip
+;    print,n_elements(wi) ;should not exceed six
+
+    windex(i)=wi(0)
+end
+
+;final fix for the zero values
+wnonzero=where((smisfit(windex)) ne 0)
+windex=windex(wnonzero)
+return,windex
+end
+
+
+pro lattice_misfit,dim,angle,a,b,limit=limit,mis=mis,per=per,connect=connect,noplot=noplot,hex=hex,mang=mang,cutoff=cutoff,vect=vect,nplt=nplt,strain=strain
+;plots the overlay of lattices according to given angle and lattice parameters
+;running the indexes in the same manner as the misfit calculation
+;hex returns hexagonal graphene lattice
+;limit defines the acceptable misfit that will be denoted in the image
+;noplot supresses graphical output
+;cutoff is the maximum
+;strain returns strain in place of mismatch in variable mis
+
+if not(keyword_set(nplt)) then nplt=0
+;nplt does not show graph and dots, but only vectors
+
+if not(keyword_set(cutoff)) then cutoff=22.2 ;Pt
+
+col0=[0,0,0]
+col1=([1,1,1]*160) ;a dots
+col2=([1,1,1]*0) ;b dots
+col3=([0,0,255]) ;misfit marks
+col4=([255,255,255]) ;hex misfit marks
+col5=([255,0,0]) ;angle
+col6=([0,0,255]) ;app. angle
+col99=([255,255,255])
+
+tbl=[[col0],[col1],[col2],[col3],[col4],[col5],[col6],[col99]]
+;help,tbl
+val=color_quan(tbl(0,*),tbl(1,*),tbl(2,*),rr,gg,bb)
+tvlct,rr,gg,bb
+
+col0=val(0)
+col1=val(1)
+col2=val(2)
+col3=val(3)
+col4=val(4)
+col5=val(5)
+col6=val(6)
+
+!p.background=val(n_elements(val)-1)
+!p.color=val(0)
+
+
+if not(keyword_set(a)) then a=2.774 ;Pt
+if not(keyword_set(b)) then b=2.46 ;graphene
+if keyword_set(noplot) then pl=0 else pl=1
+
+ix=lindgen((dim*2)^2)
+ii=ix / (2*dim)
+jj=ix mod (2*dim)
+ii=ii-dim
+jj=jj-dim
+
+
+rotation=exp(dcomplex(0.,angle*!PI/180.))
+
+va=a*vector(dcomplex(ii,jj)) ;substrate, triangular
+vb=b*vector(dcomplex(ii,jj))*rotation ;adsorbate
+vbx=vb+b*vector(dcomplex(1,2))/3*rotation ;hexagonal atom in adsorbate
+
+
+mn=min([a,b])
+;fact=2.; 3^0.5/2 ;factor of zoom-in
+
+if pl then begin
+    if nplt eq 0 then $
+    plot,real_part(va),imaginary(va),psym=8,xstyle=1,ystyle=1,/iso,$,
+    xrange=[-cutoff,cutoff]*25./23.,yrange=[-cutoff,cutoff]*25./23.,/nodata,ticklen=-0.02,charsize=1.,$
+    xtickname=replicate(" ",30),ytickname=replicate(" ",30),xmargin=[2,1],ymargin=[1,2],background=val(n_elements(val)-1)
+
+    
+;    plot,real_part(va),imaginary(va),psym=8,xstyle=1,ystyle=1,/iso,xrange=[-cutoff,cutoff]*25./23.,yrange=[-cutoff,cutoff]*25./23.,/nodata,ticklen=-0.02,charsize=1.
+    
+
+end
+
+if pl then $
+    if keyword_set(connect) then begin
+	va1=va+a*vector(dcomplex(1,1))
+	va2=va+a*vector(dcomplex(0,1))
+	vby=vb+b*vector(dcomplex(1,1))*rotation
+	vbz=vb+b*vector(dcomplex(0,1))*rotation
+	
+	for c=0L,n_elements(vb)-1 do begin
+	    ;a
+	    x1=[real_part(va(c)),real_part(va1(c))]
+	    y1=[imaginary(va(c)),imaginary(va1(c))]
+	    x2=[real_part(va1(c)),real_part(va2(c))]
+	    y2=[imaginary(va1(c)),imaginary(va2(c))]
+	    x3=[real_part(va(c)),real_part(va2(c))]
+	    y3=[imaginary(va(c)),imaginary(va2(c))]
+	    
+	    ;plots,x1,y1,color=col1,noclip=0
+	    ;plots,x2,y2,color=col1,noclip=0
+	    ;plots,x3,y3,color=col1,noclip=0
+	    
+	    ;b
+	    x1=[real_part(vb(c)),real_part(vbx(c))]
+	    y1=[imaginary(vb(c)),imaginary(vbx(c))]
+	    x2=[real_part(vbx(c)),real_part(vby(c))]
+	    y2=[imaginary(vbx(c)),imaginary(vby(c))]
+	    x3=[real_part(vbx(c)),real_part(vbz(c))]
+	    y3=[imaginary(vbx(c)),imaginary(vbz(c))]
+	    
+	    if nplt eq 0 then plots,x1,y1,color=col2,noclip=0
+	    if nplt eq 0 then plots,x2,y2,color=col2,noclip=0
+	    if nplt eq 0 then plots,x3,y3,color=col2,noclip=0
+	end
+    end
+
+if pl then begin
+    usersym1    
+    if nplt eq 0 then oplot,real_part(va),imaginary(va),psym=8,color=col1
+    usersym2
+    if nplt eq 0 then oplot,real_part(vb),imaginary(vb),psym=8,color=col2
+    if nplt eq 0 then oplot,real_part(vbx),imaginary(vbx),psym=8,color=col2
+    
+    ;Substrate axis
+    aa=findgen(2)*2*!PI/2.
+    rtt=1.5*cutoff*exp(complex(aa*0,aa))
+    ;print,rtt
+    
+    for i=0,1 do plots,[0,real_part(rtt(i))],[0,imaginary(rtt(i))],noclip=0,psym=-3,thick=3.
+    ;plots,[0,0],[-1,1]*cutoff*1.5,noclip=0
+
+
+end
+
+if keyword_set(limit) then begin
+
+    nnn=n_elements(va)
+
+    van=mreplicate(va,nnn)
+    vbn=transpose(mreplicate(vb,nnn))
+    vbxn=transpose(mreplicate(vbx,nnn))
+    
+	res=(van-vbn)/b
+	resx=(van-vbxn)/b
+	
+    w=where(abs(res) lt limit) 
+    wx=where(abs(resx) lt limit) 
+
+    if w(0) ne -1 then begin
+
+	wa=w mod nnn ;column
+	wb=w / nnn ;row
+	
+        mis=res(w)
+        per=abs(vb(wb)) ;yes, everything related to graphene
+        ;the angle of moire
+        mang=imaginary(alog(vb(wb)/per))/!PI*180
+	vect=vb(wb)
+
+        if pl then begin
+	for cc=0L,n_elements(w)-1 do begin 
+;	    plots,real_part(va(wa(cc))),imaginary(va(wa(cc))),psym=7,noclip=0,color=col3
+;	    plots,real_part(vb(wb(cc))),imaginary(vb(wb(cc))),psym=1,noclip=0,color=col3
+;	    plots,[real_part(va(wa(cc))),real_part(vb(wb(cc)))],[imaginary(va(wa(cc))),imaginary(vb(wb(cc)))],psym=-3,noclip=0,color=col3
+	    
+	    ;the angle
+	    rang=angle*!PI/180.
+	    plots,1.5*cutoff*cos(rang)*[-1,1],1.5*cutoff*sin(rang)*[-1,1],psym=-3,noclip=0,color=col5,thick=4.
+	
+	    
+	end
+
+	    ;the app.angle
+	    ss=(sort(abs(mis)))
+	    
+	    mangs=mang(ss) ;by misfit
+	    pers=per(ss)
+	    vects=vect(ss)
+	    miss=mis(ss)
+	    
+	    mangs=mangs(1:*)
+	    pers=pers(1:*)
+	    vects=vects(1:*)
+	    
+	    wwww=where(pers le cutoff)
+	    if wwww(0) ne -1 then begin
+	
+		mangs=mangs(wwww)
+		vects=vects(wwww)
+		pers=pers(wwww)
+
+	    if n_elements(vects) lt 6 then begin
+help,vects
+		vects=[vects,replicate(vects(n_elements(vects)-1),6-n_elements(vects))]
+help,vects
+end
+
+
+		rmangs=reduce_angle(mangs(0),/half)
+		rmangs=rmangs/180.*!PI
+		vangles=imaginary(alog(vects(0:5)))/!PI*180
+		vects=vects(sort(vangles))	    
+
+		vangles=vangles(where(abs(vangles) eq min(abs(vangles))))
+		;for i=0,5 do plots,[0,real_part(vects(i))],[0,imaginary(vects(i))],psym=-3,thick=3.,color=col6,symsize=1.
+		for i=0,5 do plots,[real_part(vects(i)),real_part(vects((i+1) mod 6))],[imaginary(vects(i)),imaginary(vects((i+1) mod 6))],psym=-3,thick=3.,color=col6,symsize=1.
+
+	
+	    end
+	
+	end
+
+
+
+    end else begin
+        per=0
+	mis=1
+	mang=0
+	vect=0
+    end
+    
+    
+    ;hex atom
+
+    if wx(0) ne -1 then begin
+
+	wa=wx mod nnn ;column
+	wbx=wx / nnn ;row
+	
+        misx=resx(wx)
+        perx=abs(vbx(wbx)) ;yes, everything related to graphene
+        ;the angle of moire
+        mangx=imaginary(alog(vbx(wbx)/perx))/!PI*180
+	vectx=vbx(wbx)
+
+        if pl then begin
+
+	    ;the app.angle
+	    ssx=(sort(abs(misx)))
+	    
+	    mangsx=mangx(ssx) ;by misfit
+	    persx=perx(ssx)
+	    vectsx=vectx(ssx)
+	    missx=misx(ssx)
+	    
+	    mangsx=mangsx(0:*)
+	    persx=persx(0:*)
+	    vectsx=vectsx(0:*)
+	    
+	    wwwwx=where(persx le (cutoff/(3^0.5)))
+	    if wwwwx(0) ne -1 then begin
+	    
+		mangsx=mangsx(wwwwx)
+		vectsx=vectsx(wwwwx)
+		persx=persx(wwwwx)
+
+		rmangsx=reduce_angle(mangsx(0),/half)
+		rmangsx=rmangsx/180.*!PI
+		vanglesx=imaginary(alog(vectsx(0:2)))/!PI*180
+		vectsx=vectsx(sort(vanglesx))	    
+
+		vanglesx=vanglesx(where(abs(vanglesx) eq min(abs(vanglesx))))
+		;for i=0,2 do plots,[0,real_part(vectsx(i))],[0,imaginary(vectsx(i))],psym=-3,thick=3.,color=col6,symsize=1.
+		for i=0,2 do plots,[real_part(vectsx(i)),real_part(vectsx((i+1) mod 3))],[imaginary(vectsx(i)),imaginary(vectsx((i+1) mod 3))],psym=-3,thick=3.,color=col6,symsize=1.
+
+	
+	    end
+	
+	end
+
+
+
+    end else begin
+        perx=0
+	misx=1
+	mangx=0
+	vectx=0
+    end
+
+
+;redraw axes
+deg=string("260B)
+dg=string("260B) ;just for vim in order not to lose syntax highlighting
+angstr=string(197B)
+
+if not(keyword_set(vangles)) then vangles=0 
+if not(keyword_set(vects)) then vects=0
+
+if not(keyword_set(vanglesx)) then vanglesx=0 
+if not(keyword_set(vectsx)) then vectsx=[0,0]
+
+    
+if pl then if nplt eq 0 then $
+    plot,real_part(va),imaginary(va),psym=8,xstyle=1,ystyle=1,/iso,$,
+    xrange=[-cutoff,cutoff]*25./23.,yrange=[-cutoff,cutoff]*25./23.,/nodata,/noerase,ticklen=-0.02,charsize=1.,$
+    title=$
+    string(abs(angle),format='(F5.1)')+deg+$
+    " A:"+string(abs(vangles(0)),format='(F4.1)')+deg+$
+    " L:"+string(abs(vects(0)),format='(F4.1)')+angstr+$
+    " HA:"+string(abs(vanglesx(0)),format='(F4.1)')+deg+$
+    " HL:"+string(abs(vectsx(0)*3^0.5),format='(F4.1)')+angstr,$
+
+    xtickname=replicate(" ",30),ytickname=replicate(" ",30),xmargin=[2,1],ymargin=[1,2],$
+    charthick=2.
+
+;take out the periodicities bigger than the cutoff
+    w5=where(per le cutoff)
+    if w5(0) ne -1 then begin
+	per=per(w5)
+	mis=mis(w5)
+	mang=mang(w5)
+	vect=vect(w5)
+    end else begin
+	print,"no periodicity within the minimum circle found!"
+	per=0
+	mis=0
+	mang=0
+	vect=0
+    end
+
+;take out the periodicities bigger than the cutoff
+    w5x=where(perx le (cutoff/(3^0.5)))
+    if w5x(0) ne -1 then begin
+	perx=perx(w5x)
+	misx=misx(w5x)
+	mangx=mangx(w5x)
+	vectx=vectx(w5x)
+    end else begin
+	print,"no periodicity within the minimum circle found!"
+	perx=0
+	misx=0
+	mangx=0
+	vectx=0
+    end
+
+
+end
+
+if keyword_set(hex) then begin 
+    per=perx
+    mis=misx
+    mang=mangx
+    vect=vectx
+end
+
+end
+
+
+function moire3,dim,a,b,limit=limit,anglestep=anglestep,hex=hex,noplot=noplot,record=record,cutoff=cutoff,strain=strain
+;parameter record initiates saving of the images
+;strain minimizes engineering strain in place of the mismatch
+
+
+if not(keyword_set(cutoff)) then cutoff=22.2 ;Pt
+
+if not(keyword_set(a)) then a=2.774 ;Pt
+if not(keyword_set(b)) then b=2.46 ;graphene
+if not(keyword_set(limit)) then limit=0.1 ;10%
+if not(keyword_set(anglestep)) then anglestep=0.05
+if keyword_set(record) then wdir=dialog_pickfile(/directory)
+help,wdir
+
+na=30./anglestep+1
+as=findgen(na)/(na-1)*30.
+
+na=n_elements(as)
+
+periodicity=0
+misfits=0
+angles=0
+mangles=0
+vectors=0
+
+for i=0,na-1 do begin
+lattice_misfit,dim,as(i),a,b,per=per,mis=mis,limit=limit,mang=mang,hex=hex,noplot=noplot,cutoff=cutoff,vect=vect,strain=strain
+    if keyword_set(record) then begin
+	img=tvrd(0,true=1)
+	fn=wdir+"/img"+strtrim(string(as(i),format='(F06.2)'),2)+'.png'
+	;img=reverse(img,2)
+	write_png,fn,img
+    end
+
+if per(0) ne 0 then begin
+
+periodicity=[periodicity,per]
+misfits=[misfits,mis]
+angles=[angles,replicate(as(i),n_elements(mis))]
+mangles=[mangles,mang]
+vectors=[vectors,vect]
+
+end
+
+print,as(i),n_elements(where(mis lt 0.1*b and mis gt 0))
+
+
+end
+
+return,{dim:dim,a:a,b:b,cutoff:cutoff,limit:limit,misfits:misfits(1:*),periodicity:periodicity(1:*),angles:angles(1:*),mangles:mangles(1:*),vectors:vectors(1:*)}
+end
+
+
+pro save_data,t,all=all,minima=minima,strain=strain
+;all saves all
+;minima reduces everything to only minima
+;all has preference
+
+
+if keyword_set(all) then w=where(t.periodicity gt 0.) else begin
+	;w=minimo(t.angles,abs(t.misfits))
+	if keyword_set(strain) then w=minimo(t.angles,abs(t.misfits),abs(t.periodicity)) else w=minimo(t.angles,abs(t.misfits))
+	if keyword_set(minima) then begin 
+	    w=w(localmin(t.angles(w),abs(t.misfits(w))))
+	end
+end
+
+mangles=reduce_angle(t.mangles(w))
+openw,1,dialog_pickfile(),width=300
+printf,1,"a       b       dim         cutoff     limit      nothing   nothing" 
+;nothing is just employed to get the proper count of columns in the array
+printf,1,t.a,t.b,float(t.dim),t.cutoff,t.limit,0.,0.
+
+
+printf,1,"angle   ","misfit   ","periodicity   ","app.angle   ","vector X   ","vector Y   ","expansion   "
+for i=0L,n_elements(w)-1 do $
+begin
+x1=real_part(t.misfits(w(i)))
+x2=real_part(t.vectors(w(i)))
+y1=imaginary(t.misfits(w(i)))
+y2=imaginary(t.vectors(w(i)))
+if where(tag_names(t) eq "EXPANSION") eq -1 then begin
+;print,"No expansion set, calculating.."
+missign=sgn(x1*x2+y1*y2) ;this is positive for expansion, since the misfit is Substrate-Graphene
+end else begin
+missign=t.expansion(w(i))
+end
+
+printf,1,t.angles(w(i)),abs(t.misfits(w(i))),t.periodicity(w(i)),mangles(i),real_part(t.vectors(w(i))),imaginary(t.vectors(w(i))),missign
+end
+close,1
+end
+
+
+
+function load_data,f
+;loads the saved data
+
+st=read_ascii(f)
+stt=st.field1
+
+a=stt(0,1)
+b=stt(1,1)
+dim=stt(2,1)
+cutoff=stt(3,1)
+limit=stt(4,1)
+
+s=size(stt)
+
+ang=reform(stt(0,3:*))
+mis=reform(stt(1,3:*))
+per=reform(stt(2,3:*))
+app=reform(stt(3,3:*))
+vx=reform(stt(4,3:*))
+vy=reform(stt(5,3:*))
+if s(1) gt 6 then expa=reform(stt(6,3:*)) else expa=0
+
+return,{dim:dim,a:a,b:b,limit:limit,cutoff:cutoff,angles:ang,misfits:mis,periodicity:per,mangles:app,vectors:complex(vx,vy),expansion:expa}
+end
+
+
+
+pro graphics3,t,file,xcm,ycm,periodicity=periodicity,latin=latin,minima=minima,strain=strain,misrange=misrange
+
+;per draws the periodicity instead of angle
+set_plot,'ps'
+!P.Font=-1
+
+device,/encapsul,bits_per_pixel=8,/color,filename=strtrim(file,2)+'.eps',xsize=xcm,ysize=ycm
+if not(keyword_set(latin)) then latin=0
+
+col0=[0,0,0]
+col1=([255,0,0]) ;red
+col2=([0,0,255]) ;blue
+col3=([0,255,0]) ;green
+col4=([255,128,128]) ;lightred
+col5=([128,255,128]) ;lightgreen
+col6=([180,180,180]) ;halfgrey
+col99=([255,255,255]) ;white
+
+tbl=[[col0],[col1],[col2],[col3],[col4],[col5],[col6],[col99]]
+;help,tbl
+val=color_quan(tbl(0,*),tbl(1,*),tbl(2,*),rr,gg,bb)
+tvlct,rr,gg,bb
+
+col0=val(0)
+col1=val(1)
+col2=val(2)
+col3=val(3)
+col4=val(4)
+col5=val(5)
+col6=val(6)
+
+!p.background=val(n_elements(val)-1)
+!p.color=val(0)
+!p.charsize=1.2
+!p.charthick=2.0
+!x.charsize=1.0
+!y.charsize=1.0
+!x.thick=1.8
+!y.thick=1.8
+!p.thick=1.8
+
+xrank=[-1+min(t.angles),max(t.angles)+1]
+
+;if keyword_set(strain) then w=minimo(t.angles,abs(t.misfits)) else w=minimo(t.angles,abs(t.misfits))
+
+if not(keyword_set(misrange)) then misrange=[-1.5,max(abs(t.misfits))*101]
+
+if keyword_set(periodicity) then $
+begin
+plot,t.angles,t.periodicity,color=val(0),psym=3,thick=0.5,xrange=xrank,xst=1,yrange=[-1.5,max((t.periodicity))*1.1],yst=1,ytitle="Periodicity L ["+string(197B)+"]",xtitle="Crystallographic angle !4U!X [deg]",nodata=minima
+if not(keyword_set(minima)) then oplot,t.angles,t.periodicity,color=val(6),psym=3,thick=0.5
+
+dg=string("260B) ;just for vim in order not to lose syntax highlighting
+end $
+else $
+if keyword_set(strain) then $
+plot,t.angles,abs(t.misfits)*100,psym=3,xrange=xrank,xst=1,yrange=[-1.5,strain*1.1],$ ;max(abs(t.misfits))*80
+yst=1,ytitle="Strain [%]",xtitle="Crystallographic angle !4U!X [deg]",nodata=minima $
+else plot,t.angles,abs(t.misfits)*100,psym=3,xrange=xrank,xst=1,yrange=misrange,yst=1,ytitle="Mismatch/a!LG!N [%]",xtitle="Crystallographic angle !4U!X [deg]",nodata=minima
+
+;deg ..string("260B)
+
+if keyword_set(strain) then w=minimo(t.angles,abs(t.misfits),abs(t.periodicity)) else w=minimo(t.angles,abs(t.misfits))
+ww=localmin(t.angles(w),abs(t.misfits(w)))
+www=w(ww)
+x=t.angles(www)
+psrt=sort(t.periodicity(www))
+x=x(psrt)
+if keyword_Set(strain) then y=abs(t.misfits(www)*100) else y=abs(t.misfits(www)*100)
+y=y(psrt)
+per=t.periodicity(www)
+per=per(psrt)
+app=reduce_angle(t.mangles(www))
+app=app(psrt)
+expa=t.expansion(www)
+expa=expa(psrt)
+mis=t.misfits(www)
+mis=mis(psrt)
+
+
+nn=n_elements(x)
+labelz=strarr(nn)
+
+;help,www
+print,"Periodicity    Misfit    App.angle    Angle"
+print,transpose([[per],[mis],[app],[x]])
+
+
+;choosing the unique values
+
+wu=find_uniq(per,app,xtol=0.05,ytol=0.2)
+
+;help,wu
+
+if keyword_set(latin) then chars="" else chars="!4"
+
+for i=0L,nn-1 do labelz(i)=chars+string(97B+byte(where(abs(per(wu) - per(i)) le 0.05 and abs(app(wu) - app(i)) le 0.2)))+"!X"
+help,labelz
+
+
+w2=where(expa ge 0)
+w1=where(expa lt 0)
+
+
+if latin ne -1 then begin
+if w1(0) ne -1 then xyouts,x(w1),-0.85,labelz(w1),color=val(1),charsize=1.5,alignment=0.5
+if w2(0) ne -1 then xyouts,x(w2),-0.85,labelz(w2),color=val(2),charsize=1.5,alignment=0.5
+end
+
+if keyword_set(periodicity) then $
+oplot,t.angles(w),(t.periodicity(w)),psym=-3,color=val(0),thick=2 $
+else $
+if keyword_set(strain) then oplot,t.angles(w),abs(t.misfits(w)*100),psym=-3 $
+else oplot,t.angles(w),abs(t.misfits(w)*100),psym=-3
+
+if keyword_set(periodicity) then y=per
+if w1(0) ne -1 then oplot,x(w1),y(w1),color=val(1),psym=1,thick=3.
+if w2(0) ne -1 then oplot,x(w2),y(w2),color=val(2),psym=1,thick=3.
+
+
+
+device,/close
+set_plot,'X'
+
+
+end
+
+pro usersym1
+a=2.*!PI*findgen(21.)/20.
+x=(0.8*cos(a))
+y=(0.8*sin(a))
+usersym,x,y,/fill
+end
+
+pro usersym2
+a=2.*!PI*findgen(11.)/10.
+x=(0.4*cos(a))
+y=(0.4*sin(a))
+usersym,x,y,/fill
+end
+
+pro usersym3
+a=2.*!PI*findgen(81.)/80.
+x=(40*cos(a))
+y=(40*sin(a))
+usersym,x,y,/fill
+end
+
+pro ps_img,angle,xcm,ycm,file,nplt=nplt
+set_plot,'ps'
+!P.Font=-1
+
+
+device,/encapsul,bits_per_pixel=8,/color,filename=strtrim(file,2)+'.eps',xsize=xcm,ysize=ycm
+
+;lattice_misfit,20,angle,3.8608,3.7989,limit=0.15,cutoff=27,nplt=nplt
+lattice_misfit,13,angle,cutoff=22.,limit=0.15
+
+device,/close
+set_plot,'X'
+
+end
+

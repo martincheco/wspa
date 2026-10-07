@@ -1,0 +1,60 @@
+Header
+The header consiste of tags surrounded by colons (':')
+followed by one or more lines of values. The file has
+to start with the tag NANONIS_VERSION. The following
+tags are recognized as of version 1 of the file format.
+SCANIT_TYPE Describes the data format for the binary
+data. Usually this is FLOAT LSBFIRST, ie., the binary
+data is stored as 4-byte floating point data with the
+least significant bit first. 
+REC_DATE Date at which the image was taken. The format
+is dd.mm.yyyy. 
+REC_TIME Time at which the image was taken. The format
+is hh:mm:ss. 
+REC_TEMP Temperature during the scan. Unit is Kelvin [K]. 
+ACQ_TIME Time it took to take the image. Unit is
+seconds [s]. 
+SCAN_PIXEL 2x1 array, number of pixels in x- and
+y-direction. 
+SCAN_FILE File name under which the file was originally
+stored. 
+SCAN_TIME Time per line for forward and backward scan.
+Unit is seconds [s].
+SCAN_RANGE Scan range in x and y. Units are meters [m]. 
+SCAN_OFFSET Offset in x and y for the scan. Unit is
+meters [m]. 
+SCAN_ANGLE Rotation angle of the image. Unit is degrees
+[deg]. 
+SCAN_DIR Direction of the scan. Can be 'up' or 'down'. 
+BIAS
+Bias voltage at the time when file was saved. Unit is
+volts [V].
+Z-CONTROLLER
+Only available when selected to include in scan file.
+Contains information about the selected controller at
+the time when file was saved. The first line shows the
+parameter names (tab-separated), the second line gives
+the values. The parameters are: Controller name, on/off
+(0/1), setpoint, proportional gain, integral gain.
+DATA_INFO This field contains information about the
+channels in the file. The first line after the header
+contains a tab-separated list with the field
+description of the lines following. Usually this is
+Channel, Name, Unit, Direction, Calibration and Offset.
+The data in the fields Calibration and Offset can be
+used to reverse calculate the voltage read at the AD
+converters. It is not needed for the calibration of the
+data.
+SCANIT_END End of header.
+Binary Data
+The binary data begins after the header and is
+introduced by the (hex) code \1A\04. According to
+SCANIT_TYPE the data is encoded in 4 byte big endian
+floats. The channels are stored one after the other,
+forward scan followed by backward scan.
+The data is stored chronologically as it is recorded.
+On an up-scan, the first point corresponds to the lower
+left corner of the scanfield (forward scan). On a
+down-scan, it is the upper left corner of the
+scanfield. Hence, backward scan data start on the right
+side of the scanfield.

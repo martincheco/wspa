@@ -1,0 +1,206 @@
+function globalview,t,channel=channel,angle=angle,xscan=xscan,yscan=yscan,auto=auto
+;takes a stack of images and renders an overview
+
+
+nn=n_elements(t)
+chan=strarr(nn)
+dirv=chan
+dirh=chan
+
+for i=0,nn-1 do begin
+    st=(*t(i))
+    chan(i)=getval(st.par,"Acquisition channel:");
+    dirv(i)=getval(st.par,"Y scanning direction:");
+    dirh(i)=getval(st.par,"X scanning direction:");
+end
+
+indices=intarr(nn)
+
+if keyword_set(auto) then begin
+    channel=chan(0)
+    xscan=dirh(0)
+    yscan=dirv(0)
+end 
+
+;for i=0,nn-1 do print,chan(i)+dirv(i)+dirh(i)
+
+if keyword_set(channel) then $
+    pos1=strpos(strupcase(chan),strupcase(channel)) $
+else pos1=indices
+
+
+
+if keyword_set(yscan) then $
+    pos2=strpos(strupcase(dirv),strupcase(yscan)) $
+else pos2=indices
+
+if keyword_set(xscan) then $ 
+    pos3=strpos(strupcase(dirh),strupcase(xscan)) $
+else pos3=indices
+
+
+
+w=where(pos1 ne -1 and pos2 ne -1 and pos3 ne -1)
+
+for i=0,n_elements(w)-1 do print,chan(w(i))+dirh(w(i))+dirv(w(i))
+
+if w(0) ne -1 then n=n_elements(w) else return,-1
+
+;center pos, scanning offset (assuming m)
+xpos=dblarr(n)
+ypos=dblarr(n)
+;physical sizes (assuming nm)
+xsz=dblarr(n)
+ysz=dblarr(n)
+;pixel dimensions
+xp=dblarr(n)
+yp=dblarr(n)
+;angles
+ang=dblarr(n)
+tt=t(w)
+help,w
+
+
+for i=0,n-1 do begin
+    st=(*tt(i))
+    ang(i)=getval(st.par,"Scan angle:","float");
+    xpos(i)=getval(st.par,"X Offset:","float");
+    ypos(i)=getval(st.par,"Y Offset:","float");
+    xsz(i)=getval(st.par,"X Amplitude:","float");
+    ysz(i)=getval(st.par,"Y Amplitude:","float");
+    xp(i)=getval(st.par,"Number of rows:","float");
+    yp(i)=getval(st.par,"Number of columns:","float");
+end
+
+ii=dcomplex(0,1)
+
+
+if keyword_set(angle) then begin
+	rt=exp(ii*!PI*angle/180.)
+	ang+=angle
+	pos=dcomplex(xpos,ypos)*rt
+	xpos=real_part(pos)
+	ypos=imaginary(pos)
+end
+
+
+xpos=xpos*1D9
+ypos=ypos*1D9
+
+;print,xpos,format='(E14.6)'
+
+
+;zoom factors (px/nm)
+;xfact=xp/xsz
+;yfact=yp/xsz
+
+;positions of corners, relative to the center, complex
+ii=dcomplex(0,1)
+rt=exp(ii*!PI*ang/180.)
+
+vsz=dcomplex(xsz/2.,ysz/2.)*rt
+vsz1=dcomplex(-xsz/2.,ysz/2.)*rt
+vsz2=dcomplex(-xsz/2.,-ysz/2.)*rt
+vsz3=dcomplex(xsz/2.,-ysz/2.)*rt
+
+;convert corners to real numbers
+xvect=real_part([[vsz],[vsz1],[vsz2],[vsz3],[vsz]])
+yvect=imaginary([[vsz],[vsz1],[vsz2],[vsz3],[vsz]])
+help,xvect
+
+;positions of corners relative to the center
+xposs=[[xpos],[xpos],[xpos],[xpos],[xpos]]
+yposs=[[ypos],[ypos],[ypos],[ypos],[ypos]]
+
+
+;calculate the ranges in nm
+xmax=max(xposs+xvect)
+ymax=max(yposs+yvect)
+xmin=min(xposs+xvect)
+ymin=min(yposs+yvect)
+
+;outline the canvas
+plot,xpos,ypos,psym=1,xrange=[xmin,xmax],yrange=[ymin,ymax],/iso,xst=1,yst=1
+for i=0,n-1 do begin
+	oplot,xpos(i)+xvect(i,*),ypos(i)+yvect(i,*),psym=-3,color=128
+end
+
+
+
+return,{xpos:xpos,ypos:ypos,ang:ang,xp:xp,yp:yp,xsz:xsz,ysz:ysz,chan:chan(w),dirh:dirh(w),dirv:dirv(w),w:w,xmax:xmax,xmin:xmin,ymax:ymax,ymin:ymin}
+end
+
+
+
+
+
+function globalview_render,t,g,width=width
+;writes	the info for each channel in the t
+;f is the filename
+;g is the info obtained using the globalview_coords
+;width is the x width of the image
+if not(keyword_set(width)) then width=800 else width=(width>100)<3200
+
+;normalize everything on the scale 0 to 1 percent
+xrange=g.xmax-g.xmin
+yrange=g.ymax-g.ymin
+xpos=(g.xpos-g.xmin)/xrange
+ypos=(g.ypos-g.ymin)/xrange
+
+xsz=(g.xsz)/xrange
+ysz=(g.ysz)/xrange
+
+n=n_elements(g.w)
+
+xdim=width
+ydim=yrange/xrange*width
+
+;the rendering canvas, 2 is for reserve space
+canvas=bytarr(xdim+2,ydim+2)
+
+
+
+print,'ranges [nm]: ',xrange,yrange
+print,'xdim,ydim [px]:',xdim,ydim
+
+for i=0,n-1 do begin
+	print,'xpos,ypos [norm]: ',xpos(i),ypos(i)
+	print,'xsz,ysz [norm]: ',xsz(i),ysz(i)
+
+    ww=g.w(i)
+    img=bytscl((rowsequal((*t(ww)).img)))
+;    img=img*0+255
+    xx=round(xsz(i)*width)
+    yy=round(ysz(i)*width)
+
+    print,'xx,yy[px]: ',xx,yy
+
+    imf=congrid(img,xx,yy,cubic=-0.5)
+    if g.ang(i) ne 0. then begin
+	r=ceil(abs(complex(xx,yy)))
+        tmp=bytarr(r,r)*(0./0.)
+	xo=r/2-xx/2
+	yo=r/2-yy/2
+	help,xo
+	help,yo
+	help,xx
+	help,yy
+	help,r
+	tmp(xo:xo+xx-1,yo:yo+yy-1)=imf 
+        imf=rot(tmp,-g.ang(i),missing=(0./0.),/interp)
+	xx=r
+	yy=r
+    end
+
+    xoffs=width*xpos(i)-floor(xx/2)+1
+    yoffs=width*ypos(i)-floor(yy/2)+1
+;    imf=histxpand(imf)
+    buff=canvas(xoffs:xoffs+xx-1,yoffs:yoffs+yy-1)
+    mask=where(finite(imf))
+    buff(mask)=imf(mask)
+    canvas(xoffs:xoffs+xx-1,yoffs:yoffs+yy-1)=buff
+
+
+end
+return,canvas
+end

@@ -1,0 +1,96 @@
+function mloadwsxm,f,preselect=preselect
+;load entire list of files into a structure, THEY DO NOT HAVE TO BE THE SAME SIZE
+;supports also lists
+cd,current=c
+if not(keyword_set(f)) then f=dialog_pickfile(/multiple_files,/must_exist,filter=['*.top;*.ch*;*.stp','*.par','*.dat'],path=c)
+if n_elements(f) eq 0 then return,-1
+
+n=n_elements(f)
+;print,f
+help,n
+if n eq 1 then begin
+    print,"probably a list"
+    ff=strtrim(f,2)
+    fb=file_dirname(ff)
+    pos=strpos(ff,'.lst',/reverse_search)
+    ;print,pos,strlen(fb)
+    if pos gt strlen(fb) and file_test(ff) then begin
+	f=loadlist(ff)
+	help,f
+	help,fb
+	n=n_elements(f)
+	for i=0,n-1 do begin ;tweak for the lists of omicron files
+	    fm=f(i)
+	    p=strpos(fm,'.tf')
+	    if p eq -1 then p=strpos(fm,'.tb')
+	    if p ne -1 then strput,fm,".par",p
+	    f(i)=fm
+	end
+	
+	f=f(uniq(f,sort(f)))
+	n=n_elements(f)
+	
+	for i=0,n-1 do begin
+	    if fb ne "." then f(i)=fb+'/'+f(i)
+	end
+    end
+end
+
+print,f
+
+c=0 ;counter for the pointers
+pmdata=ptrarr(n*8)
+
+
+;main reading loop
+for i=0,n-1 do begin
+;test if it is omicron
+    fb=file_dirname(f(i))
+    
+;    case strmid(f(i),3,/reverse) of 
+
+    if strmid(f(i),3,/reverse) eq '.par' then begin
+	print,file_basename(f(i))+': Omicron .par file!'
+	mchunk=loadomicron(f(i),preselect=preselect)
+	;help,mchunk
+	
+	if n_tags(mchunk) ne 0 then begin
+	    nchunk=n_elements(mchunk)
+	    
+	    for j=0,nchunk-1 do begin
+		;help,mchunk(j)
+		pmdata(c)=ptr_new(mchunk(j))
+		c=c+1
+	    end
+	end
+    end $
+    else $
+    ;for Createk
+    if strmid(f(i),3,/reverse) eq '.dat' or strmid(f(i),3,/reverse) eq '.DAT' then begin
+	mchunk=loadcreatek(f(i))
+	;help,mchunk
+	if n_tags(mchunk) ne 0 then begin
+	    nchunk=n_elements(mchunk)
+	
+	    for j=0,nchunk-1 do begin
+		;help,mchunk(j)
+		pmdata(c)=ptr_new(mchunk(j))
+		c=c+1
+	    end
+	end
+    end $
+    else $
+    ;wsxm
+    begin
+	;print,i
+	pmdata(c)=ptr_new(loadwsxm(f(i)))
+	c=c+1
+    end
+end
+
+if c ne 0 then return,pmdata(0:c-1) else return,0
+end
+
+function wsxm,a
+return,a
+end

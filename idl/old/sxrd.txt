@@ -1,0 +1,19 @@
+palette 0
+
+xwinsize 800
+ywinsize 200
+
+histexpand 1
+hival 0.2
+loval 0.0
+
+showpoints 0
+
+reform 1
+rotate 0
+
+invert 1
+
+background 0.3
+linewidth 0
+pixmap 0

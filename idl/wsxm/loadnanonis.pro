@@ -1,0 +1,304 @@
+
+function loadnanonis,f,raw=raw,verbose=verbose,spectrum=spectrum
+;reads the NANONIS SXM format file and returns a structure containing parameters and image
+;verbose - prints more info while loading channles
+;spectrum - named var for reading of channels that represent photon spectra
+
+close,/all ; for sure
+
+;open file
+if not(keyword_set(f)) then f = dialog_pickfile(/read, /must_exist,filter=['*.sxm','*.SXM'],title='Select a NANONIS file to open')
+
+f=repstr(f,' ','\ ')
+
+;in case file does not exist or corrupted
+dummy={par:"Filename: "+f,img:0,zunit:0,runit:0,xsize:0,ysize:0,conversion:0,zsize:0,datatype:0}
+if not(File_Test(f)) then return,dummy
+
+;reading parameters until binary data
+print,"Reading "+f
+openr,1,f
+par=strarr(1999)
+counter=-1L
+
+a=""
+repeat begin
+    counter=counter+1
+    if not(EOF(1)) then readf,1,a
+    par(counter)=a
+endrep until strpos(a,":SCANIT_END:") ne -1 or counter gt 1997 or EOF(1)
+
+;print,"Header counter: ",counter+1
+
+st=fstat(1)
+p0=st.cur_ptr
+buf=bytarr(1024)
+readu,1,buf
+w=where(buf(0:1022) eq 26B and buf(1:1023) eq 4B, count)
+if count gt 0 then begin
+    point_lun,1,p0+w(0)+2
+end else begin
+    point_lun,1,p0
+    a_b=0B
+    repeat begin
+        ad=a_b
+        a_b=0B
+        readu,1,a_b
+    endrep until ad eq 26B and a_b eq 4B
+endelse
+;print,'found image start'
+par=par(0:counter+1)
+par=shift(par,1)
+paru=STRUPCASE(par)
+
+;getting crucial parameters
+
+par(0)="Filename: "+f
+xy=getvaln(par,":SCAN_PIXELS:")
+x=fix(xy(0))
+y=fix(xy(1))
+
+;help,x
+;help,y
+
+
+xysize=getvaln(par,":SCAN_RANGE:")
+xsize=double(xysize(0))*1E9
+ysize=double(xysize(1))*1E9
+
+;help,xsize
+;help,ysize
+
+runit="nm"
+zunit="nm"
+datatype='float'
+
+;read parameters to determine total no of images and to assign correct parameters
+
+chans=rdnline(par,':DATA_INFO:',/n)
+chans=par(chans(2:*))
+
+	chans=chans(where(strtrim(chans,2) ne ""))
+;	print,'skipping the spectroscopic channels'
+
+
+help,chans
+chn=n_elements(chans)
+;split
+chnum=intarr(chn)
+chname=strarr(chn)
+chunit=strarr(chn)
+chdirr=strarr(chn)
+;chcal=dblarr(chn)
+;choffs=dblarr(chn)
+
+
+
+for i=0,chn-1 do begin
+   	line=strsplit(chans(i),/extract)
+    chnum(i)=fix(line(0))
+    chname(i)=line(1)
+    chunit(i)=line(2)
+    sdir=strtrim(line(3),2)
+    if sdir eq 'both' then chdirr(i)=2 else chdirr(i)=1
+;    chcal(i)=line(4)
+;    choffs(i)=line(5)
+end
+
+aws=-1
+if keyword_set(spectrum) then begin
+	print,'looking for the spectroscopic channels'
+	aws=where(valid_num(strtrim(chname,2)) eq 1)
+	ws=where(valid_num(strtrim(chname,2)) ne 1)
+	if aws(0) ne -1 then begin
+		print,'Found them!'
+		calibration=chname(aws)
+		spchn=chn-n_elements(ws)
+		chn=n_elements(ws)
+		chnum=chnum(ws)
+		chname=chname(ws)
+		chdirr=chdirr(ws)
+		chn+=1
+		chnum=[chnum,chnum(-1)+1]
+		chname=[chname,'Spectrum']
+		chdirr=[chdirr,chdirr(0)]
+	end else begin
+		print,'no bulk spectra found!'
+	end
+
+end
+
+;voltage in dual mode will be different!
+	voltage="Topography Bias: "+getvaln(paru,":BIAS")+" V"
+	;print,voltage
+	currl=rdnline(par,":Z-CONTROLLER:",/n)
+	if currl(0) ne -1 then begin
+		currr=strsplit(par(currl(2)),"	",/extract)
+		current="Set Point: "+strtrim(string(currr(2)),2)
+		feed="Feedback: "+strtrim(string(currr(1)),2)
+;	date="Acquisition time: "+getvaln(par,":REC_DATE:")+" "+getvaln(par,":REC_TIME:")
+	end else begin
+		current="Set Point: 1 nA"
+		feed="Feedback: whatever"
+	end
+
+	date0=getvaln(par,":REC_DATE:")
+	if date0(0) eq "" then begin
+		datea=getvaln(par,":Date:")
+		if datea(0) eq "" then datea=getvaln(par,":Start time:")
+		date0=datea(0)
+		time0=datea(1)
+		end else time0=getvaln(par,":REC_TIME:")
+
+
+	;print,date0
+	if date0(0) ne "" then begin
+		date1=strsplit(date0,'.',/extract)
+		date="Acquisition time: "+date1(2)+'-'+date1(1)+'-'+date1(0)+' '+time0
+	end 
+		dur="Duration: "+getvaln(par,":ACQ_TIME:")
+
+	pxsize="X Amplitude: "+string(xsize)+" nm"
+	pysize="Y Amplitude: "+string(ysize)+" nm"
+	nrows="Number of rows: "+string(y)
+	ncols="Number of columns: "+string(x)
+	imgdttype="Image Data Type: float"
+	scanfq="X-Frequency: "+string(float(getvaln(par,":ACQ_TIME:"))/y)+" s"
+	ydir=getvaln(par,":SCAN_DIR:")
+	;help,ydir(0)
+	yscandir="Y scanning direction: "+ydir(0)
+	scanangle="Scan angle: "+string(getvaln(par,":SCAN_ANGLE:")) ;employ this later
+
+	xyo=getvaln(par,":SCAN_OFFSET:")
+	xo=" X Offset: "+string(xyo(0))+" m"
+	yo=" Y Offset: "+string(xyo(1))+" m"
+
+	cm=rdnline(par,":COMMENT:",/n)
+	;help,cm
+	if cm(0) ne -1 then $
+	com=strjoin(par(cm(1:*)), "\n") else com=""
+
+
+;reading binary data
+
+    if keyword_set(verbose) then print,'Reading binary data...'
+
+on_ioerror, handle_eof
+
+if x gt 0 and y gt 0 then img=reform(fltarr(x,y),x,y)
+if x gt 0 and y gt 0 then $
+for i=0,chn-1 do begin
+    if keyword_set(verbose) then print,'Channel:',i
+
+    if keyword_set(spectrum) and i eq chn-1 and aws(0) ne -1 then begin
+	;sparray=fltarr(spchn,2,x,y)
+	sparray=fltarr(x,y,2,spchn)
+	readu,1,sparray
+	sparray=swap_endian(sparray) ;nanonis is big endian
+	if ydir eq "down" then sparray=reverse(sparray,2) ;OMG specs!
+;if j eq 1 then sparray=reverse(sparray,)
+	ffnite=finite(sparray)
+	winf=where(ffnite eq 0) ;tweak for incomplete images
+	if not(keyword_set(raw)) then if winf(0) ne -1 then begin
+    		avg=min(sparray(where(ffnite)))
+    		sparray(winf)=avg
+    		print,"pruning out the NANs.."
+	end
+	help,sparray
+	sps=size(sparray)
+	img=medianfilter(reform(total(sparray(*,*,0,*),4),x,y))
+	img=reform(img,sps(1),sps(2))
+	help,sparray
+	spectrum=sparray
+	help,calibration
+	;print,calibration
+	spectrum(0,0,1,*)=float(calibration)
+	conversion=1D
+	zsize=abs(max(img)-min(img))
+	pzsize="Z Amplitude: "+string(zsize)
+
+	;parameters frenzy, stil inside the for cycle
+	dir="f"
+	xdir="forward" 
+
+	acqsig="Acquisition channel: "+chname(i)
+	xscandir="X scanning direction: "+xdir
+	
+
+	parstring=[$
+	"WSxM file copyright Nanotec Electronica","SxM Image file",$
+	;"Image header size: ",$
+	"[Control]",current,"Signal Gain: 1",voltage,pxsize,pysize,scanfq,xo,yo,scanangle,$
+	"[General Info]",acqsig,date,dur,nrows,ncols,imgdttype,pzsize,xscandir,yscandir,$
+	"[Miscellaneous]",com,feed,"[Header end]"]
+	newpar=["Filename: "+f+"."+dir+strtrim(string(chnum(i)),2),parstring]
+	
+	slice={par:newpar,img:img,zunit:chunit(i),runit:runit,xsize:xsize,ysize:ysize,conversion:conversion,zsize:zsize,datatype:datatype}
+	print,"slice.img:"
+	help,slice,/st
+
+	print,"stack(0)"
+	help,stack
+	help,stack(0),/st
+	if i eq 0 then stack=slice else stack=[stack,slice]
+
+
+    
+
+
+
+    end else $
+    for j=0,chdirr(i)-1 do begin
+	;print,i,j
+	if EOF(1) then goto, handle_eof
+	readu,1,img
+	img=swap_endian(img) ;nanonis is big endian
+	if ydir eq "down" then img=reverse(img,2) ;OMG specs!
+	if j eq 1 then img=reverse(img,1)
+	ffnite=finite(img)
+	winf=where(ffnite eq 0, n_nan)
+	if not(keyword_set(raw)) and n_nan gt 0 then begin
+	    if n_nan lt n_elements(img) then avg=min(img, /nan) else avg=0.0
+	    img(winf)=avg
+	    print,"pruning out the NANs.."
+	end
+	;help,where(finite(img) eq 0)
+	conversion=1D
+	;img=img;*chcal(i)+choffs(i) ;not sure what is calibration and offset, have to ask
+	zsize=abs(max(img)-min(img))
+	pzsize="Z Amplitude: "+string(zsize)
+
+	;parameters frenzy, stil inside the for cycle
+	if j eq 0 then dir="f" else dir="b"
+	if j eq 0 then xdir="forward" else xdir="backward"
+
+
+	acqsig="Acquisition channel: "+chname(i)
+	xscandir="X scanning direction: "+xdir
+	
+
+	parstring=[$
+	"WSxM file copyright Nanotec Electronica","SxM Image file",$
+	;"Image header size: ",$
+	"[Control]",current,"Signal Gain: 1",voltage,pxsize,pysize,scanfq,xo,yo,scanangle,$
+	"[General Info]",acqsig,date,dur,nrows,ncols,imgdttype,pzsize,xscandir,yscandir,$
+	"[Miscellaneous]",com,feed,"[Header end]"]
+	newpar=["Filename: "+f+"."+dir+strtrim(string(chnum(i)),2),parstring]
+
+	img=reform(img,x,y)
+	slice={par:newpar,img:img,zunit:chunit(i),runit:runit,xsize:xsize,ysize:ysize,conversion:conversion,zsize:zsize,datatype:datatype}
+	if i eq 0 and j eq 0 then stack=slice else stack=[stack,slice]
+
+    end ;direction enfor
+end else stack=0 ;main endfor!!!
+
+close,1
+
+return,stack
+
+handle_eof:
+on_ioerror, NULL
+print, '% LOADNANONIS: Premature EOF encountered in ' + f + ', returning loaded slices.'
+close, 1
+if n_elements(stack) gt 0 then return, stack else return, dummy
+end

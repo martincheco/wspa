@@ -1,0 +1,6 @@
+for i=0,n-1 do begin
+    lne=imf(*,i*s(2)/n)
+    ab=LADFIT(x,lne)
+    meanval(i)=ab(0)
+    sl(i)=ab(1)
+end
