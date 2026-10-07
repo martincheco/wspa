@@ -1,0 +1,19 @@
+# Data & User Workspaces
+data/
+users/
+process/
+
+# Temporary & Log Files
+*.log
+*.dat
+*.png
+comm
+
+# Python Cache
+__pycache__/
+*.pyc
+
+# IDE / OS Files
+.DS_Store
+.vscode/
+.idea/

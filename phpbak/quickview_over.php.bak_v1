@@ -1,0 +1,161 @@
+<?
+
+require('globals.php');
+require('auth.php');
+$tmpdat=$userdir.$user."/tmp.dat";
+//read channel info and determine which keys are in the same set
+if (file_exists($userdir.$user.'/chan.dat')){
+	$chans=file($userdir.$user.'/chan.dat');
+	$raw_chans=$chans;
+}
+if (file_exists($userdir.$user.'/acqchan.dat')){
+	$acqchans=file($userdir.$user.'/acqchan.dat');
+}
+$acqchans=preg_replace("/[\\n\\r]+/", "",$acqchans);
+
+$msg=file($tmpdat);
+$mapdir=pathinfo(trim(stripslashes($msg[0])), PATHINFO_DIRNAME);
+
+
+//read image index from file
+$parts = preg_split('/\s+/', $msg[1]);
+$index=$parts[1]-1;
+
+require('over.php');
+
+require('head.php');
+
+//is a part of image retrieval, depends on use of shared memory
+if ($shm!=''){$userlnk=$userlink;}else{$userlnk=$userdir;}
+
+//print_r($index);
+?>
+
+<div class="fill">
+<div class="scrollfill">
+<TABLE>
+<TR>
+			
+
+	<TD style="vertical-align:top;width:30em;">
+		<TABLE style="position:relative;z-index:1;">
+		<TR>
+			<TD>
+<?	
+$c=0;
+$obi="";
+foreach ($chans as $i){
+	$info = pathinfo($i);
+
+//	$mapfile=pathinfo(pathinfo(trim(stripslashes($info['basename'])), PATHINFO_FILENAME),PATHINFO_FILENAME).'.map';
+
+
+	$value = isset($info['extension']) ? $info['extension'] : '';
+	$bi =  basename($i,'.'.$value);
+	$info = pathinfo($bi);
+
+	$value = isset($info['extension']) ? $info['extension'] : '';
+	$bi =  basename($bi,'.'.$value);
+
+
+
+
+
+
+	if($bi != $obi){
+
+//		echo "</TD></TR><TR><TD>".basename($msg[0])." ".$msg[1];
+		echo "</TD></TR><TR><TD>";
+
+		$raw_file = isset($raw_chans[$c]) ? trim(stripslashes($raw_chans[$c])) : "";
+		$mapdir = pathinfo($raw_file, PATHINFO_DIRNAME);
+		$mapfile = $mapdir . '/' . $bi . '.map';
+		if (!file_exists($mapfile)) {
+			$meta_map = get_meta_path_for_file($raw_file, 'map', $user);
+			if (file_exists($meta_map)) {
+				$mapfile = $meta_map;
+			} else {
+				$mapfile = "";
+			}
+		}
+
+		if ($mapfile !== "" && file_exists($mapfile)){
+			$stsim='sts.png';$mtagc='color:#0e0;';
+			$bordercol="#0e0";
+		}else{
+			$bordercol="#567";
+		}
+		
+		if(in_array($c,$chline)){$bordercol="#fff; outline: 2px solid #0aa;  outline-offset: -2px";}
+
+		$mapfile="";
+
+	}
+
+	$img_file = $userlnk.$user.'/tmp'.$c.'.png';
+	$hash = @filemtime($img_file);
+	if ($bi != $obi || !isset($cached_w_attr)) {
+		$sz = @filesize($img_file);
+		$hh = @getimagesize($img_file);
+		if ($sz !== false && $sz < 500) {
+			$cached_w_attr = '';
+			$cached_ar_css = 'width:8px; height:8px; ';
+		} else if ($hh && !empty($hh[0]) && !empty($hh[1])) {
+			$cached_w_attr = 'width="'.$hh[0].'" height="'.$hh[1].'"';
+			$cached_ar_css = 'aspect-ratio: '.$hh[0].' / '.$hh[1].'; ';
+		} else {
+			$cached_w_attr = '';
+			$cached_ar_css = '';
+		}
+	}
+	$w_attr = $cached_w_attr;
+	$ar_css = $cached_ar_css;
+
+	echo '<a href="quickview.php?command=goto '.($c+1).'&over=over" title="'.$bi.'"><img id="img'.$c.'" src="serve_image.php?file=' . urlencode($img_file) . '&v=' . $hash . '" ' . $w_attr . ' style="' . $ar_css . 'width:auto;height:auto;max-width:100px;max-height:100px;padding:1px;background-color:' . $bordercol . ';" title="' . $bi . '"></a>';
+	$c++;
+	$obi=$bi;
+
+}
+?>
+
+
+	</TR>
+	</TABLE>
+
+</TR>
+</TABLE>
+</div>
+</div>
+
+
+<script>
+if ('scrollRestoration' in history) {
+  history.scrollRestoration = 'manual';
+}
+
+function scrollToActiveImage() {
+  var targetImage = document.getElementById('<?echo 'img'.$index;?>');
+  if (targetImage) {
+    targetImage.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
+  }
+}
+
+document.addEventListener('DOMContentLoaded', scrollToActiveImage);
+window.addEventListener('load', scrollToActiveImage);
+
+var activeImg = document.getElementById('<?echo 'img'.$index;?>');
+if (activeImg) {
+  if (activeImg.complete) {
+    scrollToActiveImage();
+  } else {
+    activeImg.addEventListener('load', scrollToActiveImage);
+  }
+}
+</script>
+
+
+</BODY>
+
+<?
+
+exit;?>

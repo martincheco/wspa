@@ -1,0 +1,27 @@
+cmdargs=command_line_args()
+if n_elements(cmdargs) ge 2 then wspa_root=cmdargs(1) else wspa_root=file_dirname(filepath('qvud_launcher'))
+rootcd=':'+wspa_root+'/idl/'
+
+gpath=""
+gpath+=rootcd+"filters"
+gpath+=rootcd+"wsxm"
+gpath+=rootcd+"tools"
+gpath+=rootcd+"numeric"
+gpath+=rootcd+"measure"
+gpath+=rootcd+"omicron"
+gpath+=rootcd+"drift"
+gpath+=rootcd+"process"
+gpath+=rootcd
+
+!PATH=!PATH+gpath 
+
+print,"Path: ",!PATH
+print,"GDL dir: ",!DIR
+print,"GDL runs as"
+$whoami
+cd,current=c
+print,"in:",c
+
+qvud,"mylist.lst",/preprocess
+print,"qvud ended"
+exit
