@@ -535,8 +535,8 @@ function get_process_dir($data_path, $has_custom_filter = false, $user = null) {
         return get_meta_dir($clean_path, $user) . '/process';
     }
 
-    // 2. Local or in-situ writable dataset folder -> in-situ process directory
-    if (is_wspa_localdir($clean_path) || is_writable($clean_path)) {
+    // 2. Local Mode A dataset folder -> in-situ process directory
+    if (is_wspa_localdir($clean_path)) {
         return rtrim($clean_path, '/') . '/process';
     }
 
@@ -547,7 +547,18 @@ function get_process_dir($data_path, $has_custom_filter = false, $user = null) {
     } else {
         $rel_path = ltrim($clean_path, '/');
     }
-    return "data/.shadow/" . ltrim($rel_path, '/') . "/process";
+    return "data/.shadow/" . trim($rel_path, '/') . "/process";
+}
+
+/**
+ * Ensures directory exists with 0775 permissions
+ */
+function ensure_wspa_dir($dir) {
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0775, true);
+        @chmod($dir, 0775);
+    }
+    return is_dir($dir);
 }
 
 /**
@@ -643,10 +654,7 @@ function sync_process_preview_dir($data_path, $userdir, $user) {
             $has_custom_filter = file_exists($flt_file) && filesize($flt_file) > 0;
 
             $target_dir = get_process_dir($full_raw_file, $has_custom_filter, $user);
-            if (!is_dir($target_dir)) {
-                @mkdir($target_dir, 0775, true);
-                @chmod($target_dir, 0775);
-            }
+            ensure_wspa_dir($target_dir);
             $target_png = $target_dir . '/' . $png_name;
 
             // Only update process/ cache if tmp_png is a real physical file (NOT a symlink) or custom filter exists
