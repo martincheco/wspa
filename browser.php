@@ -643,7 +643,7 @@ if ($show_project_selector) {
 echo '</TD></TR></TABLE></div>';
 
 echo '<TABLE class="twocolumn"><TR><TD>';
-echo '<div class="dheader"><TABLE><TR><TH colspan=3>';
+echo '<div class="dheader"><TABLE style="width:100%;"><TR><TH colspan=3 style="width:100%;text-align:left;">';
 
 echo '<form id="dirs" method="get" action="browser.php">';
 echo '<input type="hidden" name="path" value="' . htmlspecialchars($path) . '">';
@@ -1038,12 +1038,14 @@ echo '<script>
 echo '</TD><TD style="border:1px solid #888;background-color:#888;width:0px"></TD><TD>';
 
 if ($mode === 'Preview') {
-    echo '<div class="flist"><TABLE style="width:100%;"><TR><TH>';
+    echo '<div class="fheader"><TABLE style="width:100%;"><TR><TH style="width:100%;text-align:left;">';
     echo '<FORM id="basic" method="post" action="browser.php?path=' . urlencode_path($path) . '&view_mode=' . urlencode($view_mode) . (($selected_project !== '') ? '&project=' . urlencode($selected_project) : '') . '">';
     echo '<input type="submit" name="mode" value="File"><input type="submit" name="mode" value="Img"><input type="submit" name="mode" value="Preview" style="background:#bff">';
     echo '</FORM>';
     echo '<TABLE style="width:100%;"><TR><TD style="border:1px solid #888; background-color:#888;height:0px;"></TD></TR></TABLE>';
-    echo '</TH></TR>';
+    echo '</TH></TR></TABLE></div>';
+
+    echo '<div class="flist"><TABLE style="width:100%;">';
 
     $cached_pics = array();
     $clean_p = strip_web_root_prefix($path);
@@ -1122,12 +1124,14 @@ if ($mode === 'Preview') {
 
 } else if ($mode === 'Img') {
     
-    echo '<div class="flist"><TABLE style="width:100%;"><TR><TH>';
+    echo '<div class="fheader"><TABLE style="width:100%;"><TR><TH style="width:100%;text-align:left;">';
     echo '<FORM id="basic" method="post" action="browser.php?path=' . urlencode_path($path) . '&view_mode=' . urlencode($view_mode) . (($selected_project !== '') ? '&project=' . urlencode($selected_project) : '') . '">';
     echo '<input type="submit" name="mode" value="File"><input type="submit" name="mode" value="Img" style="background:#bff"><input type="submit" name="mode" value="Preview">';
     echo '</FORM>';
     echo '<TABLE style="width:100%;"><TR><TD style="border:1px solid #888; background-color:#888;height:0px;"></TD></TR></TABLE>';
-    echo '</TH></TR><TR><TD>';
+    echo '</TH></TR></TABLE></div>';
+
+    echo '<div class="flist">';
 
     $pics = array();
     foreach ($resultx as $entry) {
@@ -1149,11 +1153,11 @@ if ($mode === 'Preview') {
         echo '<a class="decor" href="' . htmlspecialchars($pic_url) . '" target="_blank"><img src="' . htmlspecialchars($pic_url) . '" style="max-height:200px;max-width:200px;">';
         echo '<div style="font-size:10pt">' . htmlspecialchars($pic) . '</div></a></div>';
     }
-    echo "</TD></TR></TABLE></div>";
+    echo "</div>";
 } else {
 ?>
-<div class="flist"><TABLE><TR><TH colspan=2>
 <form id="basic" enctype="multipart/form-data" method="post" action="browser.php?path=<?php echo urlencode_path($path); ?>&view_mode=<?php echo urlencode($view_mode); ?><?php echo ($selected_project !== '') ? '&project=' . urlencode($selected_project) : ''; ?>">
+<div class="fheader"><TABLE style="width:100%;"><TR><TH colspan=2 style="width:100%;text-align:left;">
 <input type="submit" name="mode" value="File" style="background:#bff"><input type="submit" name="mode" value="Img"><input type="submit" name="mode" value="Preview">
 <input list="masks" id="mask_input" name="mask" size=5 value="<?php echo htmlspecialchars($mask);?>" placeholder="Mask"><input type="submit" name="mask_add" value=" + " style="width:24px;" onclick="filterMaskSelection('+'); return false;"><input type="submit" name="mask_remove" value=" - " style="width:24px;" onclick="filterMaskSelection('-'); return false;">
 
@@ -1166,7 +1170,10 @@ if ($mode === 'Preview') {
   <option value="*.out">Fireball</option>
 </datalist><input type="submit" name="open" value="Open"><input type="submit" name="load_sxm" value="LOAD SXM" style="background:#bff" onclick="selectAndLoadSxm(event)">
 
-<TABLE><TR><TD style="border:1px solid #888; background-color:#888;height:0px;"></TR></TABLE></TR>
+<TABLE style="width:100%;"><TR><TD style="border:1px solid #888; background-color:#888;height:0px;"></TD></TR></TABLE>
+</TH></TR></TABLE></div>
+
+<div class="flist"><TABLE style="width:100%;">
 <?php
     $result_files = sortbykey($resultx, 'filename', true);
 
@@ -1189,7 +1196,7 @@ if ($mode === 'Preview') {
         }
     }
 
-    echo '</TABLE></div>';
+    echo '</TABLE></div></form>';
 }
 
 echo '</TD></TR></TABLE></div>';
