@@ -643,7 +643,7 @@ if ($show_project_selector) {
 echo '</TD></TR></TABLE></div>';
 
 echo '<TABLE class="twocolumn"><TR><TD>';
-echo '<div class="dlist"><TABLE><TR><TH colspan=3>';
+echo '<div class="dheader"><TABLE><TR><TH colspan=3>';
 
 echo '<form id="dirs" method="get" action="browser.php">';
 echo '<input type="hidden" name="path" value="' . htmlspecialchars($path) . '">';
@@ -703,7 +703,8 @@ if ($show_prev_next) {
     }
 }
 
-echo '</FORM><TABLE><TR><TD style="border:1px solid #888;background-color:#888;height:0px"></TR></TABLE></TR>';
+echo '</FORM><TABLE style="width:100%;"><TR><TD style="border:1px solid #888;background-color:#888;height:0px;"></TD></TR></TABLE></TH></TR></TABLE></div>';
+echo '<div class="dlist"><TABLE>';
 
 if ($view_mode === 'project') {
     if ($selected_project === '') {
@@ -1037,12 +1038,14 @@ echo '<script>
 echo '</TD><TD style="border:1px solid #888;background-color:#888;width:0px"></TD><TD>';
 
 if ($mode === 'Preview') {
-    echo '<div class="flist"><TABLE style="width:100%;table-layout:fixed;"><TR><TH style="position:sticky;top:0;background:#111;z-index:10;">';
+    echo '<div class="fheader"><TABLE style="width:100%;"><TR><TH>';
     echo '<FORM id="basic" method="post" action="browser.php?path=' . urlencode_path($path) . '&view_mode=' . urlencode($view_mode) . (($selected_project !== '') ? '&project=' . urlencode($selected_project) : '') . '">';
     echo '<input type="submit" name="mode" value="File"><input type="submit" name="mode" value="Img"><input type="submit" name="mode" value="Preview" style="background:#bff">';
     echo '</FORM>';
     echo '<TABLE style="width:100%;"><TR><TD style="border:1px solid #888; background-color:#888;height:0px;"></TD></TR></TABLE>';
-    echo '</TH></TR>';
+    echo '</TH></TR></TABLE></div>';
+
+    echo '<div class="flist"><TABLE style="width:100%;">';
 
     $cached_pics = array();
     $clean_p = strip_web_root_prefix($path);
@@ -1100,7 +1103,7 @@ if ($mode === 'Preview') {
                 return strcmp(parse_channel_order_key($a['filename']), parse_channel_order_key($b['filename']));
             });
 
-            echo '<TR><TD style="padding:0;margin:0;width:100%;max-width:100%;overflow:hidden;"><div style="white-space:nowrap;overflow-x:auto;width:100%;max-width:100%;box-sizing:border-box;margin:0;padding:0;">';
+            echo '<TR><TD style="padding:0;margin:0;white-space:nowrap;">';
             foreach ($row_entries as $pic_entry) {
                 $img_file = $pic_entry['path'];
                 $hh = @getimagesize($img_file);
@@ -1114,17 +1117,21 @@ if ($mode === 'Preview') {
                 echo '<img src="' . htmlspecialchars($pic_url) . '" ' . $w_attr . ' style="' . $ar_css . 'width:auto;height:auto;max-height:70px;max-width:70px;padding:1px;background-color:#000;border:1px solid #567;margin:0;" title="' . htmlspecialchars($pic_entry['filename']) . '">';
                 echo '</a>';
             }
-            echo '</div></TD></TR>';
+            echo '</TD></TR>';
         }
     }
     echo '</TABLE></div>';
 
 } else if ($mode === 'Img') {
     
-    echo '<div class="flist"><TABLE><TR><TD><FORM id="basic" method="post" action="browser.php?path=' . urlencode_path($path) . '&view_mode=' . urlencode($view_mode) . (($selected_project !== '') ? '&project=' . urlencode($selected_project) : '') . '">';
+    echo '<div class="fheader"><TABLE style="width:100%;"><TR><TH>';
+    echo '<FORM id="basic" method="post" action="browser.php?path=' . urlencode_path($path) . '&view_mode=' . urlencode($view_mode) . (($selected_project !== '') ? '&project=' . urlencode($selected_project) : '') . '">';
     echo '<input type="submit" name="mode" value="File"><input type="submit" name="mode" value="Img" style="background:#bff"><input type="submit" name="mode" value="Preview">';
-    echo '</FORM></TABLE>';
-    echo '<TABLE><TR><TD style="border:1px solid #888; background-color:#888;height:0px;"></TR></TABLE>';
+    echo '</FORM>';
+    echo '<TABLE style="width:100%;"><TR><TD style="border:1px solid #888; background-color:#888;height:0px;"></TD></TR></TABLE>';
+    echo '</TH></TR></TABLE></div>';
+
+    echo '<div class="flist">';
 
     $pics = array();
     foreach ($resultx as $entry) {
@@ -1149,7 +1156,7 @@ if ($mode === 'Preview') {
     echo "</div>";
 } else {
 ?>
-<div class="flist"><TABLE><TR><TH colspan=2>
+<div class="fheader"><TABLE style="width:100%;"><TR><TH colspan=2>
 <form id="basic" enctype="multipart/form-data" method="post" action="browser.php?path=<?php echo urlencode_path($path); ?>&view_mode=<?php echo urlencode($view_mode); ?><?php echo ($selected_project !== '') ? '&project=' . urlencode($selected_project) : ''; ?>">
 <input type="submit" name="mode" value="File" style="background:#bff"><input type="submit" name="mode" value="Img"><input type="submit" name="mode" value="Preview">
 <input list="masks" id="mask_input" name="mask" size=5 value="<?php echo htmlspecialchars($mask);?>" placeholder="Mask"><input type="submit" name="mask_add" value=" + " style="width:24px;" onclick="filterMaskSelection('+'); return false;"><input type="submit" name="mask_remove" value=" - " style="width:24px;" onclick="filterMaskSelection('-'); return false;">
@@ -1163,8 +1170,9 @@ if ($mode === 'Preview') {
   <option value="*.out">Fireball</option>
 </datalist><input type="submit" name="open" value="Open"><input type="submit" name="load_sxm" value="LOAD SXM" style="background:#bff" onclick="selectAndLoadSxm(event)">
 
-<TABLE><TR><TD style="border:1px solid #888; background-color:#888;height:0px;"></TR></TABLE></TR>
+<TABLE style="width:100%;"><TR><TD style="border:1px solid #888; background-color:#888;height:0px;"></TD></TR></TABLE></TH></TR></TABLE></form></div>
 
+<div class="flist"><TABLE style="width:100%;">
 <?php
     $result_files = sortbykey($resultx, 'filename', true);
 
@@ -1187,7 +1195,7 @@ if ($mode === 'Preview') {
         }
     }
 
-    echo '</TABLE></form></div>';
+    echo '</TABLE></div>';
 }
 
 echo '</TD></TR></TABLE></div>';

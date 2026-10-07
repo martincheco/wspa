@@ -56,7 +56,11 @@ textarea{padding:2px;border:1px solid #444;color:#000;font-family:monospace;font
 .twocolumn TD:nth-of-type(1){width:38%; vertical-align:top;overflow-y:hidden;}
 .twocolumn TD:nth-of-type(3){width:62%; vertical-align:top;overflow-y:hidden;}
 
-.dlist {overflow-y:auto;height:calc(100vh - 65px);}
+.dheader, .fheader { background: #111; padding: 0px; margin: 0px; position: relative; z-index: 10; border-bottom: 1px solid #888; }
+.dheader table, .fheader table { width: 100%; table-layout: auto; }
+.dheader th, .fheader th { background: #111; text-align: left; font-size: 11pt; vertical-align: middle; white-space: nowrap; padding: 2px 0; }
+
+.dlist {overflow-y:auto;height:calc(100vh - 90px);}
 .dlist table{table-layout:auto;}
 
 .dlist th{background:#111;text-align:left;font-size:11pt;vertical-align:middle;white-space: nowrap; overflow: hidden; text-overflow:ellipsis;position:sticky;top:0;}
@@ -71,7 +75,7 @@ textarea{padding:2px;border:1px solid #444;color:#000;font-family:monospace;font
 .dlist tr.mc-selected td {background-color:#0055aa !important;color:#ffffff !important;}
 .dlist tr.mc-selected a {color:#ffffff !important;background-color:transparent !important;}
 
-.flist {overflow-y:auto;height:calc(100vh - 65px);}
+.flist {overflow-y:auto;overflow-x:auto;height:calc(100vh - 90px);}
 .flist table{table-layout:auto;}
 .flist th{background:#111;text-align:left;font-size:11pt;vertical-align:middle;white-space: nowrap; overflow: hidden; text-overflow:ellipsis;position:sticky;top:0;}
 .flist td{font-size:11pt;vertical-align:middle;white-space: nowrap; overflow: hidden; text-overflow:ellipsis;}
