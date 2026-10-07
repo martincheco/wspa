@@ -518,13 +518,20 @@ function save_user_config($data = array(), $user = null) {
 }
 
 /**
- * Strips absolute server web root prefix (/var/www/wspa/) to normalize paths into data/... relative paths
+ * Returns dynamic WSPA installation root path
+ */
+function get_wspa_root() {
+    return str_replace('\\', '/', __DIR__);
+}
+
+/**
+ * Strips absolute server web root prefix to normalize paths into data/... relative paths
  */
 function strip_web_root_prefix($path) {
     $clean = str_replace('\\', '/', trim($path));
-    $web_root = '/var/www/wspa/';
-    if (strpos($clean, $web_root) === 0) {
-        $clean = substr($clean, strlen($web_root));
+    $root = rtrim(get_wspa_root(), '/') . '/';
+    if (strpos($clean, $root) === 0) {
+        $clean = substr($clean, strlen($root));
     }
     return $clean;
 }
@@ -584,14 +591,24 @@ function get_process_dir($data_path, $has_custom_filter = false, $user = null) {
 }
 
 /**
- * Ensures directory exists with 0775 permissions
+ * Ensures directory exists with 0775 permissions and www-data group ownership
  */
 function ensure_wspa_dir($dir) {
-    if (!is_dir($dir)) {
-        @mkdir($dir, 0775, true);
-        @chmod($dir, 0775);
+    $clean = str_replace('\\', '/', trim($dir));
+    if (is_dir($clean)) return true;
+
+    $parts = explode('/', ltrim($clean, '/'));
+    $current = ($clean[0] === '/') ? '/' : '';
+    foreach ($parts as $part) {
+        if (empty($part)) continue;
+        $current .= ($current === '' || $current === '/' ? '' : '/') . $part;
+        if (!is_dir($current)) {
+            @mkdir($current, 0775, false);
+            @chgrp($current, 'www-data');
+            @chmod($current, 0775);
+        }
     }
-    return is_dir($dir);
+    return is_dir($clean);
 }
 
 /**
