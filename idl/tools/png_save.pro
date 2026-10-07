@@ -69,10 +69,19 @@ if keyword_set(alpha) then imgc=[[[rrr]],[[ggg]],[[bbb]],[[aa]]] else imgc=[[[rr
 imgt=transpose(byte(imgc),[2,0,1])
 ;help,imgt
 
-common png_save_lib_cache, has_fastpng_lib
+common png_save_lib_cache, has_fastpng_lib, libpath
 
-libpath = '/var/www/wspa/libfastpng.so'
-if n_elements(has_fastpng_lib) eq 0 then has_fastpng_lib = file_test(libpath)
+if n_elements(has_fastpng_lib) eq 0 then begin
+    r_info = routine_info('png_save', /source)
+    if n_elements(r_info) gt 0 then begin
+        libpath = file_dirname(r_info.path) + '/libfastpng.so'
+    endif
+    if n_elements(libpath) eq 0 or not file_test(libpath) then begin
+        found = file_search('libfastpng.so')
+        if n_elements(found) gt 0 then libpath = found[0]
+    endif
+    has_fastpng_lib = (n_elements(libpath) gt 0) && file_test(libpath)
+endif
 if has_fastpng_lib then begin
     sz_t = size(imgt)
     n_ch = sz_t(1)
