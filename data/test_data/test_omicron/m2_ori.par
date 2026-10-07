@@ -1,0 +1,132 @@
+;
+;               Omicron SPM Control.
+;           Parameter file for SPM data.
+;
+
+Format                          : 1
+
+Version                         : V2.2.0.6
+System                          : SCALA
+
+;
+; User Information.
+;
+
+Date                            : 17.05.13 13:23
+User                            : spm
+Comment                         : STS, bright
+
+;
+; Scanner Description.
+;
+
+Name                            : VT_N_CAL.SCA
+VGAP Contact                    : TIP
+
+;
+; Scanner Area Description.
+;
+
+Field X Size in nm              : 25.0000     ;[nm]
+Field Y Size in nm              : 25.0000     ;[nm]
+Image Size in X                 : 400
+Image Size in Y                 : 400
+Increment X                     : 0.0625000     ;[nm]
+Increment Y                     : 0.0625000     ;[nm]
+Scan Angle                      : 0.00000     ;[Degree]
+X Offset                        : -4.37500     ;[nm]
+Y Offset                        : 15.7500     ;[nm]
+
+;
+; Topographic Channels.
+;
+
+Topographic Channel             : Z   ;Channel
+                                  Forward 
+                                  -32767   ;Minimum raw value
+                                  32766   ;Maximum raw value
+                                  -98.743   ;Minimum value in physical unit
+                                  98.740   ;Maximum value in physical unit
+                                  0.0030134   ;Resolution
+                                  nm   ;Physical unit
+                                  m2_ori.tf0   ;Filename
+                                  Z   ;Display name
+
+Topographic Channel             : Z   ;Channel
+                                  Backward
+                                  -32767   ;Minimum raw value
+                                  32766   ;Maximum raw value
+                                  -98.743   ;Minimum value in physical unit
+                                  98.740   ;Maximum value in physical unit
+                                  0.0030134   ;Resolution
+                                  nm   ;Physical unit
+                                  m2_ori.tb0   ;Filename
+                                  Z   ;Display name
+
+;
+; Spectroscopic Channels.
+;
+
+Spectroscopy Channel            : I   ;Channel
+                                  V   ;Parameter
+                                  Forward 
+                                  0   ;Minimum raw value
+                                  32768   ;Maximum raw value
+                                  0.0000   ;Minimum value in physical unit
+                                  5.0000   ;Maximum value in physical unit
+                                  0.00015259   ;Resolution
+                                  nA   ;Physical unit
+                                  500   ;Number of spectroscopy points
+                                  -2.5250001   ;Start point spectroscopy
+                                  2.5000024   ;End point spectroscopy
+                                  0.010070145   ;Increment point spectroscopy
+                                  0.000320000   ;Acquisition time per spectroscopy point
+                                  5.00000e-05   ;Delay time per spectroscopy point
+                                  Off   ;Feedback On/Off
+                                  m2_ori.cs0   ;Filename
+                                  I   ;Display name
+
+;
+; Measurement parameters.
+;
+
+SPM Method                      : STM
+Dual mode                       : On
+Delay                           : 0     ;[us] (Forward)
+                                  0     ;[us] (Backward)
+Gap Voltage                     : 1.96600     ;[V] (Forward)
+                                  1.96600     ;[V] (Backward)
+Feedback Set                    : 0.268000     ;[nA] (Forward)
+                                  0.268000     ;[nA] (Backward)
+Loop Gain                       : 1.98000     ;[%] (Forward)
+                                  1.98000     ;[%] (Backward)
+X Resolution                    : 0     ;Currently not used.
+Y Resolution                    : 0     ;Currently not used.
+Scan Speed                      : 125.000     ;[nm/s]
+X Drift                         : 0.00000     ;[nm/s]
+Y Drift                         : 0.00000     ;[nm/s]
+Scan Mode                       : Frame
+Topography Time per Point       : 0
+Spectroscopy Grid Value in X    : 400
+Spectroscopy Grid Value in Y    : 400
+Spectroscopy Points in X        : 1
+Spectroscopy Lines in Y         : 1
+;
+; Spectroscopy Extra Settings.
+;
+V Parameter                     : 
+     Off   ;ramp speed enabled
+     200   ;T1 [us]
+     200   ;T2 [us]
+     200   ;T3 [us]
+     200   ;T4 [us]
+
+;
+; Z Control Parameters.
+;
+
+Z Speed                         : 1000.00     ;[nm/s]
+Z Output Gain                   : 0.100000
+Automatic Z zero                : On
+Z Input Gain                    : 10.0000
+

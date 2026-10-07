@@ -1,6 +1,14 @@
-# Data & User Workspaces
-data/
-users/
+# Data & User Workspaces (Ignore by default)
+data/*
+!data/test_data/
+
+users/*
+!users/admin/
+users/admin/*
+!users/admin/profile.php
+!users/admin/admin.cfg
+!users/admin/shadow/
+
 process/
 
 # Temporary & Log Files
