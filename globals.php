@@ -518,7 +518,10 @@ function save_user_config($data = array(), $user = null) {
 }
 
 /**
- * Resolves process cache directory for a data path
+ * Resolves process cache directory for a data path.
+ * - Custom filter on non-local folder: users/<user>/shadow/<rel_path>/process
+ * - Local / writable folder: <data_path>/process
+ * - Shared read-only folder default preview: data/.shadow/<rel_path>/process
  */
 function get_process_dir($data_path, $has_custom_filter = false, $user = null) {
     if ($user === null && isset($_SESSION['user'])) $user = $_SESSION['user'];
@@ -527,10 +530,24 @@ function get_process_dir($data_path, $has_custom_filter = false, $user = null) {
     $clean_path = is_dir($data_path) ? $data_path : dirname($data_path);
     $clean_path = str_replace('\\', '/', $clean_path);
 
+    // 1. Custom filter on shared read-only dataset -> user shadow storage
     if ($has_custom_filter && !is_wspa_localdir($clean_path)) {
         return get_meta_dir($clean_path, $user) . '/process';
     }
-    return rtrim($clean_path, '/') . '/process';
+
+    // 2. Local or in-situ writable dataset folder -> in-situ process directory
+    if (is_wspa_localdir($clean_path) || is_writable($clean_path)) {
+        return rtrim($clean_path, '/') . '/process';
+    }
+
+    // 3. Shared read-only dataset folder -> central shadow process directory in data/.shadow/
+    $data_root = "data/";
+    if (strpos($clean_path, $data_root) === 0) {
+        $rel_path = substr($clean_path, strlen($data_root));
+    } else {
+        $rel_path = ltrim($clean_path, '/');
+    }
+    return "data/.shadow/" . ltrim($rel_path, '/') . "/process";
 }
 
 /**

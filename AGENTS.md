@@ -124,5 +124,10 @@ Navigation state in WSPA is governed strictly by three variables:
 13. **PNG Image Orientation & Canvas Alignment Invariant**:
     - **IDL/GDL PNG Saving**: In `png_save.pro`, when passing `imgt` to `libfastpng.so` via `CALL_EXTERNAL`, `imgt` MUST BE reversed along dimension 3 (`imgt_fast = reverse(imgt, 3)`) so that `libfastpng.so` produces pixel-for-pixel identical PNG files to standard GDL `WRITE_PNG`, mapping the IDL top row ($Y=\text{max}$) to PNG Row 0 (top of image).
     - **Globalview Canvas Flipping**: In `globalview.php`, both 2D and 3D thumbnail drawing contexts MUST apply `ctx.scale(1, -1)` while preserving `ctx.globalAlpha = alpha` to render PNG thumbnails right-side up matching physical scan orientation and Nanonis.
+14. **Central Shadow Process Storage for Read-Only Datasets (`data/.shadow/`)**:
+    - **Central Shadow Root (`data/.shadow/`)**: Read-only dataset directories (where web server lacks write permissions directly to `data/<path>/process/`) MUST store default pre-rendered PNG previews in a shared central shadow directory: `data/.shadow/<rel_data_path>/process/<basename>.png`.
+    - **Shared Access**: All users share these pre-rendered default previews from `data/.shadow/` without per-user duplication or write permission errors.
+    - **In-Situ vs Shadow Resolution**: Local writable dataset folders (`is_wspa_localdir` or writable) store `process/` in-situ (`<data_path>/process/<basename>.png`). Read-only datasets store default previews in `data/.shadow/<rel_path>/process/<basename>.png`. User custom-filtered previews (`.flt`) on read-only datasets reside in `users/<user>/shadow/<rel_path>/process/<basename>.png`.
+
 
 
