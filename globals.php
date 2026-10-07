@@ -684,6 +684,8 @@ function sync_process_preview_dir($data_path, $userdir, $user) {
     if (!$chan_path) return;
 
     $lines = file($chan_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    $dir_cache = array();
+
     foreach ($lines as $idx => $line) {
         $parts = explode(';', trim($line));
         if (count($parts) >= 3 && is_numeric(trim($parts[0]))) {
@@ -695,24 +697,36 @@ function sync_process_preview_dir($data_path, $userdir, $user) {
         }
         if (empty($raw_file)) continue;
 
-        $png_name = basename($raw_file) . '.png';
         $tmp_png = $user_ws . 'tmp' . $c_idx . '.png';
+        if (!file_exists($tmp_png) || is_link($tmp_png)) continue;
 
-        if (file_exists($tmp_png)) {
-            $full_raw_file = resolve_raw_file_path($raw_file, $data_path);
-            $flt_file = get_meta_path_for_file($full_raw_file, 'flt', $user);
-            $has_custom_filter = file_exists($flt_file) && filesize($flt_file) > 0;
+        $full_raw_file = resolve_raw_file_path($raw_file, $data_path);
+        $flt_file = get_meta_path_for_file($full_raw_file, 'flt', $user);
+        $has_custom_filter = file_exists($flt_file) && filesize($flt_file) > 0;
 
+        $dir_key = dirname($full_raw_file) . '|' . ($has_custom_filter ? '1' : '0');
+        if (!isset($dir_cache[$dir_key])) {
             $target_dir = get_process_dir($full_raw_file, $has_custom_filter, $user);
             ensure_wspa_dir($target_dir);
-            $target_png = $target_dir . '/' . $png_name;
+            $dir_cache[$dir_key] = $target_dir;
+        } else {
+            $target_dir = $dir_cache[$dir_key];
+        }
 
-            // Only update process/ cache if tmp_png is a real physical file (NOT a symlink) or custom filter exists
-            if (!is_link($tmp_png) || $has_custom_filter) {
-                @unlink($target_png);
-                @copy($tmp_png, $target_png);
-                @chmod($target_png, 0664);
-            }
+        $png_name = basename($raw_file) . '.png';
+        $target_png = $target_dir . '/' . $png_name;
+
+        // Copy if target doesn't exist or size differs
+        if (!file_exists($target_png) || filesize($target_png) !== filesize($tmp_png) || $has_custom_filter) {
+            @unlink($target_png);
+            @copy($tmp_png, $target_png);
+            @chmod($target_png, 0664);
+        }
+
+        // Convert physical tmp<N>.png into a symlink pointing to the cached PNG
+        if (!$has_custom_filter && file_exists($target_png)) {
+            @unlink($tmp_png);
+            @symlink(realpath($target_png), $tmp_png);
         }
     }
 }

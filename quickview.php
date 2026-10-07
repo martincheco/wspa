@@ -128,7 +128,7 @@ $xscandir = trim($parts3[1]);
 
 $raw_file = trim(stripslashes($msg[0]));
 
-if (!empty($raw_file)) {
+if (!empty($raw_file) && ($command === "filter" || $command === "process")) {
 	$data_dir = dirname($raw_file);
 	sync_process_preview_dir($data_dir, $userdir, $user);
 }
