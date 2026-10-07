@@ -517,4 +517,129 @@ function save_user_config($data = array(), $user = null) {
     return false;
 }
 
+/**
+ * Resolves process cache directory for a data path
+ */
+function get_process_dir($data_path, $has_custom_filter = false, $user = null) {
+    if ($user === null && isset($_SESSION['user'])) $user = $_SESSION['user'];
+    if ($user === null) $user = 'admin';
+
+    $clean_path = is_dir($data_path) ? $data_path : dirname($data_path);
+    $clean_path = str_replace('\\', '/', $clean_path);
+
+    if ($has_custom_filter && !is_wspa_localdir($clean_path)) {
+        return get_meta_dir($clean_path, $user) . '/process';
+    }
+    return rtrim($clean_path, '/') . '/process';
+}
+
+/**
+ * Cleanly wipes active session state files while strictly preserving mylist.lst
+ */
+function wipe_user_session_dir($userdir, $user) {
+    $user_ws = rtrim($userdir, '/') . '/' . $user . '/';
+    if (!is_dir($user_ws)) return;
+
+    $files_to_remove = [
+        'chan.dat', 'acqchan.dat', 'imgoffs.dat',
+        'tmp.dat', 'tmp.flt', 'tmp.plt', 'tmp.png', 'scl.png',
+        'gdl.log', 'main_launcher.log'
+    ];
+    foreach ($files_to_remove as $f) {
+        $file_path = $user_ws . $f;
+        if (file_exists($file_path) || is_link($file_path)) @unlink($file_path);
+    }
+
+    $glob_patterns = ['tmp*.png', 'scl*.png', 'hist*.png', 'p*.png', 'p*.dat'];
+    foreach ($glob_patterns as $pat) {
+        $matches = glob($user_ws . $pat);
+        if ($matches) {
+            foreach ($matches as $m) {
+                if (file_exists($m) || is_link($m)) @unlink($m);
+            }
+        }
+    }
+}
+
+/**
+ * Populates tmp<N>.png workspace symlinks from process/ cache using active workspace chan.dat
+ */
+function populate_workspace_tmp_links($data_path, $userdir, $user) {
+    $user_ws = rtrim($userdir, '/') . '/' . $user . '/';
+    $chan_path = $user_ws . 'chan.dat';
+    if (!file_exists($chan_path)) return;
+
+    $lines = file($chan_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $idx => $line) {
+        $parts = explode(';', trim($line));
+        if (count($parts) >= 3 && is_numeric(trim($parts[0]))) {
+            $c_idx = intval(trim($parts[0]));
+            $raw_file = trim($parts[1]);
+        } else {
+            $c_idx = $idx;
+            $raw_file = trim($line);
+        }
+        if (empty($raw_file)) continue;
+
+        $png_name = basename($raw_file) . '.png';
+        $full_raw = rtrim($data_path, '/') . '/' . ltrim($raw_file, '/');
+        $flt_file = get_meta_path_for_file($full_raw, 'flt', $user);
+        $has_custom_filter = file_exists($flt_file) && filesize($flt_file) > 0;
+
+        $proc_dir = get_process_dir($full_raw, $has_custom_filter, $user);
+        $cached_png = $proc_dir . '/' . $png_name;
+
+        if (file_exists($cached_png)) {
+            $tmp_link = $user_ws . 'tmp' . $c_idx . '.png';
+            if (file_exists($tmp_link) || is_link($tmp_link)) @unlink($tmp_link);
+            @symlink(realpath($cached_png), $tmp_link);
+        }
+    }
+}
+
+/**
+ * Synchronizes qvud rendered physical PNGs to process/ directory
+ */
+function sync_process_preview_dir($data_path, $userdir, $user) {
+    $user_ws = rtrim($userdir, '/') . '/' . $user . '/';
+    $chan_path = file_exists($user_ws . 'chan.dat') ? ($user_ws . 'chan.dat') : (file_exists($user_ws . 'imgoffs.dat') ? ($user_ws . 'imgoffs.dat') : null);
+    if (!$chan_path) return;
+
+    $lines = file($chan_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $idx => $line) {
+        $parts = explode(';', trim($line));
+        if (count($parts) >= 3 && is_numeric(trim($parts[0]))) {
+            $c_idx = intval(trim($parts[0]));
+            $raw_file = trim($parts[1]);
+        } else {
+            $c_idx = $idx;
+            $raw_file = trim($line);
+        }
+        if (empty($raw_file)) continue;
+
+        $png_name = basename($raw_file) . '.png';
+        $tmp_png = $user_ws . 'tmp' . $c_idx . '.png';
+
+        if (file_exists($tmp_png)) {
+            $full_raw_file = rtrim($data_path, '/') . '/' . ltrim($raw_file, '/');
+            $flt_file = get_meta_path_for_file($full_raw_file, 'flt', $user);
+            $has_custom_filter = file_exists($flt_file) && filesize($flt_file) > 0;
+
+            $target_dir = get_process_dir($full_raw_file, $has_custom_filter, $user);
+            if (!is_dir($target_dir)) {
+                @mkdir($target_dir, 0775, true);
+                @chmod($target_dir, 0775);
+            }
+            $target_png = $target_dir . '/' . $png_name;
+
+            // Only update process/ cache if tmp_png is a real physical file (NOT a symlink) or custom filter exists
+            if (!is_link($tmp_png) || $has_custom_filter) {
+                @unlink($target_png);
+                @copy($tmp_png, $target_png);
+                @chmod($target_png, 0664);
+            }
+        }
+    }
+}
+
 ?>

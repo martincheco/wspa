@@ -128,6 +128,11 @@ $xscandir = trim($parts3[1]);
 
 $raw_file = trim(stripslashes($msg[0]));
 
+if (!empty($raw_file)) {
+	$data_dir = dirname($raw_file);
+	sync_process_preview_dir($data_dir, $userdir, $user);
+}
+
 // Dual-mode resolver for .flt and .plt files
 $filtfile = get_meta_path_for_file($raw_file, 'flt', $user);
 if (file_exists($filtfile)) {

@@ -3,6 +3,8 @@
 require('globals.php');
 require('auth.php');
 
+$path = isset($_GET['path']) ? $_GET['path'] : (isset($_POST['path']) ? $_POST['path'] : '');
+
 if (isset($_GET['log'])) {
     $log = "yes";
 } else {
@@ -16,9 +18,13 @@ if (isset($_GET['log'])) {
         @symlink($userdir . $user . '/', $userlink . $user);
     }
 
-    @unlink($userdir . $user . '/gdl.log');
-    @unlink($userdir . $user . '/tmp.dat');
-    @unlink($userdir . $user . '/main_launcher.log');
+    // Cleanly wipe active session state files (strictly preserving mylist.lst)
+    wipe_user_session_dir($userdir, $user);
+
+    // Pre-populate tmp<N>.png symlinks from process/ cache if present
+    if (!empty($path)) {
+        populate_workspace_tmp_links($path, $userdir, $user);
+    }
 
     // Attempt start via GDL Session Manager Daemon
     $res = gdl_session_request('start', array(
@@ -43,6 +49,9 @@ if ($log != "") {
     }
 
     if (stripos($fcs, $readystring) !== false) {
+        if (!empty($path)) {
+            sync_process_preview_dir($path, $userdir, $user);
+        }
         header('Location: quickview.php?path=' . urlencode($path));
         exit;
     }
