@@ -25,6 +25,17 @@ function myfnmatch($mask, $file) {
     return false;
 }
 
+function get_preview_base_filename($png_file) {
+    $name = preg_replace('/\.png$/i', '', basename($png_file));
+    $info = pathinfo($name);
+    $ext1 = isset($info['extension']) ? $info['extension'] : '';
+    $b1 = basename($name, '.' . $ext1);
+    $info2 = pathinfo($b1);
+    $ext2 = isset($info2['extension']) ? $info2['extension'] : '';
+    $b2 = basename($b1, '.' . $ext2);
+    return !empty($b2) ? $b2 : (!empty($b1) ? $b1 : $name);
+}
+
 function linkseq($path, $mode, $project = '', $user = null) {
     if ($user === null && isset($_SESSION['user'])) {
         $user = $_SESSION['user'];
@@ -1006,11 +1017,122 @@ echo '<script>
 
 echo '</TD><TD style="border:1px solid #888;background-color:#888;width:0px"></TD><TD>';
 
-if ($mode !== 'Img') {
+if ($mode === 'Preview') {
+    echo '<div class="flist"><TABLE><TR><TD><FORM id="basic" method="post" action="browser.php?path=' . urlencode_path($path) . '&view_mode=' . urlencode($view_mode) . (($selected_project !== '') ? '&project=' . urlencode($selected_project) : '') . '">';
+    echo '<input type="submit" name="mode" value="File"><input type="submit" name="mode" value="Img"><input type="submit" name="mode" value="Preview" style="background:#bff">';
+    echo '</FORM></TABLE>';
+    echo '<TABLE><TR><TD style="border:1px solid #888; background-color:#888;height:0px;"></TR></TABLE>';
+
+    $cached_pics = array();
+    $clean_p = strip_web_root_prefix($path);
+    $clean_p = rtrim($clean_p, '/');
+
+    $cand_dirs = array();
+    $meta_p = get_meta_dir($clean_p, $user);
+    if ($meta_p !== $clean_p) {
+        $cand_dirs[] = rtrim($meta_p, '/') . '/process';
+    }
+    $cand_dirs[] = $clean_p . '/process';
+    $data_root = "data/";
+    if (strpos($clean_p, $data_root) === 0) {
+        $rel_p = substr($clean_p, strlen($data_root));
+        $cand_dirs[] = "data/.shadow/" . trim($rel_p, '/') . "/process";
+    }
+
+    $seen_files = array();
+    foreach ($cand_dirs as $cdir) {
+        if (is_dir($cdir)) {
+            $files = @glob(rtrim($cdir, '/') . '/*.png');
+            if ($files) {
+                foreach ($files as $fpath) {
+                    $fname = basename($fpath);
+                    if (!isset($seen_files[$fname])) {
+                        $seen_files[$fname] = true;
+                        $cached_pics[] = array(
+                            'filename' => $fname,
+                            'path' => $fpath,
+                            'modtime' => @filemtime($fpath)
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    $base_rows = array();
+    foreach ($cached_pics as $entry) {
+        $fname = $entry['filename'];
+        $base = get_preview_base_filename($fname);
+        if (!isset($base_rows[$base])) {
+            $base_rows[$base] = array();
+        }
+        $base_rows[$base][] = $entry;
+    }
+
+    ksort($base_rows, SORT_NATURAL | SORT_FLAG_CASE);
+
+    if (empty($base_rows)) {
+        echo '<div style="padding:10px;color:#aaa;">No cached preview images found in current directory.</div>';
+    } else {
+        echo '<div style="padding:5px;">';
+        foreach ($base_rows as $base_name => $row_entries) {
+            usort($row_entries, function($a, $b) {
+                return strnatcasecmp($a['filename'], $b['filename']);
+            });
+
+            echo '<div style="margin-bottom:6px;white-space:nowrap;overflow-x:auto;">';
+            foreach ($row_entries as $pic_entry) {
+                $img_file = $pic_entry['path'];
+                $hh = @getimagesize($img_file);
+                $w_attr = ($hh && !empty($hh[0]) && !empty($hh[1])) ? 'width="' . $hh[0] . '" height="' . $hh[1] . '"' : '';
+                $ar_css = ($hh && !empty($hh[0]) && !empty($hh[1])) ? 'aspect-ratio: ' . $hh[0] . ' / ' . $hh[1] . '; ' : '';
+                $hash = @filemtime($img_file);
+                $pic_url = 'serve_image.php?file=' . urlencode($img_file) . '&v=' . $hash;
+                $view_url = 'viewfile.php?file=' . urlencode_path($img_file);
+
+                echo '<a class="decor" href="' . htmlspecialchars($view_url) . '" target="_blank" style="display:inline-block;vertical-align:bottom;margin-right:3px;">';
+                echo '<img src="' . htmlspecialchars($pic_url) . '" ' . $w_attr . ' style="' . $ar_css . 'width:auto;height:auto;max-height:70px;max-width:70px;padding:1px;background-color:#000;border:1px solid #567;" title="' . htmlspecialchars($pic_entry['filename']) . '">';
+                echo '</a>';
+            }
+            echo '</div>';
+        }
+        echo '</div>';
+    }
+    echo '</div>';
+
+} else if ($mode === 'Img') {
+    
+    echo '<div class="flist"><TABLE><TR><TD><FORM id="basic" method="post" action="browser.php?path=' . urlencode_path($path) . '&view_mode=' . urlencode($view_mode) . (($selected_project !== '') ? '&project=' . urlencode($selected_project) : '') . '">';
+    echo '<input type="submit" name="mode" value="File"><input type="submit" name="mode" value="Img" style="background:#bff"><input type="submit" name="mode" value="Preview">';
+    echo '</FORM></TABLE>';
+    echo '<TABLE><TR><TD style="border:1px solid #888; background-color:#888;height:0px;"></TR></TABLE>';
+
+    $pics = array();
+    foreach ($resultx as $entry) {
+        if ($entry['type'] === 'file') {
+            $file = $entry['filename'];
+            $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+            if (in_array($ext, array('jpg', 'jpeg', 'gif', 'png'))) {
+                $pics[] = $entry;
+            }
+        }
+    }
+
+    $pics = sortbykey($pics, 'filename', true);
+
+    foreach ($pics as $pic_entry) {
+        $pic = $pic_entry['filename'];
+        $pic_url = 'viewfile.php?file=' . urlencode_path($pic_entry['path']);
+        echo '<div style="display: inline-block;width:200px;padding:2px;overflow:hidden;text-align:center;position:relative;font-size:inherit;">';
+        echo '<a class="decor" href="' . htmlspecialchars($pic_url) . '" target="_blank"><img src="' . htmlspecialchars($pic_url) . '" style="max-height:200px;max-width:200px;">';
+        echo '<div style="font-size:10pt">' . htmlspecialchars($pic) . '</div></a></div>';
+    }
+    echo "</div>";
+} else {
 ?>
 <div class="flist"><TABLE><TR><TH colspan=2>
 <form id="basic" enctype="multipart/form-data" method="post" action="browser.php?path=<?php echo urlencode_path($path); ?>&view_mode=<?php echo urlencode($view_mode); ?><?php echo ($selected_project !== '') ? '&project=' . urlencode($selected_project) : ''; ?>">
-<input type="submit" name="mode" value="File" style="background:#bff"><input type="submit" name="mode" value="Img">
+<input type="submit" name="mode" value="File" style="background:#bff"><input type="submit" name="mode" value="Img"><input type="submit" name="mode" value="Preview">
 <input list="masks" id="mask_input" name="mask" size=5 value="<?php echo htmlspecialchars($mask);?>" placeholder="Mask"><input type="submit" name="mask_add" value=" + " style="width:24px;" onclick="filterMaskSelection('+'); return false;"><input type="submit" name="mask_remove" value=" - " style="width:24px;" onclick="filterMaskSelection('-'); return false;">
 
 <datalist id="masks">
@@ -1047,35 +1169,6 @@ if ($mode !== 'Img') {
     }
 
     echo '</TABLE></form></div>';
-
-} else {
-    
-    echo '<div class="flist"><TABLE><TR><TD><FORM id="basic" method="post" action="browser.php?path=' . urlencode_path($path) . '&view_mode=' . urlencode($view_mode) . (($selected_project !== '') ? '&project=' . urlencode($selected_project) : '') . '">';
-    echo '<input type="submit" name="mode" value="File"><input type="submit" name="mode" value="Img" style="background:#bff">';
-    echo '</FORM></TABLE>';
-    echo '<TABLE><TR><TD style="border:1px solid #888; background-color:#888;height:0px;"></TR></TABLE>';
-
-    $pics = array();
-    foreach ($resultx as $entry) {
-        if ($entry['type'] === 'file') {
-            $file = $entry['filename'];
-            $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
-            if (in_array($ext, array('jpg', 'jpeg', 'gif', 'png'))) {
-                $pics[] = $entry;
-            }
-        }
-    }
-
-    $pics = sortbykey($pics, 'filename', true);
-
-    foreach ($pics as $pic_entry) {
-        $pic = $pic_entry['filename'];
-        $pic_url = 'viewfile.php?file=' . urlencode_path($pic_entry['path']);
-        echo '<div style="display: inline-block;width:200px;padding:2px;overflow:hidden;text-align:center;position:relative;font-size:inherit;">';
-        echo '<a class="decor" href="' . htmlspecialchars($pic_url) . '" target="_blank"><img src="' . htmlspecialchars($pic_url) . '" style="max-height:200px;max-width:200px;">';
-        echo '<div style="font-size:10pt">' . htmlspecialchars($pic) . '</div></a></div>';
-    }
-    echo "</div>";
 }
 
 echo '</TD></TR></TABLE></div>';
