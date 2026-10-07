@@ -52,9 +52,9 @@ textarea{padding:2px;border:1px solid #444;color:#000;font-family:monospace;font
 .decor:hover img{border:1px solid;}
 
 
-.twocolumn TABLE{table-layout:fixed; width:100%; border:0px solid;}
+TABLE.twocolumn, .twocolumn { table-layout: fixed; width: 100%; border: 0px solid; }
 .twocolumn TD:nth-of-type(1){width:38%; vertical-align:top;overflow-y:hidden;}
-.twocolumn TD:nth-of-type(3){width:62%; vertical-align:top;overflow-y:hidden;}
+.twocolumn TD:nth-of-type(3){width:62%; vertical-align:top;overflow-y:hidden;overflow-x:hidden;}
 
 .dlist {overflow-y:auto;height:calc(100vh - 65px);}
 .dlist table{table-layout:auto;}
