@@ -1098,6 +1098,7 @@ if ($mode === 'Preview') {
     if (empty($base_rows)) {
         echo '<TR><TD style="padding:10px;color:#aaa;">No cached preview images found in current directory.</TD></TR>';
     } else {
+        $img_count = 0;
         foreach ($base_rows as $base_name => $row_entries) {
             usort($row_entries, function($a, $b) {
                 return strcmp(parse_channel_order_key($a['filename']), parse_channel_order_key($b['filename']));
@@ -1107,20 +1108,88 @@ if ($mode === 'Preview') {
             foreach ($row_entries as $pic_entry) {
                 $img_file = $pic_entry['path'];
                 $hh = @getimagesize($img_file);
-                $w_attr = ($hh && !empty($hh[0]) && !empty($hh[1])) ? 'width="' . $hh[0] . '" height="' . $hh[1] . '"' : '';
-                $ar_css = ($hh && !empty($hh[0]) && !empty($hh[1])) ? 'aspect-ratio: ' . $hh[0] . ' / ' . $hh[1] . '; ' : '';
+                $cached_w = ($hh && !empty($hh[0])) ? $hh[0] : 100;
+                $cached_h = ($hh && !empty($hh[1])) ? $hh[1] : 100;
+
+                $w_attr = 'width="' . $cached_w . '" height="' . $cached_h . '"';
+                $ar_css = 'aspect-ratio: ' . $cached_w . ' / ' . $cached_h . '; ';
                 $hash = @filemtime($img_file);
-                $pic_url = 'serve_image.php?file=' . urlencode($img_file) . '&v=' . $hash;
+                $real_src = 'serve_image.php?file=' . urlencode($img_file) . '&v=' . $hash;
                 $view_url = 'viewfile.php?file=' . urlencode_path($img_file);
 
+                if ($img_count < 40) {
+                    $src_attr = 'src="' . htmlspecialchars($real_src) . '"';
+                } else {
+                    $placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='" . $cached_w . "' height='" . $cached_h . "'%3E%3C/svg%3E";
+                    $src_attr = 'src="' . $placeholder . '" data-src="' . htmlspecialchars($real_src) . '"';
+                }
+
                 echo '<a class="decor" href="' . htmlspecialchars($view_url) . '" target="_blank" style="display:inline-block;vertical-align:bottom;margin:0;padding:0;">';
-                echo '<img src="' . htmlspecialchars($pic_url) . '" ' . $w_attr . ' style="' . $ar_css . 'width:auto;height:auto;max-height:70px;max-width:70px;padding:1px;background-color:#000;border:1px solid #567;margin:0;" title="' . htmlspecialchars($pic_entry['filename']) . '">';
+                echo '<img ' . $src_attr . ' ' . $w_attr . ' style="' . $ar_css . 'width:auto;height:auto;max-height:70px;max-width:70px;padding:1px;background-color:#000;border:1px solid #567;margin:0;" title="' . htmlspecialchars($pic_entry['filename']) . '" onerror="handleImgError(this)">';
                 echo '</a>';
+                $img_count++;
             }
             echo '</TD></TR>';
         }
     }
     echo '</TABLE></div>';
+
+    echo '<script>
+function handleImgError(img) {
+  if (!img.getAttribute("data-retried")) {
+    img.setAttribute("data-retried", "true");
+    setTimeout(function() {
+      var src = img.src || img.getAttribute("data-src");
+      if (src && src.indexOf("serve_image.php") !== -1) {
+        var newSrc = src.split("&retry=")[0] + "&retry=" + Date.now();
+        if (img.hasAttribute("data-src")) {
+          img.setAttribute("data-src", newSrc);
+        } else {
+          img.src = newSrc;
+        }
+      }
+    }, 400);
+  }
+}
+
+function initLazyLoading() {
+  var lazyImages = document.querySelectorAll(".flist img[data-src]");
+  if ("IntersectionObserver" in window) {
+    var flistEl = document.querySelector(".flist");
+    var observer = new IntersectionObserver(function(entries, obs) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          var img = entry.target;
+          var dataSrc = img.getAttribute("data-src");
+          if (dataSrc) {
+            img.src = dataSrc;
+            img.removeAttribute("data-src");
+          }
+          obs.unobserve(img);
+        }
+      });
+    }, { root: flistEl, rootMargin: "300px 0px" });
+
+    lazyImages.forEach(function(img) {
+      observer.observe(img);
+    });
+  } else {
+    lazyImages.forEach(function(img) {
+      var dataSrc = img.getAttribute("data-src");
+      if (dataSrc) {
+        img.src = dataSrc;
+        img.removeAttribute("data-src");
+      }
+    });
+  }
+}
+
+if (window.requestAnimationFrame) {
+  requestAnimationFrame(initLazyLoading);
+} else {
+  setTimeout(initLazyLoading, 0);
+}
+</script>';
 
 } else if ($mode === 'Img') {
     
