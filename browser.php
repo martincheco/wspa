@@ -1037,7 +1037,7 @@ echo '<script>
 echo '</TD><TD style="border:1px solid #888;background-color:#888;width:0px"></TD><TD>';
 
 if ($mode === 'Preview') {
-    echo '<div class="flist"><TABLE style="width:100%;"><TR><TH>';
+    echo '<div class="flist"><TABLE style="width:100%;table-layout:fixed;"><TR><TH style="position:sticky;top:0;background:#111;z-index:10;">';
     echo '<FORM id="basic" method="post" action="browser.php?path=' . urlencode_path($path) . '&view_mode=' . urlencode($view_mode) . (($selected_project !== '') ? '&project=' . urlencode($selected_project) : '') . '">';
     echo '<input type="submit" name="mode" value="File"><input type="submit" name="mode" value="Img"><input type="submit" name="mode" value="Preview" style="background:#bff">';
     echo '</FORM>';
@@ -1100,7 +1100,7 @@ if ($mode === 'Preview') {
                 return strcmp(parse_channel_order_key($a['filename']), parse_channel_order_key($b['filename']));
             });
 
-            echo '<TR><TD style="padding:0;margin:0;"><div style="white-space:nowrap;overflow-x:auto;margin:0;padding:0;">';
+            echo '<TR><TD style="padding:0;margin:0;width:100%;max-width:100%;overflow:hidden;"><div style="white-space:nowrap;overflow-x:auto;width:100%;max-width:100%;box-sizing:border-box;margin:0;padding:0;">';
             foreach ($row_entries as $pic_entry) {
                 $img_file = $pic_entry['path'];
                 $hh = @getimagesize($img_file);
