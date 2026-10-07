@@ -648,6 +648,8 @@ function populate_workspace_tmp_links($data_path, $userdir, $user) {
     if (!file_exists($chan_path)) return;
 
     $lines = file($chan_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    $dir_cache = array();
+
     foreach ($lines as $idx => $line) {
         $parts = explode(';', trim($line));
         if (count($parts) >= 3 && is_numeric(trim($parts[0]))) {
@@ -664,13 +666,31 @@ function populate_workspace_tmp_links($data_path, $userdir, $user) {
         $flt_file = get_meta_path_for_file($full_raw, 'flt', $user);
         $has_custom_filter = file_exists($flt_file) && filesize($flt_file) > 0;
 
-        $proc_dir = get_process_dir($full_raw, $has_custom_filter, $user);
+        $dir_key = dirname($full_raw) . '|' . ($has_custom_filter ? '1' : '0');
+        if (!isset($dir_cache[$dir_key])) {
+            $proc_dir = get_process_dir($full_raw, $has_custom_filter, $user);
+            $dir_cache[$dir_key] = $proc_dir;
+        } else {
+            $proc_dir = $dir_cache[$dir_key];
+        }
+
         $cached_png = $proc_dir . '/' . $png_name;
 
         if (file_exists($cached_png)) {
-            $tmp_link = $user_ws . 'tmp' . $c_idx . '.png';
-            if (file_exists($tmp_link) || is_link($tmp_link)) @unlink($tmp_link);
-            @symlink(realpath($cached_png), $tmp_link);
+            $is_stale = false;
+            if ($has_custom_filter) {
+                $flt_mtime = @filemtime($flt_file);
+                $cache_mtime = @filemtime($cached_png);
+                if ($flt_mtime !== false && $cache_mtime !== false && $flt_mtime > $cache_mtime) {
+                    $is_stale = true;
+                }
+            }
+
+            if (!$is_stale) {
+                $tmp_link = $user_ws . 'tmp' . $c_idx . '.png';
+                if (file_exists($tmp_link) || is_link($tmp_link)) @unlink($tmp_link);
+                @symlink(realpath($cached_png), $tmp_link);
+            }
         }
     }
 }
