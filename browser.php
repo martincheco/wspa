@@ -36,6 +36,25 @@ function get_preview_base_filename($png_file) {
     return !empty($b2) ? $b2 : (!empty($b1) ? $b1 : $name);
 }
 
+function parse_channel_order_key($filename) {
+    $name = preg_replace('/\.png$/i', '', basename($filename));
+    $num = 999999;
+    $dir_rank = 2;
+    
+    if (preg_match('/[\._]?([fb])(\d+)/i', $name, $m)) {
+        $dir_char = strtolower($m[1]);
+        $dir_rank = ($dir_char === 'f') ? 0 : 1;
+        $num = intval($m[2]);
+    } else if (preg_match('/[\._]ch(\d+)/i', $name, $m)) {
+        $num = intval($m[1]);
+        $dir_rank = preg_match('/retrace|back|bwd/i', $name) ? 1 : 0;
+    } else if (preg_match('/(\d+)/', $name, $m)) {
+        $num = intval($m[1]);
+    }
+    
+    return sprintf('%06d_%d_%s', $num, $dir_rank, $name);
+}
+
 function linkseq($path, $mode, $project = '', $user = null) {
     if ($user === null && isset($_SESSION['user'])) {
         $user = $_SESSION['user'];
@@ -1018,10 +1037,12 @@ echo '<script>
 echo '</TD><TD style="border:1px solid #888;background-color:#888;width:0px"></TD><TD>';
 
 if ($mode === 'Preview') {
-    echo '<div class="flist"><TABLE><TR><TD><FORM id="basic" method="post" action="browser.php?path=' . urlencode_path($path) . '&view_mode=' . urlencode($view_mode) . (($selected_project !== '') ? '&project=' . urlencode($selected_project) : '') . '">';
+    echo '<div class="flist"><TABLE style="width:100%;"><TR><TH>';
+    echo '<FORM id="basic" method="post" action="browser.php?path=' . urlencode_path($path) . '&view_mode=' . urlencode($view_mode) . (($selected_project !== '') ? '&project=' . urlencode($selected_project) : '') . '">';
     echo '<input type="submit" name="mode" value="File"><input type="submit" name="mode" value="Img"><input type="submit" name="mode" value="Preview" style="background:#bff">';
-    echo '</FORM></TABLE>';
-    echo '<TABLE><TR><TD style="border:1px solid #888; background-color:#888;height:0px;"></TR></TABLE>';
+    echo '</FORM>';
+    echo '<TABLE style="width:100%;"><TR><TD style="border:1px solid #888; background-color:#888;height:0px;"></TD></TR></TABLE>';
+    echo '</TH></TR>';
 
     $cached_pics = array();
     $clean_p = strip_web_root_prefix($path);
@@ -1072,15 +1093,14 @@ if ($mode === 'Preview') {
     ksort($base_rows, SORT_NATURAL | SORT_FLAG_CASE);
 
     if (empty($base_rows)) {
-        echo '<div style="padding:10px;color:#aaa;">No cached preview images found in current directory.</div>';
+        echo '<TR><TD style="padding:10px;color:#aaa;">No cached preview images found in current directory.</TD></TR>';
     } else {
-        echo '<div style="padding:5px;">';
         foreach ($base_rows as $base_name => $row_entries) {
             usort($row_entries, function($a, $b) {
-                return strnatcasecmp($a['filename'], $b['filename']);
+                return strcmp(parse_channel_order_key($a['filename']), parse_channel_order_key($b['filename']));
             });
 
-            echo '<div style="margin-bottom:6px;white-space:nowrap;overflow-x:auto;">';
+            echo '<TR><TD style="padding:0;margin:0;"><div style="white-space:nowrap;overflow-x:auto;margin:0;padding:0;">';
             foreach ($row_entries as $pic_entry) {
                 $img_file = $pic_entry['path'];
                 $hh = @getimagesize($img_file);
@@ -1090,15 +1110,14 @@ if ($mode === 'Preview') {
                 $pic_url = 'serve_image.php?file=' . urlencode($img_file) . '&v=' . $hash;
                 $view_url = 'viewfile.php?file=' . urlencode_path($img_file);
 
-                echo '<a class="decor" href="' . htmlspecialchars($view_url) . '" target="_blank" style="display:inline-block;vertical-align:bottom;margin-right:3px;">';
-                echo '<img src="' . htmlspecialchars($pic_url) . '" ' . $w_attr . ' style="' . $ar_css . 'width:auto;height:auto;max-height:70px;max-width:70px;padding:1px;background-color:#000;border:1px solid #567;" title="' . htmlspecialchars($pic_entry['filename']) . '">';
+                echo '<a class="decor" href="' . htmlspecialchars($view_url) . '" target="_blank" style="display:inline-block;vertical-align:bottom;margin:0;padding:0;">';
+                echo '<img src="' . htmlspecialchars($pic_url) . '" ' . $w_attr . ' style="' . $ar_css . 'width:auto;height:auto;max-height:70px;max-width:70px;padding:1px;background-color:#000;border:1px solid #567;margin:0;" title="' . htmlspecialchars($pic_entry['filename']) . '">';
                 echo '</a>';
             }
-            echo '</div>';
+            echo '</div></TD></TR>';
         }
-        echo '</div>';
     }
-    echo '</div>';
+    echo '</TABLE></div>';
 
 } else if ($mode === 'Img') {
     
