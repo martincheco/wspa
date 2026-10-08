@@ -542,71 +542,83 @@ html, body {
 		</div>
 
 		<!-- 3. Range Thresholds & Focus Slider -->
+		<!-- 3. Range Thresholds & Focus Slider -->
 		<div>
 			<div style="margin-bottom:4px; color:#fff; font-weight:bold;">Range</div>
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
-				<span style="width:45px; color:#aaa; font-size:10pt; font-weight:normal;">From</span>
-				<input type="submit" onclick="stepTime('min', -1)" value="&lt;" style="font-weight:normal;">
-				<input type="range" id="gvTimeMin" min="0" max="<?php echo $max_file_idx; ?>" value="0" step="1" oninput="onTimeSliderChange()">
-				<input type="submit" onclick="stepTime('min', 1)" value="&gt;" style="font-weight:normal;">
-				<span id="gvTimeMinVal" style="min-width:32px; text-align:right; color:#6cf; font-size:10pt; font-weight:normal;">1</span>
+				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">From</span>
+				<input type="submit" onclick="stepTime('min', -1)" value="&lt;" style="font-weight:normal; flex-shrink:0;">
+				<input type="range" id="gvTimeMin" min="0" max="<?php echo $max_file_idx; ?>" value="0" step="1" oninput="onTimeSliderChange()" style="flex:1; min-width:0;">
+				<input type="submit" onclick="stepTime('min', 1)" value="&gt;" style="font-weight:normal; flex-shrink:0;">
+				<span id="gvTimeMinVal" style="width:42px; text-align:right; color:#6cf; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">1</span>
 			</div>
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
-				<span style="width:45px; color:#aaa; font-size:10pt; font-weight:normal;">To</span>
-				<input type="submit" onclick="stepTime('max', -1)" value="&lt;" style="font-weight:normal;">
-				<input type="range" id="gvTimeMax" min="0" max="<?php echo $max_file_idx; ?>" value="<?php echo $active_file_idx; ?>" step="1" oninput="onTimeSliderChange()">
-				<input type="submit" onclick="stepTime('max', 1)" value="&gt;" style="font-weight:normal;">
-				<span id="gvTimeMaxVal" style="min-width:32px; text-align:right; color:#6cf; font-size:10pt; font-weight:normal;"><?php echo ($active_file_idx + 1); ?></span>
+				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">To</span>
+				<input type="submit" onclick="stepTime('max', -1)" value="&lt;" style="font-weight:normal; flex-shrink:0;">
+				<input type="range" id="gvTimeMax" min="0" max="<?php echo $max_file_idx; ?>" value="<?php echo $active_file_idx; ?>" step="1" oninput="onTimeSliderChange()" style="flex:1; min-width:0;">
+				<input type="submit" onclick="stepTime('max', 1)" value="&gt;" style="font-weight:normal; flex-shrink:0;">
+				<span id="gvTimeMaxVal" style="width:42px; text-align:right; color:#6cf; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo ($active_file_idx + 1); ?></span>
 			</div>
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
-				<span style="width:45px; color:#aaa; font-size:10pt; font-weight:normal;">Max img</span>
-				<input type="range" id="gvMaxVisibleImages" min="10" max="500" value="100" step="10" oninput="onMaxVisibleImagesChange()" title="Max preceding images limit">
-				<span id="gvMaxVisibleVal" style="min-width:32px; text-align:right; color:#ff0; font-size:10pt; font-weight:normal;">100</span>
+				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Max img</span>
+				<input type="submit" onclick="stepMaxVis(-1)" value="&lt;" style="font-weight:normal; flex-shrink:0;">
+				<input type="range" id="gvMaxVisibleImages" min="10" max="500" value="100" step="10" oninput="onMaxVisibleImagesChange()" title="Max preceding images limit" style="flex:1; min-width:0;">
+				<input type="submit" onclick="stepMaxVis(1)" value="&gt;" style="font-weight:normal; flex-shrink:0;">
+				<span id="gvMaxVisibleVal" style="width:42px; text-align:right; color:#ff0; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">100</span>
 			</div>
 			<div style="display:flex; align-items:center; gap:4px;">
-				<span style="width:45px; color:#aaa; font-size:10pt; font-weight:normal;">Focus</span>
-				<input type="submit" onclick="stepFocus(-1)" value="&lt;" title="Focus lower image (Down arrow)" style="font-weight:normal;">
-				<input type="range" id="gvTimeFocus" min="0" max="<?php echo $max_file_idx; ?>" value="<?php echo $active_file_idx; ?>" step="1" oninput="onFocusSliderChange()" title="Focus slider (Up/Down arrow)">
-				<input type="submit" onclick="stepFocus(1)" value="&gt;" title="Focus higher image (Up arrow)" style="font-weight:normal;">
-				<span id="gvTimeFocusVal" style="min-width:32px; text-align:right; color:#0ff; font-size:10pt; font-weight:normal;"><?php echo ($active_file_idx + 1); ?></span>
+				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Focus</span>
+				<input type="submit" onclick="stepFocus(-1)" value="&lt;" title="Focus lower image (Down arrow)" style="font-weight:normal; flex-shrink:0;">
+				<input type="range" id="gvTimeFocus" min="0" max="<?php echo $max_file_idx; ?>" value="<?php echo $active_file_idx; ?>" step="1" oninput="onFocusSliderChange()" title="Focus slider (Up/Down arrow)" style="flex:1; min-width:0;">
+				<input type="submit" onclick="stepFocus(1)" value="&gt;" title="Focus higher image (Up arrow)" style="font-weight:normal; flex-shrink:0;">
+				<span id="gvTimeFocusVal" style="width:42px; text-align:right; color:#0ff; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo ($active_file_idx + 1); ?></span>
 			</div>
 		</div>
 
-		<!-- 4. 3D Controls (Pitch, ΔZ, Yaw, Zoom, Alpha & action buttons) -->
+		<!-- 4. 3D Controls (Pitch, ΔZ, Factor, Yaw, Zoom, Alpha & action buttons) -->
 		<div>
 			<div style="margin-bottom:4px; color:#fff; font-weight:bold;">3D view</div>
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
-				<span style="width:45px; color:#aaa; font-size:10pt; font-weight:normal;">Pitch</span>
-				<input type="submit" onclick="stepPitch(-1)" value="&lt;" style="font-weight:normal;">
-				<input type="range" id="gv3DPitch" min="10" max="90" value="45" step="1" oninput="on3DParamChange()" title="Pitch slider (W / S keys)">
-				<input type="submit" onclick="stepPitch(1)" value="&gt;" style="font-weight:normal;">
-				<span id="gv3DPitchVal" style="min-width:36px; text-align:right; color:#0ff; font-size:10pt; font-weight:normal;">45°</span>
+				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Pitch</span>
+				<input type="submit" onclick="stepPitch(-1)" value="&lt;" style="font-weight:normal; flex-shrink:0;">
+				<input type="range" id="gv3DPitch" min="10" max="90" value="45" step="1" oninput="on3DParamChange()" title="Pitch slider (W / S keys)" style="flex:1; min-width:0;">
+				<input type="submit" onclick="stepPitch(1)" value="&gt;" style="font-weight:normal; flex-shrink:0;">
+				<span id="gv3DPitchVal" style="width:42px; text-align:right; color:#0ff; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">45°</span>
 			</div>
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
-				<span style="width:45px; color:#aaa; font-size:10pt; font-weight:normal;">&Delta;Z</span>
-				<input type="submit" onclick="stepZSep(-1)" value="&lt;" style="font-weight:normal;">
-				<input type="range" id="gv3DTimeZ" min="0" max="1000" value="459" step="1" oninput="on3DParamChange()" title="Z separation slider (Z / X keys)">
-				<input type="submit" onclick="stepZSep(1)" value="&gt;" style="font-weight:normal;">
-				<span id="gv3DTimeZVal" style="min-width:36px; text-align:right; color:#0ff; font-size:10pt; font-weight:normal;">5.0 nm</span>
+				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">&Delta;Z</span>
+				<input type="submit" onclick="stepZSep(-1)" value="&lt;" style="font-weight:normal; flex-shrink:0;">
+				<input type="range" id="gv3DTimeZ" min="0" max="1000" value="459" step="1" oninput="on3DParamChange()" title="Z separation slider (Z / X keys)" style="flex:1; min-width:0;">
+				<input type="submit" onclick="stepZSep(1)" value="&gt;" style="font-weight:normal; flex-shrink:0;">
+				<span id="gv3DTimeZVal" style="width:42px; text-align:right; color:#0ff; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">5.0nm</span>
 			</div>
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
-				<span style="width:45px; color:#aaa; font-size:10pt; font-weight:normal;">Yaw</span>
-				<input type="submit" onclick="stepRot(-1)" value="&lt;" style="font-weight:normal;">
-				<input type="range" id="gvRot" min="-180" max="180" value="45" step="1" oninput="onRotChange()" title="Yaw slider (A / D or Q / E keys)">
-				<input type="submit" onclick="stepRot(1)" value="&gt;" style="font-weight:normal;">
-				<span id="gvRotVal" style="min-width:36px; text-align:right; color:#0f0; font-size:10pt; font-weight:normal;">45°</span>
+				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Factor</span>
+				<input type="submit" onclick="stepZFactor(-1)" value="&lt;" style="font-weight:normal; flex-shrink:0;">
+				<input type="range" id="gvZFactor" min="0.1" max="10.0" value="1.0" step="0.1" oninput="on3DParamChange()" title="Z size scaling factor (0.1 to 10.0)" style="flex:1; min-width:0;">
+				<input type="submit" onclick="stepZFactor(1)" value="&gt;" style="font-weight:normal; flex-shrink:0;">
+				<span id="gvZFactorVal" style="width:42px; text-align:right; color:#0ff; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">1.0</span>
 			</div>
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
-				<span style="width:45px; color:#aaa; font-size:10pt; font-weight:normal;">Zoom</span>
-				<input type="submit" onclick="stepZoom(-1)" value="&lt;" style="font-weight:normal;">
-				<input type="range" id="gvZoomSlider" min="1" max="100" value="50" step="1" oninput="onZoomSliderChange()" title="Zoom slider (= / - keys)">
-				<input type="submit" onclick="stepZoom(1)" value="&gt;" style="font-weight:normal;">
-				<span id="gvZoomVal" style="min-width:36px; text-align:right; color:#6cf; font-size:10pt; font-weight:normal;">100%</span>
+				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Yaw</span>
+				<input type="submit" onclick="stepRot(-1)" value="&lt;" style="font-weight:normal; flex-shrink:0;">
+				<input type="range" id="gvRot" min="-180" max="180" value="45" step="1" oninput="onRotChange()" title="Yaw slider (A / D or Q / E keys)" style="flex:1; min-width:0;">
+				<input type="submit" onclick="stepRot(1)" value="&gt;" style="font-weight:normal; flex-shrink:0;">
+				<span id="gvRotVal" style="width:42px; text-align:right; color:#0f0; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">45°</span>
 			</div>
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
-				<span style="width:45px; color:#aaa; font-size:10pt; font-weight:normal;">Alpha</span>
-				<input type="range" id="gvAlpha" min="10" max="100" step="5" value="80" oninput="onAlphaChange()" title="Alpha slider ([ / ] keys)">
-				<span id="gvAlphaVal" style="min-width:36px; text-align:right; color:#ff0; font-size:10pt; font-weight:normal;">80%</span>
+				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Zoom</span>
+				<input type="submit" onclick="stepZoom(-1)" value="&lt;" style="font-weight:normal; flex-shrink:0;">
+				<input type="range" id="gvZoomSlider" min="1" max="100" value="50" step="1" oninput="onZoomSliderChange()" title="Zoom slider (= / - keys)" style="flex:1; min-width:0;">
+				<input type="submit" onclick="stepZoom(1)" value="&gt;" style="font-weight:normal; flex-shrink:0;">
+				<span id="gvZoomVal" style="width:42px; text-align:right; color:#6cf; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">100x</span>
+			</div>
+			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
+				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Alpha</span>
+				<input type="submit" onclick="stepAlpha(-1)" value="&lt;" style="font-weight:normal; flex-shrink:0;">
+				<input type="range" id="gvAlpha" min="10" max="100" step="5" value="80" oninput="onAlphaChange()" title="Alpha slider ([ / ] keys)" style="flex:1; min-width:0;">
+				<input type="submit" onclick="stepAlpha(1)" value="&gt;" style="font-weight:normal; flex-shrink:0;">
+				<span id="gvAlphaVal" style="width:42px; text-align:right; color:#ff0; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">80%</span>
 			</div>
 			<div style="display:flex; gap:4px;">
 				<input type="submit" onclick="setPitch2D()" value="2D" title="Pitch view to 2D top-down" style="flex:1; font-weight:normal;">
@@ -631,6 +643,9 @@ html, body {
 			</label>
 			<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
 				<input type="checkbox" id="gvAutoZSpacing" onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Auto Z
+			</label>
+			<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
+				<input type="checkbox" id="gvZFactorEnabled" onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Size-proportional &Delta;Z
 			</label>
 			<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
 				<input type="checkbox" id="gvShowProjFrame" onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Proj frame
@@ -924,11 +939,11 @@ function zNmToSliderVal(nm) {
 
 function formatZNmDisplay(zNm) {
 	if (zNm < 1.0) {
-		return zNm.toFixed(2) + ' nm';
+		return zNm.toFixed(2) + 'nm';
 	} else if (zNm < 10.0) {
-		return zNm.toFixed(1) + ' nm';
+		return zNm.toFixed(1) + 'nm';
 	} else {
-		return Math.round(zNm) + ' nm';
+		return Math.round(zNm) + 'nm';
 	}
 }
 
@@ -941,6 +956,12 @@ function saveSpatialViewState() {
 
 		var alphaEl = document.getElementById('gvAlpha');
 		if (alphaEl) localStorage.setItem('wspa_gv_alpha', alphaEl.value);
+
+		var zFactorSlider = document.getElementById('gvZFactor');
+		if (zFactorSlider) localStorage.setItem('wspa_gv_zfactor', zFactorSlider.value);
+
+		var zFactorEl = document.getElementById('gvZFactorEnabled');
+		if (zFactorEl) localStorage.setItem('wspa_gv_zfactor_enabled', zFactorEl.checked ? 'true' : 'false');
 
 		var labelsEl = document.getElementById('gvLabels');
 		if (labelsEl) localStorage.setItem('wspa_gv_show_labels', labelsEl.checked ? 'true' : 'false');
@@ -975,6 +996,8 @@ function saveSpatialViewState() {
 		formData.append('gv_zspacing', timeZSpacing);
 		formData.append('gv_zoom', zoomScale);
 		if (alphaEl) formData.append('gv_alpha', alphaEl.value);
+		if (zFactorSlider) formData.append('gv_zfactor', zFactorSlider.value);
+		if (zFactorEl) formData.append('gv_zfactor_enabled', zFactorEl.checked ? 'true' : 'false');
 		if (labelsEl) formData.append('gv_show_labels', labelsEl.checked ? 'true' : 'false');
 		if (stsEl) formData.append('gv_show_sts', stsEl.checked ? 'true' : 'false');
 		if (tooltipEl) formData.append('gv_show_tooltip', tooltipEl.checked ? 'true' : 'false');
@@ -1001,6 +1024,8 @@ function loadSpatialViewState() {
 		var sYaw = cfg.gv_yaw !== undefined ? cfg.gv_yaw : localStorage.getItem('wspa_gv_yaw');
 		var sZSpace = cfg.gv_zspacing !== undefined ? cfg.gv_zspacing : localStorage.getItem('wspa_gv_zspacing');
 		var sAutoZ = cfg.gv_auto_zspacing !== undefined ? cfg.gv_auto_zspacing : localStorage.getItem('wspa_gv_auto_zspacing');
+		var sZFactor = cfg.gv_zfactor !== undefined ? cfg.gv_zfactor : localStorage.getItem('wspa_gv_zfactor');
+		var sZFactorEnabled = cfg.gv_zfactor_enabled !== undefined ? cfg.gv_zfactor_enabled : localStorage.getItem('wspa_gv_zfactor_enabled');
 		var sZoom = cfg.gv_zoom !== undefined ? cfg.gv_zoom : localStorage.getItem('wspa_gv_zoom');
 		var sAlpha = cfg.gv_alpha !== undefined ? cfg.gv_alpha : localStorage.getItem('wspa_gv_alpha');
 		var sLabels = cfg.gv_show_labels !== undefined ? cfg.gv_show_labels : localStorage.getItem('wspa_gv_show_labels');
@@ -1071,6 +1096,19 @@ function loadSpatialViewState() {
 			var zVal = document.getElementById('gv3DTimeZVal');
 			if (zInput) zInput.value = timeZSpacing;
 			if (zVal) zVal.textContent = formatZNmDisplay(sliderValToZNm(timeZSpacing));
+		}
+
+		if (sZFactor !== null && sZFactor !== undefined && !isNaN(parseFloat(sZFactor))) {
+			var zFactorVal = Math.max(0.1, Math.min(10.0, parseFloat(sZFactor)));
+			var zFactorInput = document.getElementById('gvZFactor');
+			var zFactorSpan = document.getElementById('gvZFactorVal');
+			if (zFactorInput) zFactorInput.value = zFactorVal.toFixed(1);
+			if (zFactorSpan) zFactorSpan.textContent = zFactorVal.toFixed(1);
+		}
+
+		if (sZFactorEnabled !== null && sZFactorEnabled !== undefined) {
+			var zFactorCheck = document.getElementById('gvZFactorEnabled');
+			if (zFactorCheck) zFactorCheck.checked = (String(sZFactorEnabled) === 'true');
 		}
 
 		if (sZoom !== null && sZoom !== undefined && !isNaN(parseFloat(sZoom))) {
@@ -1166,9 +1204,37 @@ function stepZSep(dir) {
 	on3DParamChange();
 }
 
+function stepMaxVis(dir) {
+	var el = document.getElementById('gvMaxVisibleImages');
+	if (!el) return;
+	var val = parseInt(el.value, 10) + dir * 10;
+	val = Math.max(10, Math.min(500, val));
+	el.value = val;
+	onMaxVisibleImagesChange();
+}
+
+function stepAlpha(dir) {
+	var el = document.getElementById('gvAlpha');
+	if (!el) return;
+	var val = parseInt(el.value, 10) + dir * 5;
+	val = Math.max(10, Math.min(100, val));
+	el.value = val;
+	onAlphaChange();
+}
+
+function stepZFactor(dir) {
+	var el = document.getElementById('gvZFactor');
+	if (!el) return;
+	var val = parseFloat(el.value) + dir * 0.1;
+	val = Math.max(0.1, Math.min(10.0, val));
+	el.value = val.toFixed(1);
+	on3DParamChange();
+}
+
 function on3DParamChange() {
 	var pInput = document.getElementById('gv3DPitch');
 	var zInput = document.getElementById('gv3DTimeZ');
+	var fInput = document.getElementById('gvZFactor');
 
 	if (pInput) {
 		var newPitch = parseInt(pInput.value, 10);
@@ -1190,6 +1256,11 @@ function on3DParamChange() {
 			saveSpatialViewState();
 		}
 	}
+	if (fInput) {
+		var fVal = document.getElementById('gvZFactorVal');
+		if (fVal) fVal.textContent = parseFloat(fInput.value).toFixed(1);
+		saveSpatialViewState();
+	}
 	requestDraw();
 }
 
@@ -1204,11 +1275,22 @@ function getVisibleZHeights(visibleItems) {
 	zHeights[0] = 0;
 	var autoZEl = document.getElementById('gvAutoZSpacing');
 	var isAutoZ = autoZEl ? autoZEl.checked : false;
+	var zFactorCheck = document.getElementById('gvZFactorEnabled');
+	var isFactorEnabled = zFactorCheck ? zFactorCheck.checked : false;
+	var zFactorSlider = document.getElementById('gvZFactor');
+	var factorPower = zFactorSlider ? parseFloat(zFactorSlider.value) : 1.0;
 	var baseZStep = getZStepMeters();
+
+	var avgDiag = overallAvgDim * Math.SQRT2;
+	if (avgDiag <= 0) avgDiag = 1e-7;
 
 	if (!isAutoZ) {
 		for (var i = 1; i < visibleItems.length; i++) {
-			zHeights[i] = i * baseZStep;
+			var itemCurr = visibleItems[i];
+			var diagCurr = Math.sqrt(itemCurr.xs * itemCurr.xs + itemCurr.ys * itemCurr.ys);
+			var scaleMultiplier = isFactorEnabled ? Math.pow(diagCurr / avgDiag, factorPower) : 1.0;
+			var effZStep = baseZStep * scaleMultiplier;
+			zHeights[i] = zHeights[i - 1] + effZStep;
 		}
 	} else {
 		var physCorners = visibleItems.map(function(item) {
@@ -1217,6 +1299,11 @@ function getVisibleZHeights(visibleItems) {
 
 		for (var i = 1; i < visibleItems.length; i++) {
 			var cornersCurr = physCorners[i];
+			var itemCurr = visibleItems[i];
+			var diagCurr = Math.sqrt(itemCurr.xs * itemCurr.xs + itemCurr.ys * itemCurr.ys);
+			var scaleMultiplier = isFactorEnabled ? Math.pow(diagCurr / avgDiag, factorPower) : 1.0;
+			var effZStep = baseZStep * scaleMultiplier;
+
 			var maxOverlappingZ = -1;
 
 			for (var j = 0; j < i; j++) {
@@ -1229,7 +1316,7 @@ function getVisibleZHeights(visibleItems) {
 			}
 
 			if (maxOverlappingZ >= 0) {
-				zHeights[i] = maxOverlappingZ + baseZStep;
+				zHeights[i] = maxOverlappingZ + effZStep;
 			} else {
 				zHeights[i] = 0;
 			}
@@ -1941,13 +2028,9 @@ function updateZoomSliderReadout() {
 	var coeff = zoomScaleToCoeff(zoomScale);
 	var text = '';
 	if (coeff >= 10) {
-		text = coeff.toFixed(1) + 'x';
-	} else if (coeff >= 1) {
-		text = coeff.toFixed(2) + 'x';
-	} else if (coeff >= 0.1) {
-		text = coeff.toFixed(2) + 'x';
+		text = Math.round(coeff) + 'x';
 	} else {
-		text = coeff.toFixed(3) + 'x';
+		text = coeff.toFixed(1) + 'x';
 	}
 	readout.textContent = text;
 
@@ -3020,24 +3103,18 @@ function centerImage(item, animate) {
 		}
 	}
 
-	if (focusedIndex !== item.c) {
-		var visItems = getVisibleItems();
-		var vIdx = visItems.findIndex(function(v) { return v.c === item.c; });
-		if (vIdx < 0) vIdx = 0;
-		var zM = getItemZMeters(vIdx, visItems);
-		var currScreen = project3DPoint(item.xo, item.yo, zM);
+	var visItems = getVisibleItems();
+	var vIdx = visItems.findIndex(function(v) { return v.c === item.c; });
+	if (vIdx < 0) vIdx = 0;
+	var zM = getItemZMeters(vIdx, visItems);
+	var currScreen = project3DPoint(item.xo, item.yo, zM);
 
-		focusedIndex = item.c;
-		activeIndex = item.c;
-		updateHeaderReadout();
+	focusedIndex = item.c;
+	activeIndex = item.c;
+	updateHeaderReadout();
 
-		panX = currScreen.x;
-		panY = currScreen.y;
-	} else {
-		focusedIndex = item.c;
-		activeIndex = item.c;
-		updateHeaderReadout();
-	}
+	panX = currScreen.x;
+	panY = currScreen.y;
 
 	var targetPanX = cw / 2;
 	var targetPanY = ch / 2;
@@ -3296,6 +3373,32 @@ window.addEventListener('wheel', function(e) {
 	}
 }, { passive: false });
 
+function stepFocusImage(dir) {
+	var channelItems = getAllChannelItems();
+	if (channelItems.length > 0) {
+		var currentVisIdx = channelItems.findIndex(function(v) { return v.c === focusedIndex; });
+		if (currentVisIdx < 0) {
+			var focusItem = rawData.find(function(it) { return it.c === focusedIndex; });
+			var targetIdx = focusItem ? focusItem.file_idx : activeFileIdx;
+			var minDiff = Infinity;
+			currentVisIdx = 0;
+			channelItems.forEach(function(item, idx) {
+				var diff = Math.abs(item.file_idx - targetIdx);
+				if (diff < minDiff) {
+					minDiff = diff;
+					currentVisIdx = idx;
+				}
+			});
+		}
+		var nextVisIdx = currentVisIdx + dir;
+		nextVisIdx = Math.max(0, Math.min(channelItems.length - 1, nextVisIdx));
+		var targetItem = channelItems[nextVisIdx];
+		if (targetItem) {
+			centerImage(targetItem, true); // Preserve zoom scale
+		}
+	}
+}
+
 canvas.addEventListener('wheel', function(e) {
 	var now = performance.now();
 
@@ -3309,29 +3412,7 @@ canvas.addEventListener('wheel', function(e) {
 		if (now - lastWheelStepTime >= WHEEL_STEP_COOLDOWN) {
 			lastWheelStepTime = now;
 			var dir = e.deltaY < 0 ? 1 : -1;
-			var channelItems = getAllChannelItems();
-			if (channelItems.length > 0) {
-				var currentVisIdx = channelItems.findIndex(function(v) { return v.c === focusedIndex; });
-				if (currentVisIdx < 0) {
-					var focusItem = rawData.find(function(it) { return it.c === focusedIndex; });
-					var targetIdx = focusItem ? focusItem.file_idx : activeFileIdx;
-					var minDiff = Infinity;
-					currentVisIdx = 0;
-					channelItems.forEach(function(item, idx) {
-						var diff = Math.abs(item.file_idx - targetIdx);
-						if (diff < minDiff) {
-							minDiff = diff;
-							currentVisIdx = idx;
-						}
-					});
-				}
-				var nextVisIdx = currentVisIdx + dir;
-				nextVisIdx = Math.max(0, Math.min(channelItems.length - 1, nextVisIdx));
-				var targetItem = channelItems[nextVisIdx];
-				if (targetItem) {
-					centerImage(targetItem, true); // Preserve zoom scale
-				}
-			}
+			stepFocusImage(dir);
 		}
 		return;
 	}
@@ -3404,15 +3485,6 @@ function stepSelectDropdown(selectId, dir) {
 	}
 }
 
-function stepAlpha(dir) {
-	var input = document.getElementById('gvAlpha');
-	if (!input) return;
-	var val = parseInt(input.value, 10) + dir * 5;
-	val = Math.max(10, Math.min(100, val));
-	input.value = val;
-	onAlphaChange();
-}
-
 function openFocusedImageInAnalysis() {
 	var focusItem = rawData.find(function(it) { return it.c === focusedIndex; }) || rawData[0];
 	if (focusItem) {
@@ -3460,10 +3532,18 @@ window.addEventListener('keydown', function(e) {
 	}
 
 	if (e.key === 'ArrowUp') {
-		stepFocus(1);
+		if (isCtrl) {
+			stepFocusImage(1);
+		} else {
+			stepFocus(1);
+		}
 		e.preventDefault();
 	} else if (e.key === 'ArrowDown') {
-		stepFocus(-1);
+		if (isCtrl) {
+			stepFocusImage(-1);
+		} else {
+			stepFocus(-1);
+		}
 		e.preventDefault();
 	} else if (e.key === 'ArrowLeft') {
 		stepSelectDropdown(isCtrl ? 'gvSecChanFilter' : 'gvChanFilter', -1);
