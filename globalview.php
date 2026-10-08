@@ -1395,7 +1395,7 @@ function getVisibleZHeights(visibleItems) {
 			if (maxOverlappingZ >= 0) {
 				zHeights[i] = maxOverlappingZ + effZStep;
 			} else {
-				zHeights[i] = 0;
+				zHeights[i] = zHeights[i - 1];
 			}
 		}
 	}
@@ -3762,7 +3762,6 @@ if (isNewDataset) {
 	showAllImages();
 	fitView();
 } else {
-	onTimeSliderChange();
 	var activeItem = rawData.find(function(item) { return item.c === qvudIndex; }) || rawData[0];
 	if (activeItem) {
 		activeIndex = activeItem.c;
@@ -3777,6 +3776,9 @@ if (isNewDataset) {
 	} else if (activeItem) {
 		focusedIndex = activeItem.c;
 	}
+
+	onTimeSliderChange();
+	updateProjectionCache();
 	updateHeaderReadout();
 
 	if (isPanCenterLoaded) {
