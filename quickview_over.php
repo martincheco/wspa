@@ -152,14 +152,8 @@ foreach ($chans as $i) {
 
 	$real_src = 'serve_image.php?file=' . urlencode($img_file) . '&v=' . $hash;
 
-	// Eager load active file channels & channels within +/- 45 index window; load off-screen thumbnails via IntersectionObserver
-	$is_near_active = (abs($c - $index) <= 45 || in_array($c, $chline));
-	if ($is_near_active) {
-		$src_attr = 'src="' . $real_src . '"';
-	} else {
-		$placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='" . $cached_w . "' height='" . $cached_h . "'%3E%3C/svg%3E";
-		$src_attr = 'src="' . $placeholder . '" data-src="' . $real_src . '"';
-	}
+	$placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='" . $cached_w . "' height='" . $cached_h . "'%3E%3C/svg%3E";
+	$src_attr = 'src="' . $placeholder . '" data-src="' . $real_src . '"';
 
 	$chan_name = isset($acqchans[$c]) ? trim($acqchans[$c]) : '';
 	$base_chan_name = get_base_channel_name($chan_name);
@@ -295,12 +289,9 @@ function scrollToActiveImage() {
   }
 }
 
-// 1. Instantly scroll active target image into view
+// 1. Synchronously apply channel preselection & prepare grid BEFORE image loading
+loadChannelPreferences();
 scrollToActiveImage();
-document.addEventListener('DOMContentLoaded', function() {
-  scrollToActiveImage();
-  loadChannelPreferences();
-});
 
 // 2. Populate off-screen images reliably with IntersectionObserver
 function initLazyLoading() {
