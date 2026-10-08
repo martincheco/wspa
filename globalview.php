@@ -928,7 +928,8 @@ var overallAvgDim = 100e-9;
 
 var isZoomLoaded = false;
 var savedPanDx = 0, savedPanDy = 0;
-var isPanLoaded = false;
+var savedPanCenterDx = 0, savedPanCenterDy = 0;
+var isPanLoaded = false, isPanCenterLoaded = false;
 
 function sliderValToZNm(v) {
 	var frac = Math.max(0, Math.min(1000, parseFloat(v))) / 1000.0;
@@ -1005,8 +1006,9 @@ function saveSpatialViewState() {
 		var cw = viewport ? viewport.clientWidth : 0;
 		var ch = viewport ? viewport.clientHeight : 0;
 		if (cw > 0 && ch > 0) {
-			localStorage.setItem('wspa_gv_pan_dx', panX - (cw / 2));
-			localStorage.setItem('wspa_gv_pan_dy', panY - (ch / 2));
+			var centerPos = getDatasetCenterScreenPos();
+			localStorage.setItem('wspa_gv_pan_center_dx', centerPos.x - (cw / 2));
+			localStorage.setItem('wspa_gv_pan_center_dy', centerPos.y - (ch / 2));
 		}
 
 		var formData = new FormData();
@@ -1015,8 +1017,9 @@ function saveSpatialViewState() {
 		formData.append('gv_zspacing', timeZSpacing);
 		formData.append('gv_zoom', zoomScale);
 		if (cw > 0 && ch > 0) {
-			formData.append('gv_pan_dx', panX - (cw / 2));
-			formData.append('gv_pan_dy', panY - (ch / 2));
+			var centerPosForm = getDatasetCenterScreenPos();
+			formData.append('gv_pan_center_dx', centerPosForm.x - (cw / 2));
+			formData.append('gv_pan_center_dy', centerPosForm.y - (ch / 2));
 		}
 		if (minTimeEl) formData.append('gv_time_min', minTimeEl.value);
 		if (maxTimeEl) formData.append('gv_time_max', maxTimeEl.value);
@@ -1063,14 +1066,14 @@ function loadSpatialViewState() {
 		var sMaxImg = cfg.gv_max_visible_images !== undefined ? cfg.gv_max_visible_images : localStorage.getItem('wspa_gv_max_visible_images');
 		var sTimeMin = cfg.gv_time_min !== undefined ? cfg.gv_time_min : localStorage.getItem('wspa_gv_time_min');
 		var sTimeMax = cfg.gv_time_max !== undefined ? cfg.gv_time_max : localStorage.getItem('wspa_gv_time_max');
-		var sPanDx = cfg.gv_pan_dx !== undefined ? cfg.gv_pan_dx : localStorage.getItem('wspa_gv_pan_dx');
-		var sPanDy = cfg.gv_pan_dy !== undefined ? cfg.gv_pan_dy : localStorage.getItem('wspa_gv_pan_dy');
+		var sPanCenterDx = cfg.gv_pan_center_dx !== undefined ? cfg.gv_pan_center_dx : localStorage.getItem('wspa_gv_pan_center_dx');
+		var sPanCenterDy = cfg.gv_pan_center_dy !== undefined ? cfg.gv_pan_center_dy : localStorage.getItem('wspa_gv_pan_center_dy');
 
-		if (sPanDx !== null && sPanDx !== undefined && !isNaN(parseFloat(sPanDx)) &&
-		    sPanDy !== null && sPanDy !== undefined && !isNaN(parseFloat(sPanDy))) {
-			savedPanDx = parseFloat(sPanDx);
-			savedPanDy = parseFloat(sPanDy);
-			isPanLoaded = true;
+		if (sPanCenterDx !== null && sPanCenterDx !== undefined && !isNaN(parseFloat(sPanCenterDx)) &&
+		    sPanCenterDy !== null && sPanCenterDy !== undefined && !isNaN(parseFloat(sPanCenterDy))) {
+			savedPanCenterDx = parseFloat(sPanCenterDx);
+			savedPanCenterDy = parseFloat(sPanCenterDy);
+			isPanCenterLoaded = true;
 		}
 
 		if (sMaxImg !== null && sMaxImg !== undefined && !isNaN(parseInt(sMaxImg, 10))) {
@@ -2261,6 +2264,68 @@ function fitView(animate) {
 		panY = targetPanY;
 		requestDraw();
 	}
+}
+
+function getDatasetCenterScreenPos() {
+	var cw = viewport ? viewport.clientWidth : 0;
+	var ch = viewport ? viewport.clientHeight : 0;
+	if (cw <= 0 || ch <= 0) return { x: cw / 2, y: ch / 2 };
+
+	var meta = getDatasetCentroidAndExtents();
+	if (!meta) return { x: cw / 2, y: ch / 2 };
+
+	var foc = getFocusedItemAndZ();
+	var visibleItems = getVisibleItems();
+	var count = visibleItems.length;
+	var maxZMeters = getItemZMeters(count > 0 ? count - 1 : 0, visibleItems);
+	var minZMeters = getItemZMeters(0, visibleItems);
+	var zMid = count > 0 ? ((maxZMeters + minZMeters) / 2) : 0;
+
+	var dx = meta.meanX - foc.x;
+	var dy = meta.meanY - foc.y;
+	var dz = zMid - foc.z;
+
+	var totalYawRad = -viewAngle * Math.PI / 180.0;
+	var pitchRad = pitch3D * Math.PI / 180.0;
+	var rotX = dx * Math.cos(totalYawRad) - dy * Math.sin(totalYawRad);
+	var rotY = dx * Math.sin(totalYawRad) + dy * Math.cos(totalYawRad);
+
+	return {
+		x: panX + rotX * zoomScale,
+		y: panY - (rotY * Math.sin(pitchRad) + dz * Math.cos(pitchRad)) * zoomScale
+	};
+}
+
+function setPanFromDatasetCenterScreenPos(targetCenterX, targetCenterY) {
+	var cw = viewport ? viewport.clientWidth : 0;
+	var ch = viewport ? viewport.clientHeight : 0;
+	if (cw <= 0 || ch <= 0) return;
+
+	var meta = getDatasetCentroidAndExtents();
+	if (!meta) {
+		panX = targetCenterX;
+		panY = targetCenterY;
+		return;
+	}
+
+	var foc = getFocusedItemAndZ();
+	var visibleItems = getVisibleItems();
+	var count = visibleItems.length;
+	var maxZMeters = getItemZMeters(count > 0 ? count - 1 : 0, visibleItems);
+	var minZMeters = getItemZMeters(0, visibleItems);
+	var zMid = count > 0 ? ((maxZMeters + minZMeters) / 2) : 0;
+
+	var dx = meta.meanX - foc.x;
+	var dy = meta.meanY - foc.y;
+	var dz = zMid - foc.z;
+
+	var totalYawRad = -viewAngle * Math.PI / 180.0;
+	var pitchRad = pitch3D * Math.PI / 180.0;
+	var rotX = dx * Math.cos(totalYawRad) - dy * Math.sin(totalYawRad);
+	var rotY = dx * Math.sin(totalYawRad) + dy * Math.cos(totalYawRad);
+
+	panX = targetCenterX - rotX * zoomScale;
+	panY = targetCenterY + (rotY * Math.sin(pitchRad) + dz * Math.cos(pitchRad)) * zoomScale;
 }
 
 function setFocusAsMinRange() {
@@ -3670,7 +3735,9 @@ if (isNewDataset) {
 	localStorage.removeItem('wspa_gv_time_max');
 	localStorage.removeItem('wspa_gv_pan_dx');
 	localStorage.removeItem('wspa_gv_pan_dy');
-	isPanLoaded = false;
+	localStorage.removeItem('wspa_gv_pan_center_dx');
+	localStorage.removeItem('wspa_gv_pan_center_dy');
+	isPanCenterLoaded = false;
 	showAllImages();
 	fitView();
 } else {
@@ -3681,12 +3748,11 @@ if (isNewDataset) {
 		activeIndex = activeItem.c;
 		updateHeaderReadout();
 	}
-	if (isPanLoaded) {
+	if (isPanCenterLoaded) {
 		var cw = viewport ? viewport.clientWidth : 0;
 		var ch = viewport ? viewport.clientHeight : 0;
 		if (cw > 0 && ch > 0) {
-			panX = (cw / 2) + savedPanDx;
-			panY = (ch / 2) + savedPanDy;
+			setPanFromDatasetCenterScreenPos((cw / 2) + savedPanCenterDx, (ch / 2) + savedPanCenterDy);
 		}
 		requestDraw();
 	} else {
