@@ -618,6 +618,21 @@ function wipe_user_session_dir($userdir, $user) {
     $user_ws = rtrim($userdir, '/') . '/' . $user . '/';
     if (!is_dir($user_ws)) return;
 
+    // Reset dataset-specific range bounds in user config so new dataset launches start with Full Range
+    $cfg_file = get_user_config_file($user);
+    if (file_exists($cfg_file)) {
+        $cfg = read_user_config($user);
+        if (isset($cfg['gv_time_min']) || isset($cfg['gv_time_max'])) {
+            unset($cfg['gv_time_min']);
+            unset($cfg['gv_time_max']);
+            $lines = array();
+            foreach ($cfg as $k => $v) {
+                $lines[] = $k . "=" . $v;
+            }
+            @file_put_contents($cfg_file, implode("\n", $lines) . "\n");
+        }
+    }
+
     $files_to_remove = [
         'chan.dat', 'acqchan.dat', 'imgoffs.dat',
         'tmp.dat', 'tmp.flt', 'tmp.plt', 'tmp.png', 'scl.png',

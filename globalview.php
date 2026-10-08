@@ -353,6 +353,9 @@ $active_file_name = isset($js_images[$initial_slider_idx]['file']) ? $js_images[
 $active_file_idx = isset($js_images[$initial_slider_idx]['file_idx']) ? $js_images[$initial_slider_idx]['file_idx'] : $max_file_idx;
 $active_file_ang = isset($js_images[$initial_slider_idx]['ang']) ? intval(round($js_images[$initial_slider_idx]['ang'])) : (isset($js_images[0]['ang']) ? intval(round($js_images[0]['ang'])) : 0);
 
+$dataset_sig_src = $path . '|' . (file_exists($imgoffs_file) ? filemtime($imgoffs_file) : '') . '|' . count($js_images);
+$dataset_signature = md5($dataset_sig_src);
+
 // Decouple primary channel if active channel is already set as secondary channel
 $active_clean = clean_channel_name($active_channel);
 $saved_sec_clean = clean_channel_name($saved_sec);
@@ -555,9 +558,9 @@ html, body {
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
 				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">To</span>
 				<input type="submit" onclick="stepTime('max', -1)" value="&lt;" style="font-weight:normal; flex-shrink:0;">
-				<input type="range" id="gvTimeMax" min="0" max="<?php echo $max_file_idx; ?>" value="<?php echo $active_file_idx; ?>" step="1" oninput="onTimeSliderChange()" style="flex:1; min-width:0;">
+				<input type="range" id="gvTimeMax" min="0" max="<?php echo $max_file_idx; ?>" value="<?php echo $max_file_idx; ?>" step="1" oninput="onTimeSliderChange()" style="flex:1; min-width:0;">
 				<input type="submit" onclick="stepTime('max', 1)" value="&gt;" style="font-weight:normal; flex-shrink:0;">
-				<span id="gvTimeMaxVal" style="width:42px; text-align:right; color:#6cf; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo ($active_file_idx + 1); ?></span>
+				<span id="gvTimeMaxVal" style="width:42px; text-align:right; color:#6cf; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo ($max_file_idx + 1); ?></span>
 			</div>
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
 				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Max img</span>
@@ -664,6 +667,7 @@ html, body {
 <script>
 var userCfg = <?php echo json_encode($user_cfg); ?>;
 window.USER_CFG = userCfg;
+window.DATASET_SIGNATURE = <?php echo json_encode($dataset_signature); ?>;
 var rawData = <?php echo json_encode($js_images); ?>;
 var qvudIndex = <?php echo $initial_slider_idx; ?>;
 var focusedIndex = <?php echo $initial_slider_idx; ?>;
@@ -990,11 +994,19 @@ function saveSpatialViewState() {
 		var maxImgEl = document.getElementById('gvMaxVisibleImages');
 		if (maxImgEl) localStorage.setItem('wspa_gv_max_visible_images', maxImgEl.value);
 
+		var minTimeEl = document.getElementById('gvTimeMin');
+		if (minTimeEl) localStorage.setItem('wspa_gv_time_min', minTimeEl.value);
+
+		var maxTimeEl = document.getElementById('gvTimeMax');
+		if (maxTimeEl) localStorage.setItem('wspa_gv_time_max', maxTimeEl.value);
+
 		var formData = new FormData();
 		formData.append('gv_pitch', pitch3D);
 		formData.append('gv_yaw', viewAngle);
 		formData.append('gv_zspacing', timeZSpacing);
 		formData.append('gv_zoom', zoomScale);
+		if (minTimeEl) formData.append('gv_time_min', minTimeEl.value);
+		if (maxTimeEl) formData.append('gv_time_max', maxTimeEl.value);
 		if (alphaEl) formData.append('gv_alpha', alphaEl.value);
 		if (zFactorSlider) formData.append('gv_zfactor', zFactorSlider.value);
 		if (zFactorEl) formData.append('gv_zfactor_enabled', zFactorEl.checked ? 'true' : 'false');
@@ -1036,6 +1048,8 @@ function loadSpatialViewState() {
 		var sSecChan = cfg.gv_sec_chan !== undefined ? cfg.gv_sec_chan : localStorage.getItem('wspa_gv_sec_chan');
 		var sPrimChan = cfg.gv_prim_chan !== undefined ? cfg.gv_prim_chan : localStorage.getItem('wspa_gv_prim_chan');
 		var sMaxImg = cfg.gv_max_visible_images !== undefined ? cfg.gv_max_visible_images : localStorage.getItem('wspa_gv_max_visible_images');
+		var sTimeMin = cfg.gv_time_min !== undefined ? cfg.gv_time_min : localStorage.getItem('wspa_gv_time_min');
+		var sTimeMax = cfg.gv_time_max !== undefined ? cfg.gv_time_max : localStorage.getItem('wspa_gv_time_max');
 
 		if (sMaxImg !== null && sMaxImg !== undefined && !isNaN(parseInt(sMaxImg, 10))) {
 			maxVisibleImages = Math.max(10, Math.min(500, parseInt(sMaxImg, 10)));
@@ -1043,6 +1057,22 @@ function loadSpatialViewState() {
 			var maxValSpan = document.getElementById('gvMaxVisibleVal');
 			if (maxInput) maxInput.value = maxVisibleImages;
 			if (maxValSpan) maxValSpan.textContent = maxVisibleImages;
+		}
+
+		var minInput = document.getElementById('gvTimeMin');
+		var minValSpan = document.getElementById('gvTimeMinVal');
+		if (sTimeMin !== null && sTimeMin !== undefined && !isNaN(parseInt(sTimeMin, 10)) && minInput) {
+			var parsedMin = Math.max(0, Math.min(maxFileIdx, parseInt(sTimeMin, 10)));
+			minInput.value = parsedMin;
+			if (minValSpan) minValSpan.textContent = parsedMin + 1;
+		}
+
+		var maxRangeInput = document.getElementById('gvTimeMax');
+		var maxRangeValSpan = document.getElementById('gvTimeMaxVal');
+		if (sTimeMax !== null && sTimeMax !== undefined && !isNaN(parseInt(sTimeMax, 10)) && maxRangeInput) {
+			var parsedMax = Math.max(0, Math.min(maxFileIdx, parseInt(sTimeMax, 10)));
+			maxRangeInput.value = parsedMax;
+			if (maxRangeValSpan) maxRangeValSpan.textContent = parsedMax + 1;
 		}
 
 		var primChanEl = document.getElementById('gvChanFilter');
@@ -2424,6 +2454,7 @@ function onTimeSliderChange() {
 		updateHeaderReadout();
 	}
 
+	saveSpatialViewState();
 	requestDraw();
 }
 
@@ -3604,10 +3635,33 @@ window.addEventListener('resize', resizeCanvas);
 // Initialize
 updateOverallAvgDim();
 loadSpatialViewState();
+
+var lastDatasetSig = localStorage.getItem('wspa_gv_last_dataset');
+var isNewDataset = (!lastDatasetSig || lastDatasetSig !== window.DATASET_SIGNATURE);
+
 preloadImages();
 resizeCanvas();
-onTimeSliderChange();
-centerOnActiveImage(false, isZoomLoaded);
+
+if (isNewDataset) {
+	localStorage.setItem('wspa_gv_last_dataset', window.DATASET_SIGNATURE);
+	localStorage.removeItem('wspa_gv_time_min');
+	localStorage.removeItem('wspa_gv_time_max');
+	showAllImages();
+	fitView();
+} else {
+	onTimeSliderChange();
+	if (isZoomLoaded) {
+		var activeItem = rawData.find(function(item) { return item.c === qvudIndex; }) || rawData[0];
+		if (activeItem) {
+			focusedIndex = activeItem.c;
+			activeIndex = activeItem.c;
+			updateHeaderReadout();
+			centerImage(activeItem, false);
+		}
+	} else {
+		fitView();
+	}
+}
 </script>
 
 </BODY>
