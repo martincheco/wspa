@@ -770,10 +770,17 @@ var gvSampleX = new Float64Array(65);
 var gvSampleY = new Float64Array(65);
 var gvSampleObs = new Uint8Array(65);
 
-function drawSampleIndexRun(startIdx, endIdx, isObs, solidColor, faintColor, dashUnobs) {
-	if (startIdx >= endIdx) return;
+function drawSampleIndexRun(ptA, ptB, startSample, endSample, totalSamples, isObs, solidColor, faintColor, dashUnobs) {
+	if (startSample >= endSample) return;
+	var t0 = startSample / totalSamples;
+	var t1 = endSample / totalSamples;
+	var x0 = ptA.x + t0 * (ptB.x - ptA.x);
+	var y0 = ptA.y + t0 * (ptB.y - ptA.y);
+	var x1 = ptA.x + t1 * (ptB.x - ptA.x);
+	var y1 = ptA.y + t1 * (ptB.y - ptA.y);
+
 	ctx.save();
-	ctx.lineWidth = 2.0;
+	ctx.lineWidth = (solidColor === '#00ffff' || solidColor === '#ff0') ? 2.5 : 2.0;
 	if (isObs) {
 		ctx.strokeStyle = faintColor;
 		ctx.setLineDash([4, 4]);
@@ -782,21 +789,19 @@ function drawSampleIndexRun(startIdx, endIdx, isObs, solidColor, faintColor, das
 		ctx.setLineDash(dashUnobs ? [4, 4] : []);
 	}
 	ctx.beginPath();
-	ctx.moveTo(gvSampleX[startIdx], gvSampleY[startIdx]);
-	for (var j = startIdx + 1; j <= endIdx; j++) {
-		ctx.lineTo(gvSampleX[j], gvSampleY[j]);
-	}
+	ctx.moveTo(x0, y0);
+	ctx.lineTo(x1, y1);
 	ctx.stroke();
 	ctx.restore();
 }
 
 function drawObscurableEdge(ptA, ptB, targetVisIdx, higherItems, solidColor, faintColor, numSamples, dashUnobs) {
-	if (!numSamples) numSamples = 12;
+	if (!numSamples) numSamples = 32;
 	if (numSamples > 64) numSamples = 64;
 
 	if (!higherItems || higherItems.length === 0) {
 		ctx.save();
-		ctx.lineWidth = 2.0;
+		ctx.lineWidth = (solidColor === '#00ffff' || solidColor === '#ff0') ? 2.5 : 2.0;
 		ctx.strokeStyle = solidColor;
 		ctx.setLineDash(dashUnobs ? [4, 4] : []);
 		ctx.beginPath();
@@ -812,21 +817,21 @@ function drawObscurableEdge(ptA, ptB, targetVisIdx, higherItems, solidColor, fai
 	var edgeMinY = Math.min(ptA.y, ptB.y);
 	var edgeMaxY = Math.max(ptA.y, ptB.y);
 
-	var candidateCount = 0;
+	var activeCandidates = [];
 	for (var h = 0; h < higherItems.length; h++) {
 		var itemH = higherItems[h];
 		if (typeof itemH.minX !== 'undefined') {
 			if (!(edgeMaxX < itemH.minX || edgeMinX > itemH.maxX || edgeMaxY < itemH.minY || edgeMinY > itemH.maxY)) {
-				candidateCount++;
+				activeCandidates.push(itemH);
 			}
 		} else {
-			candidateCount++;
+			activeCandidates.push(itemH);
 		}
 	}
 
-	if (candidateCount === 0) {
+	if (activeCandidates.length === 0) {
 		ctx.save();
-		ctx.lineWidth = 2.0;
+		ctx.lineWidth = (solidColor === '#00ffff' || solidColor === '#ff0') ? 2.5 : 2.0;
 		ctx.strokeStyle = solidColor;
 		ctx.setLineDash(dashUnobs ? [4, 4] : []);
 		ctx.beginPath();
@@ -837,47 +842,49 @@ function drawObscurableEdge(ptA, ptB, targetVisIdx, higherItems, solidColor, fai
 		return;
 	}
 
-	for (var i = 0; i <= numSamples; i++) {
-		var t = i / numSamples;
-		var sx = ptA.x + t * (ptB.x - ptA.x);
-		var sy = ptA.y + t * (ptB.y - ptA.y);
+	for (var i = 0; i < numSamples; i++) {
+		var tMid = (i + 0.5) / numSamples;
+		var sx = ptA.x + tMid * (ptB.x - ptA.x);
+		var sy = ptA.y + tMid * (ptB.y - ptA.y);
 		var obs = 0;
-		for (var k = 0; k < higherItems.length; k++) {
-			var h = higherItems[k];
-			if (typeof h.minX !== 'undefined') {
-				if (sx < h.minX || sx > h.maxX || sy < h.minY || sy > h.maxY) continue;
-			}
-			if (isPointInQuad(sx, sy, h.quad)) {
-				obs = 1;
-				break;
+		for (var k = 0; k < activeCandidates.length; k++) {
+			var cand = activeCandidates[k];
+			if (sx >= cand.minX && sx <= cand.maxX && sy >= cand.minY && sy <= cand.maxY) {
+				if (isPointInQuad(sx, sy, cand.quad)) {
+					obs = 1;
+					break;
+				}
 			}
 		}
-		gvSampleX[i] = sx;
-		gvSampleY[i] = sy;
 		gvSampleObs[i] = obs;
 	}
 
-	var currentObs = (gvSampleObs[0] === 1 || gvSampleObs[1] === 1);
+	var currentObs = (gvSampleObs[0] === 1);
 	var runStartIdx = 0;
 
 	for (var i = 0; i < numSamples; i++) {
-		var isObs = (gvSampleObs[i] === 1 || gvSampleObs[i + 1] === 1);
+		var isObs = (gvSampleObs[i] === 1);
 		if (isObs !== currentObs) {
-			drawSampleIndexRun(runStartIdx, i, currentObs, solidColor, faintColor, dashUnobs);
+			drawSampleIndexRun(ptA, ptB, runStartIdx, i, numSamples, currentObs, solidColor, faintColor, dashUnobs);
 			currentObs = isObs;
 			runStartIdx = i;
 		}
 	}
-	drawSampleIndexRun(runStartIdx, numSamples, currentObs, solidColor, faintColor, dashUnobs);
+	drawSampleIndexRun(ptA, ptB, runStartIdx, numSamples, numSamples, currentObs, solidColor, faintColor, dashUnobs);
 }
 
-function drawObscurableFrame(quad, targetVisIdx, itemsWith3D, solidColor, faintColor, insetPx) {
-	var higherItems = itemsWith3D.filter(function(e) { return e.visIdx > targetVisIdx; });
-	var q = quad;
+function drawObscurableFrame(entry, itemsWith3D, solidColor, faintColor, insetPx) {
+	if (!entry) return;
+	var targetVisIdx = entry.visIdx;
+	var targetDepth = entry.depth;
+	var higherItems = itemsWith3D.filter(function(e) {
+		return e.depth > targetDepth + 1e-9 && e.item.c !== entry.item.c;
+	});
+	var q = entry.quad;
 	if (insetPx && insetPx !== 0) {
-		var cx = (quad[0].x + quad[1].x + quad[2].x + quad[3].x) / 4;
-		var cy = (quad[0].y + quad[1].y + quad[2].y + quad[3].y) / 4;
-		q = quad.map(function(pt) {
+		var cx = (q[0].x + q[1].x + q[2].x + q[3].x) / 4;
+		var cy = (q[0].y + q[1].y + q[2].y + q[3].y) / 4;
+		q = q.map(function(pt) {
 			var dx = cx - pt.x;
 			var dy = cy - pt.y;
 			var len = Math.hypot(dx, dy);
@@ -889,10 +896,10 @@ function drawObscurableFrame(quad, targetVisIdx, itemsWith3D, solidColor, faintC
 		});
 	}
 
-	drawObscurableEdge(q[0], q[1], targetVisIdx, higherItems, solidColor, faintColor);
-	drawObscurableEdge(q[1], q[2], targetVisIdx, higherItems, solidColor, faintColor);
-	drawObscurableEdge(q[2], q[3], targetVisIdx, higherItems, solidColor, faintColor);
-	drawObscurableEdge(q[3], q[0], targetVisIdx, higherItems, solidColor, faintColor);
+	drawObscurableEdge(q[0], q[1], targetVisIdx, higherItems, solidColor, faintColor, 32);
+	drawObscurableEdge(q[1], q[2], targetVisIdx, higherItems, solidColor, faintColor, 32);
+	drawObscurableEdge(q[2], q[3], targetVisIdx, higherItems, solidColor, faintColor, 32);
+	drawObscurableEdge(q[3], q[0], targetVisIdx, higherItems, solidColor, faintColor, 32);
 }
 
 var canvas = document.getElementById('gvCanvas');
@@ -1450,7 +1457,7 @@ function project3DPoint(x, y, zMeters) {
 	var sx = panX + rotX * zoomScale;
 	var sy = panY - (rotY * cachedTrig.sinPitch + dz * cachedTrig.cosPitch) * zoomScale;
 
-	var depth = dz * cachedTrig.sinPitch + rotY * cachedTrig.cosPitch;
+	var depth = dz * cachedTrig.sinPitch - rotY * cachedTrig.cosPitch;
 
 	return { x: sx, y: sy, depth: depth };
 }
@@ -2698,12 +2705,12 @@ function drawScene() {
 	// 3D Isometric View Rendering
 	var itemsWith3D = buildItemsWith3D(visibleItems);
 
-	// Sort ascending by visible stack index (older drawn first, newer drawn on top)
+	// Sort ascending by 3D physical camera depth (smaller depth = further back, drawn first; larger depth = closer to viewer, drawn on top)
 	itemsWith3D.sort(function(a, b) {
-		if (a.visIdx !== b.visIdx) {
-			return a.visIdx - b.visIdx;
+		if (Math.abs(a.depth - b.depth) > 1e-9) {
+			return a.depth - b.depth;
 		}
-		return a.depth - b.depth;
+		return a.visIdx - b.visIdx;
 	});
 	lastRenderedItemsWith3D = itemsWith3D;
 
@@ -3009,15 +3016,14 @@ function drawScene() {
 		}
 	}
 
-	// Draw Active (Yellow #ff0), Focus (Turquoise #0ff), and Hovered (Light Gray #ccc) Frames with 3D Depth Obscuration
+	// Draw Active (Yellow #ff0), Focus (Turquoise #00ffff), and Hovered (Light Gray #ccc) Frames with 3D Depth Obscuration
 	var qvudEntry = itemsWith3D.find(function(e) { return e.item.c === qvudIndex; });
 	var focusEntry = itemsWith3D.find(function(e) { return e.item.c === focusedIndex; });
 	var hoverEntry = (hoveredImg && !isLeftClickPanning) ? itemsWith3D.find(function(e) { return e.item === hoveredImg; }) : null;
 
 	if (qvudEntry) {
 		drawObscurableFrame(
-			qvudEntry.quad,
-			qvudEntry.visIdx,
+			qvudEntry,
 			itemsWith3D,
 			'#ff0',
 			'rgba(255, 255, 0, 0.45)',
@@ -3026,22 +3032,20 @@ function drawScene() {
 	}
 
 	if (focusEntry) {
-		var inset = (qvudIndex === focusedIndex) ? 2.5 : 0;
+		var inset = (qvudIndex === focusedIndex) ? 3.0 : 0;
 		drawObscurableFrame(
-			focusEntry.quad,
-			focusEntry.visIdx,
+			focusEntry,
 			itemsWith3D,
-			'#0ff',
+			'#00ffff',
 			'rgba(0, 255, 255, 0.45)',
 			inset
 		);
 	}
 
 	if (hoverEntry && hoverEntry.item.c !== focusedIndex) {
-		var hoverInset = (hoverEntry.item.c === qvudIndex) ? 2.5 : 0;
+		var hoverInset = (hoverEntry.item.c === qvudIndex) ? 3.0 : 0;
 		drawObscurableFrame(
-			hoverEntry.quad,
-			hoverEntry.visIdx,
+			hoverEntry,
 			itemsWith3D,
 			'#ccc',
 			'rgba(204, 204, 204, 0.45)',
