@@ -622,13 +622,14 @@ function wipe_user_session_dir($userdir, $user) {
     $cfg_file = get_user_config_file($user);
     if (file_exists($cfg_file)) {
         $cfg = read_user_config($user);
-        if (isset($cfg['gv_time_min']) || isset($cfg['gv_time_max']) || isset($cfg['gv_pan_dx']) || isset($cfg['gv_pan_dy']) || isset($cfg['gv_pan_center_dx']) || isset($cfg['gv_pan_center_dy'])) {
+        if (isset($cfg['gv_time_min']) || isset($cfg['gv_time_max']) || isset($cfg['gv_pan_dx']) || isset($cfg['gv_pan_dy']) || isset($cfg['gv_pan_center_dx']) || isset($cfg['gv_pan_center_dy']) || isset($cfg['gv_focus_idx'])) {
             unset($cfg['gv_time_min']);
             unset($cfg['gv_time_max']);
             unset($cfg['gv_pan_dx']);
             unset($cfg['gv_pan_dy']);
             unset($cfg['gv_pan_center_dx']);
             unset($cfg['gv_pan_center_dy']);
+            unset($cfg['gv_focus_idx']);
             $lines = array();
             foreach ($cfg as $k => $v) {
                 $lines[] = $k . "=" . $v;

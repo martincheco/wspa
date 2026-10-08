@@ -930,6 +930,7 @@ var isZoomLoaded = false;
 var savedPanDx = 0, savedPanDy = 0;
 var savedPanCenterDx = 0, savedPanCenterDy = 0;
 var isPanLoaded = false, isPanCenterLoaded = false;
+var savedFocusFileIdx = null, isFocusLoaded = false;
 
 function sliderValToZNm(v) {
 	var frac = Math.max(0, Math.min(1000, parseFloat(v))) / 1000.0;
@@ -1003,6 +1004,11 @@ function saveSpatialViewState() {
 		var maxTimeEl = document.getElementById('gvTimeMax');
 		if (maxTimeEl) localStorage.setItem('wspa_gv_time_max', maxTimeEl.value);
 
+		var focusItem = rawData.find(function(it) { return it.c === focusedIndex; });
+		if (focusItem) {
+			localStorage.setItem('wspa_gv_focus_idx', focusItem.file_idx);
+		}
+
 		var cw = viewport ? viewport.clientWidth : 0;
 		var ch = viewport ? viewport.clientHeight : 0;
 		if (cw > 0 && ch > 0) {
@@ -1016,6 +1022,9 @@ function saveSpatialViewState() {
 		formData.append('gv_yaw', viewAngle);
 		formData.append('gv_zspacing', timeZSpacing);
 		formData.append('gv_zoom', zoomScale);
+		if (focusItem) {
+			formData.append('gv_focus_idx', focusItem.file_idx);
+		}
 		if (cw > 0 && ch > 0) {
 			var centerPosForm = getDatasetCenterScreenPos();
 			formData.append('gv_pan_center_dx', centerPosForm.x - (cw / 2));
@@ -1068,6 +1077,12 @@ function loadSpatialViewState() {
 		var sTimeMax = cfg.gv_time_max !== undefined ? cfg.gv_time_max : localStorage.getItem('wspa_gv_time_max');
 		var sPanCenterDx = cfg.gv_pan_center_dx !== undefined ? cfg.gv_pan_center_dx : localStorage.getItem('wspa_gv_pan_center_dx');
 		var sPanCenterDy = cfg.gv_pan_center_dy !== undefined ? cfg.gv_pan_center_dy : localStorage.getItem('wspa_gv_pan_center_dy');
+		var sFocusIdx = cfg.gv_focus_idx !== undefined ? cfg.gv_focus_idx : localStorage.getItem('wspa_gv_focus_idx');
+
+		if (sFocusIdx !== null && sFocusIdx !== undefined && !isNaN(parseInt(sFocusIdx, 10))) {
+			savedFocusFileIdx = parseInt(sFocusIdx, 10);
+			isFocusLoaded = true;
+		}
 
 		if (sPanCenterDx !== null && sPanCenterDx !== undefined && !isNaN(parseFloat(sPanCenterDx)) &&
 		    sPanCenterDy !== null && sPanCenterDy !== undefined && !isNaN(parseFloat(sPanCenterDy))) {
@@ -3737,17 +3752,29 @@ if (isNewDataset) {
 	localStorage.removeItem('wspa_gv_pan_dy');
 	localStorage.removeItem('wspa_gv_pan_center_dx');
 	localStorage.removeItem('wspa_gv_pan_center_dy');
+	localStorage.removeItem('wspa_gv_focus_idx');
 	isPanCenterLoaded = false;
+	isFocusLoaded = false;
 	showAllImages();
 	fitView();
 } else {
 	onTimeSliderChange();
 	var activeItem = rawData.find(function(item) { return item.c === qvudIndex; }) || rawData[0];
 	if (activeItem) {
-		focusedIndex = activeItem.c;
 		activeIndex = activeItem.c;
-		updateHeaderReadout();
 	}
+	if (isFocusLoaded) {
+		var savedFocusItem = rawData.find(function(it) { return it.file_idx === savedFocusFileIdx; });
+		if (savedFocusItem) {
+			focusedIndex = savedFocusItem.c;
+		} else if (activeItem) {
+			focusedIndex = activeItem.c;
+		}
+	} else if (activeItem) {
+		focusedIndex = activeItem.c;
+	}
+	updateHeaderReadout();
+
 	if (isPanCenterLoaded) {
 		var cw = viewport ? viewport.clientWidth : 0;
 		var ch = viewport ? viewport.clientHeight : 0;
