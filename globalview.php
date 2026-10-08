@@ -876,9 +876,8 @@ function drawObscurableEdge(ptA, ptB, targetVisIdx, higherItems, solidColor, fai
 function drawObscurableFrame(entry, itemsWith3D, solidColor, faintColor, insetPx) {
 	if (!entry) return;
 	var targetVisIdx = entry.visIdx;
-	var targetDepth = entry.depth;
 	var higherItems = itemsWith3D.filter(function(e) {
-		return e.depth > targetDepth + 1e-9 && e.item.c !== entry.item.c;
+		return e.visIdx > targetVisIdx && e.item.c !== entry.item.c;
 	});
 	var q = entry.quad;
 	if (insetPx && insetPx !== 0) {
@@ -2705,11 +2704,8 @@ function drawScene() {
 	// 3D Isometric View Rendering
 	var itemsWith3D = buildItemsWith3D(visibleItems);
 
-	// Sort ascending by 3D physical camera depth (smaller depth = further back, drawn first; larger depth = closer to viewer, drawn on top)
+	// Sort ascending by sequence order (smaller visIdx = earlier scan / lower Z level, drawn first; larger visIdx = newer scan / higher Z level, drawn on top)
 	itemsWith3D.sort(function(a, b) {
-		if (Math.abs(a.depth - b.depth) > 1e-9) {
-			return a.depth - b.depth;
-		}
 		return a.visIdx - b.visIdx;
 	});
 	lastRenderedItemsWith3D = itemsWith3D;
@@ -3140,8 +3136,7 @@ function findTopmostImageUnderCursor(mouseX, mouseY, itemsWith3D) {
 	}
 
 	var topFirst = itemsWith3D.slice().sort(function(a, b) {
-		if (a.visIdx !== b.visIdx) return b.visIdx - a.visIdx;
-		return b.depth - a.depth;
+		return b.visIdx - a.visIdx;
 	});
 
 	for (var i = 0; i < topFirst.length; i++) {
@@ -3171,8 +3166,7 @@ function findSTSPointsUnderCursor(mouseX, mouseY, itemsWith3D) {
 	if (!itemsWith3D) {
 		itemsWith3D = buildItemsWith3D(visibleItems);
 		itemsWith3D.sort(function(a, b) {
-			if (a.visIdx !== b.visIdx) return b.visIdx - a.visIdx;
-			return b.depth - a.depth;
+			return b.visIdx - a.visIdx;
 		});
 	}
 
@@ -3309,8 +3303,7 @@ function updateHoverState(mouseX, mouseY, clientX, clientY, rectLeft, rectTop) {
 			return { item: item, visIdx: visIdx, zMeters: zM, quad: quad, minX: minX, maxX: maxX, minY: minY, maxY: maxY, depth: avgDepth };
 		});
 		itemsWith3D.sort(function(a, b) {
-			if (a.visIdx !== b.visIdx) return b.visIdx - a.visIdx;
-			return b.depth - a.depth;
+			return b.visIdx - a.visIdx;
 		});
 	}
 
