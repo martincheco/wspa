@@ -618,13 +618,15 @@ function wipe_user_session_dir($userdir, $user) {
     $user_ws = rtrim($userdir, '/') . '/' . $user . '/';
     if (!is_dir($user_ws)) return;
 
-    // Reset dataset-specific range bounds in user config so new dataset launches start with Full Range
+    // Reset dataset-specific range bounds and pan offsets in user config so new dataset launches start with Full Range & Autoscale
     $cfg_file = get_user_config_file($user);
     if (file_exists($cfg_file)) {
         $cfg = read_user_config($user);
-        if (isset($cfg['gv_time_min']) || isset($cfg['gv_time_max'])) {
+        if (isset($cfg['gv_time_min']) || isset($cfg['gv_time_max']) || isset($cfg['gv_pan_dx']) || isset($cfg['gv_pan_dy'])) {
             unset($cfg['gv_time_min']);
             unset($cfg['gv_time_max']);
+            unset($cfg['gv_pan_dx']);
+            unset($cfg['gv_pan_dy']);
             $lines = array();
             foreach ($cfg as $k => $v) {
                 $lines[] = $k . "=" . $v;

@@ -927,6 +927,8 @@ var timeZSpacing = 459; // slider value (0 to 1000)
 var overallAvgDim = 100e-9;
 
 var isZoomLoaded = false;
+var savedPanDx = 0, savedPanDy = 0;
+var isPanLoaded = false;
 
 function sliderValToZNm(v) {
 	var frac = Math.max(0, Math.min(1000, parseFloat(v))) / 1000.0;
@@ -1000,11 +1002,22 @@ function saveSpatialViewState() {
 		var maxTimeEl = document.getElementById('gvTimeMax');
 		if (maxTimeEl) localStorage.setItem('wspa_gv_time_max', maxTimeEl.value);
 
+		var cw = viewport ? viewport.clientWidth : 0;
+		var ch = viewport ? viewport.clientHeight : 0;
+		if (cw > 0 && ch > 0) {
+			localStorage.setItem('wspa_gv_pan_dx', panX - (cw / 2));
+			localStorage.setItem('wspa_gv_pan_dy', panY - (ch / 2));
+		}
+
 		var formData = new FormData();
 		formData.append('gv_pitch', pitch3D);
 		formData.append('gv_yaw', viewAngle);
 		formData.append('gv_zspacing', timeZSpacing);
 		formData.append('gv_zoom', zoomScale);
+		if (cw > 0 && ch > 0) {
+			formData.append('gv_pan_dx', panX - (cw / 2));
+			formData.append('gv_pan_dy', panY - (ch / 2));
+		}
 		if (minTimeEl) formData.append('gv_time_min', minTimeEl.value);
 		if (maxTimeEl) formData.append('gv_time_max', maxTimeEl.value);
 		if (alphaEl) formData.append('gv_alpha', alphaEl.value);
@@ -1050,6 +1063,15 @@ function loadSpatialViewState() {
 		var sMaxImg = cfg.gv_max_visible_images !== undefined ? cfg.gv_max_visible_images : localStorage.getItem('wspa_gv_max_visible_images');
 		var sTimeMin = cfg.gv_time_min !== undefined ? cfg.gv_time_min : localStorage.getItem('wspa_gv_time_min');
 		var sTimeMax = cfg.gv_time_max !== undefined ? cfg.gv_time_max : localStorage.getItem('wspa_gv_time_max');
+		var sPanDx = cfg.gv_pan_dx !== undefined ? cfg.gv_pan_dx : localStorage.getItem('wspa_gv_pan_dx');
+		var sPanDy = cfg.gv_pan_dy !== undefined ? cfg.gv_pan_dy : localStorage.getItem('wspa_gv_pan_dy');
+
+		if (sPanDx !== null && sPanDx !== undefined && !isNaN(parseFloat(sPanDx)) &&
+		    sPanDy !== null && sPanDy !== undefined && !isNaN(parseFloat(sPanDy))) {
+			savedPanDx = parseFloat(sPanDx);
+			savedPanDy = parseFloat(sPanDy);
+			isPanLoaded = true;
+		}
 
 		if (sMaxImg !== null && sMaxImg !== undefined && !isNaN(parseInt(sMaxImg, 10))) {
 			maxVisibleImages = Math.max(10, Math.min(500, parseInt(sMaxImg, 10)));
@@ -3646,22 +3668,33 @@ if (isNewDataset) {
 	localStorage.setItem('wspa_gv_last_dataset', window.DATASET_SIGNATURE);
 	localStorage.removeItem('wspa_gv_time_min');
 	localStorage.removeItem('wspa_gv_time_max');
+	localStorage.removeItem('wspa_gv_pan_dx');
+	localStorage.removeItem('wspa_gv_pan_dy');
+	isPanLoaded = false;
 	showAllImages();
 	fitView();
 } else {
 	onTimeSliderChange();
-	if (isZoomLoaded) {
-		var activeItem = rawData.find(function(item) { return item.c === qvudIndex; }) || rawData[0];
-		if (activeItem) {
-			focusedIndex = activeItem.c;
-			activeIndex = activeItem.c;
-			updateHeaderReadout();
-			centerImage(activeItem, false);
+	var activeItem = rawData.find(function(item) { return item.c === qvudIndex; }) || rawData[0];
+	if (activeItem) {
+		focusedIndex = activeItem.c;
+		activeIndex = activeItem.c;
+		updateHeaderReadout();
+	}
+	if (isPanLoaded) {
+		var cw = viewport ? viewport.clientWidth : 0;
+		var ch = viewport ? viewport.clientHeight : 0;
+		if (cw > 0 && ch > 0) {
+			panX = (cw / 2) + savedPanDx;
+			panY = (ch / 2) + savedPanDy;
 		}
+		requestDraw();
 	} else {
 		fitView();
 	}
 }
+
+window.addEventListener('beforeunload', saveSpatialViewState);
 </script>
 
 </BODY>
