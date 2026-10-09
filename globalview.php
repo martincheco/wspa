@@ -2711,9 +2711,9 @@ function buildItemsWith3D(visibleItems) {
 			});
 		}
 
+		var centerProj = project3DPoint(item.xo, item.yo, zM);
 		var minD = Math.min(quad[0].depth, quad[1].depth, quad[2].depth, quad[3].depth);
 		var maxD = Math.max(quad[0].depth, quad[1].depth, quad[2].depth, quad[3].depth);
-		var meanD = (quad[0].depth + quad[1].depth + quad[2].depth + quad[3].depth) / 4.0;
 
 		return {
 			item: item,
@@ -2730,40 +2730,16 @@ function buildItemsWith3D(visibleItems) {
 			maxY: totalMaxY,
 			minDepth: minD,
 			maxDepth: maxD,
-			meanDepth: meanD,
-			depth: maxD
+			meanDepth: centerProj.depth,
+			depth: centerProj.depth
 		};
 	});
 }
 
-// Authoritative Unified 3D Tile Depth Sorting (from background to foreground)
+// Pure Geometrical 3D Camera Depth Sorting (from background to foreground)
 function sort3DItems(itemsWith3D) {
 	if (!itemsWith3D || itemsWith3D.length <= 1) return itemsWith3D;
-	itemsWith3D.sort(function(a, b) {
-		// 1. Strict 3D Camera Depth Disjointness:
-		// If all 4 corners of b are strictly behind all 4 corners of a in camera depth space
-		if (b.minDepth - a.maxDepth > 1e-12) return 1;  // b drawn first (background)
-		if (a.minDepth - b.maxDepth > 1e-12) return -1; // a drawn first (background)
-
-		// 2. Physical Quad Overlap:
-		// Where physical 2D quads overlap on the XY plane, higher Z elevation sits on top
-		var physOverlap = do2DQuadsIntersect(get2DPhysicalCorners(a.item), get2DPhysicalCorners(b.item));
-		if (physOverlap) {
-			var diffZ = a.zMeters - b.zMeters;
-			if (Math.abs(diffZ) > 1e-12) {
-				return diffZ; // Lower Z drawn first (background), higher Z drawn later (foreground)
-			}
-		}
-
-		// 3. Pure 3D Center Camera Line-of-Sight Depth
-		var diffMean = b.meanDepth - a.meanDepth;
-		if (Math.abs(diffMean) > 1e-12) {
-			return diffMean; // Larger camera depth drawn first (background)
-		}
-
-		// 4. Stable Deterministic Sequence Tie-Breaker
-		return a.visIdx - b.visIdx;
-	});
+	itemsWith3D.sort(function(a, b) { return (b.depth - a.depth) || (a.visIdx - b.visIdx); });
 	return itemsWith3D;
 }
 
