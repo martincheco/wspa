@@ -503,7 +503,7 @@ html, body {
 			<div id="gvQVUDName" style="color:#ff0; font-weight:normal; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="<?php echo htmlspecialchars($active_file_name); ?>">
 				<?php echo htmlspecialchars($active_file_name); ?>
 			</div>
-			<div id="gvFocusName" style="color:#0ff; font-weight:normal; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:2px;" title="<?php echo htmlspecialchars($active_file_name); ?>">
+			<div id="gvFocusName" style="color:#0f0; font-weight:normal; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:2px;" title="<?php echo htmlspecialchars($active_file_name); ?>">
 				<?php echo htmlspecialchars($active_file_name); ?>
 			</div>
 		</div>
@@ -565,7 +565,7 @@ html, body {
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
 				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Max img</span>
 				<input type="submit" onclick="stepMaxVis(-1)" value="&lt;" style="font-weight:normal; flex-shrink:0;">
-				<input type="range" id="gvMaxVisibleImages" min="10" max="500" value="100" step="10" oninput="onMaxVisibleImagesChange()" title="Max preceding images limit" style="flex:1; min-width:0;">
+				<input type="range" id="gvMaxVisibleImages" min="10" max="200" value="100" step="10" oninput="onMaxVisibleImagesChange()" title="Max preceding images limit" style="flex:1; min-width:0;">
 				<input type="submit" onclick="stepMaxVis(1)" value="&gt;" style="font-weight:normal; flex-shrink:0;">
 				<span id="gvMaxVisibleVal" style="width:42px; text-align:right; color:#ff0; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">100</span>
 			</div>
@@ -574,7 +574,7 @@ html, body {
 				<input type="submit" onclick="stepFocus(-1)" value="&lt;" title="Focus lower image (Down arrow)" style="font-weight:normal; flex-shrink:0;">
 				<input type="range" id="gvTimeFocus" min="0" max="<?php echo $max_file_idx; ?>" value="<?php echo $active_file_idx; ?>" step="1" oninput="onFocusSliderChange()" title="Focus slider (Up/Down arrow)" style="flex:1; min-width:0;">
 				<input type="submit" onclick="stepFocus(1)" value="&gt;" title="Focus higher image (Up arrow)" style="font-weight:normal; flex-shrink:0;">
-				<span id="gvTimeFocusVal" style="width:42px; text-align:right; color:#0ff; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo ($active_file_idx + 1); ?></span>
+				<span id="gvTimeFocusVal" style="width:42px; text-align:right; color:#0f0; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo ($active_file_idx + 1); ?></span>
 			</div>
 		</div>
 
@@ -701,18 +701,41 @@ function updateHeaderReadout() {
 	}
 }
 
+function updateRangeForFocus(targetFileIdx) {
+	if (typeof targetFileIdx === 'undefined' || targetFileIdx === null) return;
+
+	var halfBelow = Math.floor((maxVisibleImages - 1) / 2);
+	var halfAbove = Math.ceil((maxVisibleImages - 1) / 2);
+
+	var newMin = targetFileIdx - halfBelow;
+	var newMax = targetFileIdx + halfAbove;
+
+	if (newMin < 0) {
+		newMin = 0;
+		newMax = Math.min(maxFileIdx, maxVisibleImages - 1);
+	}
+	if (newMax > maxFileIdx) {
+		newMax = maxFileIdx;
+		newMin = Math.max(0, maxFileIdx - (maxVisibleImages - 1));
+	}
+
+	if (timeMinInput && timeMaxInput) {
+		var currMin = parseInt(timeMinInput.value, 10);
+		var currMax = parseInt(timeMaxInput.value, 10);
+		if (currMin !== newMin || currMax !== newMax) {
+			timeMinInput.value = newMin;
+			timeMaxInput.value = newMax;
+			onTimeSliderChange();
+		}
+	}
+}
+
 function onFocusSliderChange() {
 	var focusInput = document.getElementById('gvTimeFocus');
 	if (!focusInput) return;
 	var targetFileIdx = parseInt(focusInput.value, 10);
 
-	if (targetFileIdx > fileMax) {
-		timeMaxInput.value = targetFileIdx;
-		onTimeSliderChange();
-	} else if (targetFileIdx < fileMin) {
-		timeMinInput.value = targetFileIdx;
-		onTimeSliderChange();
-	}
+	updateRangeForFocus(targetFileIdx);
 
 	var channelItems = getAllChannelItems();
 	if (channelItems.length > 0) {
@@ -1098,7 +1121,7 @@ function loadSpatialViewState() {
 		}
 
 		if (sMaxImg !== null && sMaxImg !== undefined && !isNaN(parseInt(sMaxImg, 10))) {
-			maxVisibleImages = Math.max(10, Math.min(500, parseInt(sMaxImg, 10)));
+			maxVisibleImages = Math.max(10, Math.min(200, parseInt(sMaxImg, 10)));
 			var maxInput = document.getElementById('gvMaxVisibleImages');
 			var maxValSpan = document.getElementById('gvMaxVisibleVal');
 			if (maxInput) maxInput.value = maxVisibleImages;
@@ -1284,7 +1307,7 @@ function stepMaxVis(dir) {
 	var el = document.getElementById('gvMaxVisibleImages');
 	if (!el) return;
 	var val = parseInt(el.value, 10) + dir * 10;
-	val = Math.max(10, Math.min(500, val));
+	val = Math.max(10, Math.min(200, val));
 	el.value = val;
 	onMaxVisibleImagesChange();
 }
@@ -2478,17 +2501,14 @@ function onMaxVisibleImagesChange() {
 	var maxInput = document.getElementById('gvMaxVisibleImages');
 	var maxValSpan = document.getElementById('gvMaxVisibleVal');
 	if (!maxInput) return;
-	maxVisibleImages = parseInt(maxInput.value, 10);
+	maxVisibleImages = Math.max(10, Math.min(200, parseInt(maxInput.value, 10)));
 	if (maxValSpan) maxValSpan.textContent = maxVisibleImages;
 
 	saveSpatialViewState();
 
-	if (timeMaxInput && timeMinInput) {
-		var fMax = parseInt(timeMaxInput.value, 10);
-		var allowedMin = Math.max(0, fMax - (maxVisibleImages - 1));
-		timeMinInput.value = allowedMin;
-	}
-	onTimeSliderChange();
+	var focusItem = rawData.find(function(it) { return it.c === focusedIndex; });
+	var focusFileIdx = focusItem ? focusItem.file_idx : (timeMaxInput ? parseInt(timeMaxInput.value, 10) : 0);
+	updateRangeForFocus(focusFileIdx);
 }
 
 function onTimeSliderChange() {
@@ -2704,9 +2724,9 @@ function drawScene() {
 	// 3D Isometric View Rendering
 	var itemsWith3D = buildItemsWith3D(visibleItems);
 
-	// Sort ascending by sequence order (smaller visIdx = earlier scan / lower Z level, drawn first; larger visIdx = newer scan / higher Z level, drawn on top)
+	// Sort descending by 3D camera depth (farthest depth drawn first, nearest depth drawn last on top)
 	itemsWith3D.sort(function(a, b) {
-		return a.visIdx - b.visIdx;
+		return b.depth - a.depth;
 	});
 	lastRenderedItemsWith3D = itemsWith3D;
 
@@ -3032,8 +3052,8 @@ function drawScene() {
 		drawObscurableFrame(
 			focusEntry,
 			itemsWith3D,
-			'#00ffff',
-			'rgba(0, 255, 255, 0.45)',
+			'#0f0',
+			'rgba(0, 255, 0, 0.45)',
 			inset
 		);
 	}
@@ -3225,13 +3245,7 @@ function centerImage(item, animate) {
 	if (cw <= 0 || ch <= 0) return;
 
 	if (typeof item.file_idx !== 'undefined') {
-		if (item.file_idx > fileMax) {
-			timeMaxInput.value = item.file_idx;
-			onTimeSliderChange();
-		} else if (item.file_idx < fileMin) {
-			timeMinInput.value = item.file_idx;
-			onTimeSliderChange();
-		}
+		updateRangeForFocus(item.file_idx);
 	}
 
 	var visItems = getVisibleItems();
