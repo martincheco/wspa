@@ -584,9 +584,9 @@ html, body {
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
 				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Pitch</span>
 				<input type="submit" onclick="stepPitch(-1)" value="&lt;" style="font-weight:normal; flex-shrink:0;">
-				<input type="range" id="gv3DPitch" min="10" max="90" value="45" step="1" oninput="on3DParamChange()" title="Pitch slider (W / S keys)" style="flex:1; min-width:0;">
+				<input type="range" id="gv3DPitch" min="10" max="90" value="<?php echo isset($user_cfg['gv_pitch']) ? intval($user_cfg['gv_pitch']) : 45; ?>" step="1" oninput="on3DParamChange()" title="Pitch slider (W / S keys)" style="flex:1; min-width:0;">
 				<input type="submit" onclick="stepPitch(1)" value="&gt;" style="font-weight:normal; flex-shrink:0;">
-				<span id="gv3DPitchVal" style="width:42px; text-align:right; color:#0ff; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">45°</span>
+				<span id="gv3DPitchVal" style="width:42px; text-align:right; color:#0ff; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo isset($user_cfg['gv_pitch']) ? intval($user_cfg['gv_pitch']) : 45; ?>°</span>
 			</div>
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
 				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">&Delta;Z</span>
@@ -605,9 +605,9 @@ html, body {
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
 				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Yaw</span>
 				<input type="submit" onclick="stepRot(-1)" value="&lt;" style="font-weight:normal; flex-shrink:0;">
-				<input type="range" id="gvRot" min="-180" max="180" value="45" step="1" oninput="onRotChange()" title="Yaw slider (A / D or Q / E keys)" style="flex:1; min-width:0;">
+				<input type="range" id="gvRot" min="-180" max="180" value="<?php echo isset($user_cfg['gv_yaw']) ? intval($user_cfg['gv_yaw']) : 0; ?>" step="1" oninput="onRotChange()" title="Yaw slider (A / D or Q / E keys)" style="flex:1; min-width:0;">
 				<input type="submit" onclick="stepRot(1)" value="&gt;" style="font-weight:normal; flex-shrink:0;">
-				<span id="gvRotVal" style="width:42px; text-align:right; color:#0f0; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">45°</span>
+				<span id="gvRotVal" style="width:42px; text-align:right; color:#0f0; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo isset($user_cfg['gv_yaw']) ? intval($user_cfg['gv_yaw']) : 0; ?>°</span>
 			</div>
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
 				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Zoom</span>
@@ -619,9 +619,9 @@ html, body {
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
 				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Alpha</span>
 				<input type="submit" onclick="stepAlpha(-1)" value="&lt;" style="font-weight:normal; flex-shrink:0;">
-				<input type="range" id="gvAlpha" min="10" max="100" step="5" value="80" oninput="onAlphaChange()" title="Alpha slider ([ / ] keys)" style="flex:1; min-width:0;">
+				<input type="range" id="gvAlpha" min="10" max="100" step="5" value="<?php echo isset($user_cfg['gv_alpha']) ? intval($user_cfg['gv_alpha']) : 100; ?>" oninput="onAlphaChange()" title="Alpha slider ([ / ] keys)" style="flex:1; min-width:0;">
 				<input type="submit" onclick="stepAlpha(1)" value="&gt;" style="font-weight:normal; flex-shrink:0;">
-				<span id="gvAlphaVal" style="width:42px; text-align:right; color:#ff0; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">80%</span>
+				<span id="gvAlphaVal" style="width:42px; text-align:right; color:#ff0; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo isset($user_cfg['gv_alpha']) ? intval($user_cfg['gv_alpha']) : 100; ?>%</span>
 			</div>
 			<div style="display:flex; gap:4px;">
 				<input type="submit" onclick="setPitch2D()" value="2D" title="Pitch view to 2D top-down" style="flex:1; font-weight:normal;">
@@ -633,25 +633,25 @@ html, body {
 		<!-- 5. Checkboxes -->
 		<div style="display:flex; flex-direction:column; gap:4px; margin-top:2px; font-weight:normal;">
 			<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
-				<input type="checkbox" id="gvLabels" onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Show Labels
+				<input type="checkbox" id="gvLabels" <?php echo (!isset($user_cfg['gv_show_labels']) || $user_cfg['gv_show_labels'] === 'true') ? 'checked' : ''; ?> onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Show Labels
 			</label>
 			<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
-				<input type="checkbox" id="gvShowSTS" checked onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Show STS
+				<input type="checkbox" id="gvShowSTS" <?php echo (!isset($user_cfg['gv_show_sts']) || $user_cfg['gv_show_sts'] === 'true') ? 'checked' : ''; ?> onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Show STS
 			</label>
 			<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
-				<input type="checkbox" id="gvShowTooltip" onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Show tooltip
+				<input type="checkbox" id="gvShowTooltip" <?php echo (!isset($user_cfg['gv_show_tooltip']) || $user_cfg['gv_show_tooltip'] === 'true') ? 'checked' : ''; ?> onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Show tooltip
 			</label>
 			<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
-				<input type="checkbox" id="gvShowCenterLine" checked onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Connect centers
+				<input type="checkbox" id="gvShowCenterLine" <?php echo (isset($user_cfg['gv_show_center_line']) && $user_cfg['gv_show_center_line'] === 'true') ? 'checked' : ''; ?> onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Connect centers
 			</label>
 			<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
-				<input type="checkbox" id="gvAutoZSpacing" onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Auto Z
+				<input type="checkbox" id="gvAutoZSpacing" <?php echo (!isset($user_cfg['gv_auto_zspacing']) || $user_cfg['gv_auto_zspacing'] === 'true') ? 'checked' : ''; ?> onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Auto Z
 			</label>
 			<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
-				<input type="checkbox" id="gvZFactorEnabled" onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Size-proportional &Delta;Z
+				<input type="checkbox" id="gvShowProjFrame" <?php echo (!isset($user_cfg['gv_show_proj_frame']) || $user_cfg['gv_show_proj_frame'] === 'true') ? 'checked' : ''; ?> onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Proj frame
 			</label>
 			<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
-				<input type="checkbox" id="gvShowProjFrame" onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Proj frame
+				<input type="checkbox" id="gvZFactorEnabled" <?php echo (!isset($user_cfg['gv_zfactor_enabled']) || $user_cfg['gv_zfactor_enabled'] === 'true') ? 'checked' : ''; ?> onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Size-proportional &Delta;Z
 			</label>
 		</div>
 
@@ -978,8 +978,12 @@ function formatZNmDisplay(zNm) {
 	}
 }
 
-function saveSpatialViewState() {
+var saveConfigTimeout = null;
+
+function saveSpatialViewState(immediate) {
 	if (!isStateLoaded) return;
+	if (typeof immediate === 'undefined') immediate = false;
+
 	try {
 		localStorage.setItem('wspa_gv_pitch', pitch3D);
 		localStorage.setItem('wspa_gv_yaw', viewAngle);
@@ -1040,41 +1044,74 @@ function saveSpatialViewState() {
 			localStorage.setItem('wspa_gv_pan_center_dx', centerPos.x - (cw / 2));
 			localStorage.setItem('wspa_gv_pan_center_dy', centerPos.y - (ch / 2));
 		}
-
-		var formData = new FormData();
-		formData.append('gv_pitch', pitch3D);
-		formData.append('gv_yaw', viewAngle);
-		formData.append('gv_zspacing', timeZSpacing);
-		formData.append('gv_zoom', zoomScale);
-		if (focusItem) {
-			formData.append('gv_focus_idx', focusItem.file_idx);
-		}
-		if (cw > 0 && ch > 0) {
-			var centerPosForm = getDatasetCenterScreenPos();
-			formData.append('gv_pan_center_dx', centerPosForm.x - (cw / 2));
-			formData.append('gv_pan_center_dy', centerPosForm.y - (ch / 2));
-		}
-		if (minTimeEl) formData.append('gv_time_min', minTimeEl.value);
-		if (maxTimeEl) formData.append('gv_time_max', maxTimeEl.value);
-		if (alphaEl) formData.append('gv_alpha', alphaEl.value);
-		if (zFactorSlider) formData.append('gv_zfactor', zFactorSlider.value);
-		if (zFactorEl) formData.append('gv_zfactor_enabled', zFactorEl.checked ? 'true' : 'false');
-		if (labelsEl) formData.append('gv_show_labels', labelsEl.checked ? 'true' : 'false');
-		if (stsEl) formData.append('gv_show_sts', stsEl.checked ? 'true' : 'false');
-		if (tooltipEl) formData.append('gv_show_tooltip', tooltipEl.checked ? 'true' : 'false');
-		if (projFrameEl) formData.append('gv_show_proj_frame', projFrameEl.checked ? 'true' : 'false');
-		if (centerLineEl) formData.append('gv_show_center_line', centerLineEl.checked ? 'true' : 'false');
-		if (autoZEl) formData.append('gv_auto_zspacing', autoZEl.checked ? 'true' : 'false');
-		if (primChanEl) formData.append('gv_prim_chan', primChanEl.value);
-		if (secChanEl) formData.append('gv_sec_chan', secChanEl.value);
-		if (maxImgEl) formData.append('gv_max_visible_images', maxImgEl.value);
-
-		fetch('save_config.php', {
-			method: 'POST',
-			body: formData
-		}).catch(function(e) {});
-
 	} catch (e) {}
+
+	if (saveConfigTimeout) {
+		clearTimeout(saveConfigTimeout);
+		saveConfigTimeout = null;
+	}
+
+	var doFetch = function() {
+		try {
+			var alphaEl = document.getElementById('gvAlpha');
+			var zFactorSlider = document.getElementById('gvZFactor');
+			var zFactorEl = document.getElementById('gvZFactorEnabled');
+			var labelsEl = document.getElementById('gvLabels');
+			var stsEl = document.getElementById('gvShowSTS');
+			var tooltipEl = document.getElementById('gvShowTooltip');
+			var projFrameEl = document.getElementById('gvShowProjFrame');
+			var centerLineEl = document.getElementById('gvShowCenterLine');
+			var autoZEl = document.getElementById('gvAutoZSpacing');
+			var primChanEl = document.getElementById('gvChanFilter');
+			var secChanEl = document.getElementById('gvSecChanFilter');
+			var maxImgEl = document.getElementById('gvMaxVisibleImages');
+			var minTimeEl = document.getElementById('gvTimeMin');
+			var maxTimeEl = document.getElementById('gvTimeMax');
+			var focusItem = rawData.find(function(it) { return it.c === focusedIndex; });
+
+			var cw = viewport ? viewport.clientWidth : 0;
+			var ch = viewport ? viewport.clientHeight : 0;
+
+			var formData = new FormData();
+			formData.append('gv_pitch', pitch3D);
+			formData.append('gv_yaw', viewAngle);
+			formData.append('gv_zspacing', timeZSpacing);
+			formData.append('gv_zoom', zoomScale);
+			if (focusItem) {
+				formData.append('gv_focus_idx', focusItem.file_idx);
+			}
+			if (cw > 0 && ch > 0) {
+				var centerPosForm = getDatasetCenterScreenPos();
+				formData.append('gv_pan_center_dx', centerPosForm.x - (cw / 2));
+				formData.append('gv_pan_center_dy', centerPosForm.y - (ch / 2));
+			}
+			if (minTimeEl) formData.append('gv_time_min', minTimeEl.value);
+			if (maxTimeEl) formData.append('gv_time_max', maxTimeEl.value);
+			if (alphaEl) formData.append('gv_alpha', alphaEl.value);
+			if (zFactorSlider) formData.append('gv_zfactor', zFactorSlider.value);
+			if (zFactorEl) formData.append('gv_zfactor_enabled', zFactorEl.checked ? 'true' : 'false');
+			if (labelsEl) formData.append('gv_show_labels', labelsEl.checked ? 'true' : 'false');
+			if (stsEl) formData.append('gv_show_sts', stsEl.checked ? 'true' : 'false');
+			if (tooltipEl) formData.append('gv_show_tooltip', tooltipEl.checked ? 'true' : 'false');
+			if (projFrameEl) formData.append('gv_show_proj_frame', projFrameEl.checked ? 'true' : 'false');
+			if (centerLineEl) formData.append('gv_show_center_line', centerLineEl.checked ? 'true' : 'false');
+			if (autoZEl) formData.append('gv_auto_zspacing', autoZEl.checked ? 'true' : 'false');
+			if (primChanEl) formData.append('gv_prim_chan', primChanEl.value);
+			if (secChanEl) formData.append('gv_sec_chan', secChanEl.value);
+			if (maxImgEl) formData.append('gv_max_visible_images', maxImgEl.value);
+
+			fetch('save_config.php', {
+				method: 'POST',
+				body: formData
+			}).catch(function(e) {});
+		} catch (e) {}
+	};
+
+	if (immediate) {
+		doFetch();
+	} else {
+		saveConfigTimeout = setTimeout(doFetch, 150);
+	}
 }
 
 function loadSpatialViewState() {
@@ -2652,6 +2689,7 @@ function onRotChange() {
 	var newAngle = parseInt(document.getElementById('gvRot').value, 10);
 	update3DOrientation(newAngle, pitch3D);
 	document.getElementById('gvRotVal').textContent = viewAngle + '°';
+	saveSpatialViewState(true);
 	requestDraw();
 }
 
@@ -2665,6 +2703,7 @@ function stepRot(dir) {
 
 function setPitch2D() {
 	animateViewTo(panX, panY, zoomScale, viewAngle, 90);
+	saveSpatialViewState(true);
 }
 
 function alignFocusToAnalysis() {
@@ -2674,21 +2713,23 @@ function alignFocusToAnalysis() {
 	while (targetAngle > 180) targetAngle -= 360;
 	while (targetAngle < -180) targetAngle += 360;
 	animateViewTo(panX, panY, zoomScale, targetAngle);
+	saveSpatialViewState(true);
 }
 
 function resetAngleZero() {
 	animateViewTo(panX, panY, zoomScale, 0);
+	saveSpatialViewState(true);
 }
 
 function onAlphaChange() {
 	var alphaVal = parseInt(document.getElementById('gvAlpha').value, 10);
 	document.getElementById('gvAlphaVal').textContent = alphaVal + '%';
-	saveSpatialViewState();
+	saveSpatialViewState(true);
 	requestDraw();
 }
 
 function onCheckboxChange() {
-	saveSpatialViewState();
+	saveSpatialViewState(true);
 	requestDraw();
 }
 
@@ -3831,14 +3872,12 @@ window.addEventListener('keydown', function(e) {
 
 window.addEventListener('resize', resizeCanvas);
 
-// Initialize
+// Initialize state & load user config BEFORE starting rendering
 updateOverallAvgDim();
 loadSpatialViewState();
 
 var lastDatasetSig = localStorage.getItem('wspa_gv_last_dataset');
 var isNewDataset = (!lastDatasetSig || lastDatasetSig !== window.DATASET_SIGNATURE);
-
-resizeCanvas();
 
 if (isNewDataset) {
 	localStorage.setItem('wspa_gv_last_dataset', window.DATASET_SIGNATURE);
@@ -3881,13 +3920,15 @@ if (isNewDataset) {
 		if (cw > 0 && ch > 0) {
 			setPanFromDatasetCenterScreenPos((cw / 2) + savedPanCenterDx, (ch / 2) + savedPanCenterDy);
 		}
-		requestDraw();
 	} else {
 		fitView();
 	}
 }
 
-window.addEventListener('beforeunload', saveSpatialViewState);
+// Setup canvas bounds and trigger initial render after config is fully applied
+resizeCanvas();
+
+window.addEventListener('beforeunload', function() { saveSpatialViewState(true); });
 </script>
 
 </BODY>
