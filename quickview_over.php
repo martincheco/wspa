@@ -8,7 +8,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	$selected_chans = isset($_POST['chans']) && is_array($_POST['chans']) ? $_POST['chans'] : array();
 	$chans_str = implode(',', $selected_chans);
 	save_user_config(array('overview_channels' => $chans_str), $user);
-	header('Location: quickview_over.php#active_target');
+	header('Location: quickview_over.php');
 	exit;
 }
 
@@ -177,11 +177,16 @@ foreach ($chans as $i) {
 			$scan_groups[$bi] = array(
 				'bi' => $bi,
 				'has_sts' => $has_sts,
-				'items' => array()
+				'items' => array(),
+				'max_h' => 0,
+				'is_active_row' => false
 			);
 		}
 
 		$is_active = ($c == $index || in_array($c, $chline));
+		if ($is_active) {
+			$scan_groups[$bi]['is_active_row'] = true;
+		}
 
 		if (in_array($c, $chline)) {
 			$border_css = "border:1px solid #fff; outline: 2px solid #0aa; outline-offset: -2px;";
@@ -200,9 +205,29 @@ foreach ($chans as $i) {
 			'border_css' => $border_css,
 			'is_active' => $is_active
 		);
+		if ($dim['css_h'] > $scan_groups[$bi]['max_h']) {
+			$scan_groups[$bi]['max_h'] = $dim['css_h'];
+		}
 	}
 	$c++;
 }
+
+// Pre-calculate heights & active row offset in PHP memory before generating HTML
+$active_row_top = 0;
+$active_row_height = 102;
+$current_y = 0;
+$found_active_row = false;
+
+foreach ($scan_groups as $bi => $group) {
+	$row_h = max(10, $group['max_h'] + 2);
+	if ($group['is_active_row'] && !$found_active_row) {
+		$active_row_top = $current_y;
+		$active_row_height = $row_h;
+		$found_active_row = true;
+	}
+	$current_y += $row_h;
+}
+$total_table_height = max(100, $current_y);
 
 // STEP 4: Output HTML layout with Channels Panel IN THE BEGINNING hanging OVER images on top-right
 ?>
@@ -211,7 +236,7 @@ foreach ($chans as $i) {
 
 <!-- Channels Panel: Rendered IN THE BEGINNING, hanging OVER images on top-right -->
 <div id="channel_panel" style="position:fixed; top:25px; right:20px; z-index:1000; background:#181818; border:1px solid #444; padding:6px; box-sizing:border-box; width:200px; max-height:calc(100vh - 40px); overflow-y:auto;">
-	<FORM id="chan_form" method="post" action="quickview_over.php#active_target">
+	<FORM id="chan_form" method="post" action="quickview_over.php">
 	<div style="font-weight:bold; margin-bottom:6px; border-bottom:1px solid #444; padding-bottom:4px; color:#bff;">Channels</div>
 	<div style="margin-bottom:6px;">
 		<input type="button" value="All" onclick="toggleAllChans(true)">
@@ -232,15 +257,31 @@ foreach ($unique_acqchans as $uchan) {
 	</FORM>
 </div>
 
-<!-- Left Side Grid Container: Starts hidden until scrollTop is set synchronously at active target -->
-<div class="scrollfill" id="overview_scroll" style="height:calc(100vh - 20px); overflow-y:auto; overflow-x:auto; visibility:hidden;">
+<!-- Left Side Grid Container: Pre-scrolled at line 1 before row 0 is parsed -->
+<div class="scrollfill" id="overview_scroll" style="height:calc(100vh - 20px); overflow-y:auto; overflow-x:auto;">
 <?php
 if (empty($scan_groups)) {
 	echo '<div style="padding:20px; color:#aaa;">No channels selected. Use the Channels panel to select channels.</div>';
 } else {
-	echo '<TABLE style="position:relative; z-index:1; border-collapse:collapse;">';
+	echo '<TABLE style="position:relative; z-index:1; border-collapse:collapse; min-height:' . $total_table_height . 'px;">';
+	echo '<script>';
+	echo '(function(){';
+	echo '  var sf = document.getElementById("overview_scroll");';
+	echo '  if (sf) {';
+	echo '    var rowTop = ' . $active_row_top . ';';
+	echo '    var rowH = ' . $active_row_height . ';';
+	echo '    var vH = sf.clientHeight || (window.innerHeight - 20);';
+	echo '    sf.scrollTop = Math.max(0, rowTop + (rowH / 2) - (vH / 2));';
+	echo '  }';
+	echo '})();';
+	echo '</script>';
+
 	foreach ($scan_groups as $bi => $group) {
-		echo '<TR><TD style="padding:0; margin:0; white-space:nowrap;">';
+		$tr_attr = $group['is_active_row'] ? ' id="active_row"' : '';
+		echo '<TR' . $tr_attr . '><TD style="padding:0; margin:0; white-space:nowrap;">';
+		if ($group['is_active_row']) {
+			echo '<script>(function(){ var sf = document.getElementById("overview_scroll"); var row = document.getElementById("active_row"); if (sf && row) { sf.scrollTop = Math.max(0, row.offsetTop + (row.offsetHeight / 2) - (sf.clientHeight / 2)); } })();</script>';
+		}
 		foreach ($group['items'] as $item) {
 			$c = $item['c'];
 			$w = $item['dim']['w'];
@@ -255,14 +296,8 @@ if (empty($scan_groups)) {
 			$ar_css = 'width:' . $css_w . 'px; height:' . $css_h . 'px; aspect-ratio: ' . $w . ' / ' . $h . '; ';
 			$tooltip = htmlspecialchars($bi . ($item['chan_name'] !== '' ? ' [' . $item['chan_name'] . ']' : ''));
 
-			$is_target = ($c == $index);
-			$anchor_id = $is_target ? ' id="active_target"' : '';
-
 			// STEP 5: Fill images by native HTML5 loading="lazy"
-			echo '<a' . $anchor_id . ' href="quickview.php?command=goto '.($c+1).'&over=over" title="'.$tooltip.'">';
-			if ($is_target) {
-				echo '<script>(function(){ var container = document.getElementById("overview_scroll"); var target = document.getElementById("active_target"); if (container && target) { container.scrollTop = Math.max(0, target.offsetTop - (container.clientHeight / 2) + 50); } if (container) container.style.visibility = "visible"; })();</script>';
-			}
+			echo '<a href="quickview.php?command=goto '.($c+1).'&over=over" title="'.$tooltip.'">';
 			echo '<img id="img'.$c.'" src="'.$real_src.'" '.$w_attr.' loading="lazy" style="'.$ar_css.'max-width:100px;max-height:100px;padding:1px;background-color:#111;'.$item['border_css'].'" title="'.$tooltip.'" onerror="handleImgError(this)">';
 			echo '</a>';
 		}
@@ -279,9 +314,6 @@ if (empty($scan_groups)) {
 if ('scrollRestoration' in history) {
   history.scrollRestoration = 'manual';
 }
-
-var sf = document.getElementById("overview_scroll");
-if (sf) sf.style.visibility = "visible";
 
 function handleImgError(img) {
   if (!img.getAttribute('data-retried')) {
