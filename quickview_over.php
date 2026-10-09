@@ -129,6 +129,9 @@ $unique_acqchans = array();
 
 $c = 0;
 $obi = "";
+$active_row_idx = 0;
+$row_counter = 0;
+
 foreach ($chans as $i) {
 	$info = pathinfo($i);
 
@@ -170,6 +173,12 @@ foreach ($chans as $i) {
 				'has_sts' => $has_sts,
 				'items' => array()
 			);
+			$row_counter++;
+		}
+
+		$is_active = ($c == $index || in_array($c, $chline));
+		if ($is_active && $active_row_idx === 0) {
+			$active_row_idx = max(0, $row_counter - 1);
 		}
 
 		if (in_array($c, $chline)) {
@@ -187,11 +196,20 @@ foreach ($chans as $i) {
 			'img_file' => $img_file,
 			'dim' => $dim,
 			'border_css' => $border_css,
-			'is_active' => in_array($c, $chline)
+			'is_active' => $is_active
 		);
 	}
 	$c++;
 }
+
+$estimated_scroll_top = max(0, ($active_row_idx * 104) - 200);
+
+echo '<script>';
+echo '(function(){';
+echo '  var sf = document.querySelector(".scrollfill");';
+echo '  if (sf) { sf.scrollTop = ' . $estimated_scroll_top . '; }';
+echo '})();';
+echo '</script>';
 
 // Step 4: Output HTML grid at exact sizes, matching past over.php / quickview_over.php / browser.php preview mode
 echo '<TABLE style="position:relative; z-index:1;">';
@@ -213,6 +231,10 @@ foreach ($scan_groups as $bi => $group) {
 		echo '<a href="quickview.php?command=goto '.($c+1).'&over=over" title="'.$tooltip.'">';
 		echo '<img id="img'.$c.'" src="'.$real_src.'" '.$w_attr.' loading="lazy" style="'.$ar_css.'width:auto;height:auto;max-width:100px;max-height:100px;padding:1px;background-color:#111;'.$item['border_css'].'" title="'.$tooltip.'" onerror="handleImgError(this)">';
 		echo '</a>';
+
+		if ($c == $index) {
+			echo '<script>(function(){ var el = document.getElementById("img' . $c . '"); if (el) { el.scrollIntoView({ behavior: "auto", block: "center", inline: "center" }); } })();</script>';
+		}
 	}
 	echo '</TD></TR>';
 }
