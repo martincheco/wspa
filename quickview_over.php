@@ -65,12 +65,22 @@ function get_channel_dimensions($c, $bi, $img_file, $raw_file, $chans, $userlnk,
 	$sz = @filesize($img_file);
 	// Flat image constant value placeholder (< 500 bytes) -> render at 8x8px
 	if ($sz !== false && $sz < 500) {
-		return array('w' => 8, 'h' => 8);
+		return array('w' => 8, 'h' => 8, 'css_w' => 8, 'css_h' => 8);
 	}
+
+	$calc_scale = function($w, $h) {
+		$scale = min(100 / $w, 100 / $h, 1.0);
+		return array(
+			'w' => $w,
+			'h' => $h,
+			'css_w' => max(1, round($w * $scale)),
+			'css_h' => max(1, round($h * $scale))
+		);
+	};
 
 	// Check scan group cache first
 	if (isset($scan_dim_cache[$bi])) {
-		return array('w' => $scan_dim_cache[$bi][0], 'h' => $scan_dim_cache[$bi][1]);
+		return $calc_scale($scan_dim_cache[$bi][0], $scan_dim_cache[$bi][1]);
 	}
 
 	// Try getimagesize on current thumbnail if >= 500 bytes
@@ -78,7 +88,7 @@ function get_channel_dimensions($c, $bi, $img_file, $raw_file, $chans, $userlnk,
 		$hh = @getimagesize($img_file);
 		if ($hh && !empty($hh[0]) && !empty($hh[1])) {
 			$scan_dim_cache[$bi] = array($hh[0], $hh[1]);
-			return array('w' => $hh[0], 'h' => $hh[1]);
+			return $calc_scale($hh[0], $hh[1]);
 		}
 	}
 
@@ -99,7 +109,7 @@ function get_channel_dimensions($c, $bi, $img_file, $raw_file, $chans, $userlnk,
 			$chk_hh = @getimagesize($chk_img);
 			if ($chk_hh && !empty($chk_hh[0]) && !empty($chk_hh[1])) {
 				$scan_dim_cache[$bi] = array($chk_hh[0], $chk_hh[1]);
-				return array('w' => $chk_hh[0], 'h' => $chk_hh[1]);
+				return $calc_scale($chk_hh[0], $chk_hh[1]);
 			}
 		}
 		$chk_c++;
@@ -113,13 +123,13 @@ function get_channel_dimensions($c, $bi, $img_file, $raw_file, $chans, $userlnk,
 			$w = 100;
 			$h = max(1, round(100 / $ratio));
 			$scan_dim_cache[$bi] = array($w, $h);
-			return array('w' => $w, 'h' => $h);
+			return $calc_scale($w, $h);
 		}
 	}
 
 	// Default 100x100 if no image size or header found
 	$scan_dim_cache[$bi] = array(100, 100);
-	return array('w' => 100, 'h' => 100);
+	return array('w' => 100, 'h' => 100, 'css_w' => 100, 'css_h' => 100);
 }
 
 // STEP 2 & STEP 3: Pre-extract unique channels & build grid structure in PHP memory
@@ -213,12 +223,14 @@ if (empty($scan_groups)) {
 			$c = $item['c'];
 			$w = $item['dim']['w'];
 			$h = $item['dim']['h'];
+			$css_w = $item['dim']['css_w'];
+			$css_h = $item['dim']['css_h'];
 
 			$hash = @filemtime($item['img_file']);
 			$real_src = 'serve_image.php?file=' . urlencode($item['img_file']) . '&v=' . $hash;
 
-			$w_attr = ($w > 0 && $h > 0) ? 'width="' . $w . '" height="' . $h . '"' : '';
-			$ar_css = ($w > 0 && $h > 0) ? 'aspect-ratio: ' . $w . ' / ' . $h . '; ' : '';
+			$w_attr = 'width="' . $css_w . '" height="' . $css_h . '"';
+			$ar_css = 'width:' . $css_w . 'px; height:' . $css_h . 'px; aspect-ratio: ' . $w . ' / ' . $h . '; ';
 			$tooltip = htmlspecialchars($bi . ($item['chan_name'] !== '' ? ' [' . $item['chan_name'] . ']' : ''));
 
 			$is_target = ($c == $index);
@@ -229,7 +241,7 @@ if (empty($scan_groups)) {
 			if ($is_target) {
 				echo '<script>(function(){ var container = document.getElementById("overview_scroll"); var target = document.getElementById("active_target"); if (container && target) { container.scrollTop = Math.max(0, target.offsetTop - (container.clientHeight / 2) + 50); } })();</script>';
 			}
-			echo '<img id="img'.$c.'" src="'.$real_src.'" '.$w_attr.' loading="lazy" style="'.$ar_css.'width:auto;height:auto;max-width:100px;max-height:100px;padding:1px;background-color:#111;'.$item['border_css'].'" title="'.$tooltip.'" onerror="handleImgError(this)">';
+			echo '<img id="img'.$c.'" src="'.$real_src.'" '.$w_attr.' loading="lazy" style="'.$ar_css.'max-width:100px;max-height:100px;padding:1px;background-color:#111;'.$item['border_css'].'" title="'.$tooltip.'" onerror="handleImgError(this)">';
 			echo '</a>';
 		}
 		echo '</TD></TR>';
