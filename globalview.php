@@ -2955,23 +2955,15 @@ function drawScene() {
 	var focEntry = itemsWith3D.find(function(e) { return e.item.c === focusedIndex; });
 	var focZ = focEntry ? focEntry.zMeters : 0;
 
-	var maxHazeDist = 0;
-	var maxDepthRel = 0;
+	var maxZSpan = 0;
 	if (showHaze && itemsWith3D.length > 0) {
 		itemsWith3D.forEach(function(e) {
-			var dx = e.item.xo - focX;
-			var dy = e.item.yo - focY;
 			var dz = e.zMeters - focZ;
-			var rotY = dx * cachedTrig.sinYaw + dy * cachedTrig.cosYaw;
-			var depthRel = rotY * cachedTrig.cosPitch - dz * cachedTrig.sinPitch;
-			if (depthRel > 0) {
-				var dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-				if (dist > maxHazeDist) maxHazeDist = dist;
-				if (depthRel > maxDepthRel) maxDepthRel = depthRel;
+			if (dz > 0 && dz > maxZSpan) {
+				maxZSpan = dz;
 			}
 		});
-		if (maxHazeDist <= 1e-12) maxHazeDist = 1e-7;
-		if (maxDepthRel <= 1e-12) maxDepthRel = 1e-7;
+		if (maxZSpan <= 1e-12) maxZSpan = 1e-7;
 	}
 
 	// Draw 3D Time Sequence Connector Lines between consecutive scans in visible order
@@ -3014,20 +3006,12 @@ function drawScene() {
 		}
 
 		var fogFactor = 0;
-		if (showHaze && maxHazeDist > 0) {
-			var dx = entry.item.xo - focX;
-			var dy = entry.item.yo - focY;
+		if (showHaze && maxZSpan > 0) {
 			var dz = entry.zMeters - focZ;
-			var rotY = dx * cachedTrig.sinYaw + dy * cachedTrig.cosYaw;
-			var depthRel = rotY * cachedTrig.cosPitch - dz * cachedTrig.sinPitch;
-			if (depthRel > 0) {
-				var dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-				var relDist = dist / maxHazeDist;
-				var rampSpan = maxDepthRel * 0.25;
-				if (rampSpan <= 1e-12) rampSpan = 1e-7;
-				var tRamp = Math.max(0, Math.min(1.0, depthRel / rampSpan));
-				var depthRamp = tRamp * tRamp * (3.0 - 2.0 * tRamp);
-				fogFactor = Math.min(1.0, relDist * hazeDensityMult * depthRamp);
+			if (dz > 0) {
+				var normZ = dz / maxZSpan;
+				var decayRate = 2.5 * hazeDensityMult;
+				fogFactor = 1.0 - Math.exp(-decayRate * normZ);
 			}
 		}
 
@@ -3065,7 +3049,7 @@ function drawScene() {
 			ctx.globalAlpha = alpha;
 			ctx.drawImage(imgObj, 0, -hPx, wPx, hPx);
 
-			if (showHaze && fogFactor > 0.05) {
+			if (showHaze && fogFactor > 0.02) {
 				var blurCv = getBlurCanvas(item, imgObj);
 				if (blurCv) {
 					ctx.globalAlpha = alpha * Math.min(1.0, fogFactor * 1.2);
@@ -3077,10 +3061,10 @@ function drawScene() {
 				}
 			}
 
-			if (showHaze && fogFactor > 0.05) {
+			if (showHaze && fogFactor > 0.02) {
 				ctx.globalCompositeOperation = 'source-atop';
-				ctx.fillStyle = '#ffffff';
-				ctx.globalAlpha = 0.65 * fogFactor;
+				ctx.fillStyle = '#d0d4d8';
+				ctx.globalAlpha = 0.70 * fogFactor;
 				ctx.fillRect(0, -hPx, wPx, hPx);
 			}
 
