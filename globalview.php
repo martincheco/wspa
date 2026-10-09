@@ -2764,15 +2764,15 @@ function drawScene() {
 	// Sort 3D tiles using pure 3D camera line-of-sight depth derived from real-world 3D corner coordinates
 	itemsWith3D.sort(function(a, b) {
 		var diffMax = b.maxDepth - a.maxDepth;
-		if (Math.abs(diffMax) > 1e-6) {
+		if (Math.abs(diffMax) > 1e-12) {
 			return diffMax;
 		}
 		var diffMean = b.meanDepth - a.meanDepth;
-		if (Math.abs(diffMean) > 1e-6) {
+		if (Math.abs(diffMean) > 1e-12) {
 			return diffMean;
 		}
 		var diffMin = b.minDepth - a.minDepth;
-		if (Math.abs(diffMin) > 1e-6) {
+		if (Math.abs(diffMin) > 1e-12) {
 			return diffMin;
 		}
 		return a.visIdx - b.visIdx;
@@ -3213,9 +3213,9 @@ function findTopmostImageUnderCursor(mouseX, mouseY, itemsWith3D) {
 
 	var topFirst = itemsWith3D.slice().sort(function(a, b) {
 		var diffMax = a.maxDepth - b.maxDepth;
-		if (Math.abs(diffMax) > 1e-6) return diffMax;
+		if (Math.abs(diffMax) > 1e-12) return diffMax;
 		var diffMean = a.meanDepth - b.meanDepth;
-		if (Math.abs(diffMean) > 1e-6) return diffMean;
+		if (Math.abs(diffMean) > 1e-12) return diffMean;
 		return b.visIdx - a.visIdx;
 	});
 
