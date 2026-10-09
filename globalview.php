@@ -2737,34 +2737,10 @@ function buildItemsWith3D(visibleItems) {
 	});
 }
 
-// Authoritative 4-Corner 3D Camera Depth Sorting (from background to foreground)
+// Pure Geometrical 3D Camera Depth Sorting (from background to foreground)
 function sort3DItems(itemsWith3D) {
 	if (!itemsWith3D || itemsWith3D.length <= 1) return itemsWith3D;
-	itemsWith3D.sort(function(a, b) {
-		// 1. Strict 4-Corner 3D Camera Depth Disjointness:
-		// If all 4 corners of b are strictly behind all 4 corners of a in camera depth space
-		if (b.minDepth - a.maxDepth > 1e-12) return 1;  // b drawn first (background)
-		if (a.minDepth - b.maxDepth > 1e-12) return -1; // a drawn first (background)
-
-		// 2. Projected 2D Screen Quad Overlap:
-		// Where projected 2D quads overlap on screen at active pitch/yaw, higher Z elevation sits on top
-		var screenOverlap = do2DQuadsIntersect(a.quad, b.quad);
-		if (screenOverlap) {
-			var diffZ = a.zMeters - b.zMeters;
-			if (Math.abs(diffZ) > 1e-12) {
-				return diffZ; // Lower Z drawn first (background), higher Z drawn later (foreground)
-			}
-		}
-
-		// 3. Pure 3D Center Camera Line-of-Sight Depth
-		var diffMean = b.meanDepth - a.meanDepth;
-		if (Math.abs(diffMean) > 1e-12) {
-			return diffMean; // Larger camera depth drawn first (background)
-		}
-
-		// 4. Stable Deterministic Sequence Tie-Breaker
-		return a.visIdx - b.visIdx;
-	});
+	itemsWith3D.sort(function(a, b) { return (b.depth - a.depth) || (a.visIdx - b.visIdx); });
 	return itemsWith3D;
 }
 
