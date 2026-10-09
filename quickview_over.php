@@ -3,9 +3,12 @@
 require('globals.php');
 require('auth.php');
 
-if (isset($_POST['action']) && $_POST['action'] === 'save_overview_channels') {
-	$channels = isset($_POST['channels']) ? trim($_POST['channels']) : '';
-	save_user_config(array('overview_channels' => $channels), $user);
+// Handle channel preselection form POST submit
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+	$selected_chans = isset($_POST['chans']) && is_array($_POST['chans']) ? $_POST['chans'] : array();
+	$chans_str = implode(',', $selected_chans);
+	save_user_config(array('overview_channels' => $chans_str), $user);
+	header('Location: quickview_over.php');
 	exit;
 }
 
@@ -64,15 +67,12 @@ function get_channel_dimensions($c, $bi, $img_file, $raw_file, $chans, $userlnk,
 	$sz = @filesize($img_file);
 	// Flat image constant value placeholder (< 500 bytes) -> render at 8x8px
 	if ($sz !== false && $sz < 500) {
-		return array('w' => 8, 'h' => 8, 'css_w' => 8, 'css_h' => 8);
+		return array('w' => 8, 'h' => 8);
 	}
 
 	// Check scan group cache first
 	if (isset($scan_dim_cache[$bi])) {
-		$w = $scan_dim_cache[$bi][0];
-		$h = $scan_dim_cache[$bi][1];
-		$scale = min(100 / $w, 100 / $h, 1.0);
-		return array('w' => $w, 'h' => $h, 'css_w' => max(1, round($w * $scale)), 'css_h' => max(1, round($h * $scale)));
+		return array('w' => $scan_dim_cache[$bi][0], 'h' => $scan_dim_cache[$bi][1]);
 	}
 
 	// Try getimagesize on current thumbnail if >= 500 bytes
@@ -80,8 +80,7 @@ function get_channel_dimensions($c, $bi, $img_file, $raw_file, $chans, $userlnk,
 		$hh = @getimagesize($img_file);
 		if ($hh && !empty($hh[0]) && !empty($hh[1])) {
 			$scan_dim_cache[$bi] = array($hh[0], $hh[1]);
-			$scale = min(100 / $hh[0], 100 / $hh[1], 1.0);
-			return array('w' => $hh[0], 'h' => $hh[1], 'css_w' => max(1, round($hh[0] * $scale)), 'css_h' => max(1, round($hh[1] * $scale)));
+			return array('w' => $hh[0], 'h' => $hh[1]);
 		}
 	}
 
@@ -102,8 +101,7 @@ function get_channel_dimensions($c, $bi, $img_file, $raw_file, $chans, $userlnk,
 			$chk_hh = @getimagesize($chk_img);
 			if ($chk_hh && !empty($chk_hh[0]) && !empty($chk_hh[1])) {
 				$scan_dim_cache[$bi] = array($chk_hh[0], $chk_hh[1]);
-				$scale = min(100 / $chk_hh[0], 100 / $chk_hh[1], 1.0);
-				return array('w' => $chk_hh[0], 'h' => $chk_hh[1], 'css_w' => max(1, round($chk_hh[0] * $scale)), 'css_h' => max(1, round($chk_hh[1] * $scale)));
+				return array('w' => $chk_hh[0], 'h' => $chk_hh[1]);
 			}
 		}
 		$chk_c++;
@@ -117,14 +115,13 @@ function get_channel_dimensions($c, $bi, $img_file, $raw_file, $chans, $userlnk,
 			$w = 100;
 			$h = max(1, round(100 / $ratio));
 			$scan_dim_cache[$bi] = array($w, $h);
-			$scale = min(100 / $w, 100 / $h, 1.0);
-			return array('w' => $w, 'h' => $h, 'css_w' => max(1, round($w * $scale)), 'css_h' => max(1, round($h * $scale)));
+			return array('w' => $w, 'h' => $h);
 		}
 	}
 
-	// Default 100x100 if no raw file header exists
+	// Default 100x100 if no image size or header found
 	$scan_dim_cache[$bi] = array(100, 100);
-	return array('w' => 100, 'h' => 100, 'css_w' => 100, 'css_h' => 100);
+	return array('w' => 100, 'h' => 100);
 }
 
 $scan_groups = array();
@@ -176,9 +173,9 @@ foreach ($chans as $i) {
 		}
 
 		if (in_array($c, $chline)) {
-			$border_css = "border:2px solid #fff; outline: 2px solid #0aa; outline-offset: -2px;";
+			$border_css = "border:1px solid #fff; outline: 2px solid #0aa; outline-offset: -2px;";
 		} else if ($scan_groups[$bi]['has_sts']) {
-			$border_css = "border:2px solid #00ff41; box-shadow: 0 0 3px rgba(0, 255, 65, 0.4);";
+			$border_css = "border:1px solid #0e0;";
 		} else {
 			$border_css = "border:1px solid #567;";
 		}
@@ -196,34 +193,25 @@ foreach ($chans as $i) {
 	$c++;
 }
 
-// Output HTML grid strictly pre-filtered and presized at exact dimensions
-echo '<TABLE style="position:relative; z-index:1; border-collapse:collapse;">';
+// Step 4: Output HTML grid at exact sizes, matching past over.php / quickview_over.php / browser.php preview mode
+echo '<TABLE style="position:relative; z-index:1;">';
 foreach ($scan_groups as $bi => $group) {
-	echo '<TR><TD style="padding:2px 0; vertical-align:top;">';
+	echo '<TR><TD>';
 	foreach ($group['items'] as $item) {
 		$c = $item['c'];
-		$dim = $item['dim'];
-		$w = $dim['w'];
-		$h = $dim['h'];
-		$css_w = $dim['css_w'];
-		$css_h = $dim['css_h'];
+		$w = $item['dim']['w'];
+		$h = $item['dim']['h'];
 
 		$hash = @filemtime($item['img_file']);
 		$real_src = 'serve_image.php?file=' . urlencode($item['img_file']) . '&v=' . $hash;
 
-		// Step 5: Fill images by lazyloading (in-view vs off-screen placeholder)
-		$is_in_view = (abs($c - $index) <= 30 || $item['is_active']);
-		if ($is_in_view) {
-			$src_attr = 'src="' . $real_src . '"';
-		} else {
-			$placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='" . $css_w . "' height='" . $css_h . "'%3E%3C/svg%3E";
-			$src_attr = 'src="' . $placeholder . '" data-src="' . $real_src . '"';
-		}
-
+		$w_attr = ($w > 0 && $h > 0) ? 'width="' . $w . '" height="' . $h . '"' : '';
+		$ar_css = ($w > 0 && $h > 0) ? 'aspect-ratio: ' . $w . ' / ' . $h . '; ' : '';
 		$tooltip = htmlspecialchars($bi . ($item['chan_name'] !== '' ? ' [' . $item['chan_name'] . ']' : ''));
 
-		echo '<a class="thumb-link" data-channel="'.htmlspecialchars($item['base_chan_name']).'" href="quickview.php?command=goto '.($c+1).'&over=over" title="'.$tooltip.'" style="display:inline-block; width:'.$css_w.'px; height:'.$css_h.'px; margin-right:4px; margin-bottom:4px; vertical-align:top;">';
-		echo '<img id="img'.$c.'" '.$src_attr.' width="'.$w.'" height="'.$h.'" style="width:'.$css_w.'px; height:'.$css_h.'px; aspect-ratio: '.$w.' / '.$h.'; max-width:100px; max-height:100px; box-sizing:border-box; '.$item['border_css'].' background-color:#111; display:block;" title="'.$tooltip.'" onerror="handleImgError(this)">';
+		// Step 5: Fill images by native HTML5 loading="lazy"
+		echo '<a href="quickview.php?command=goto '.($c+1).'&over=over" title="'.$tooltip.'">';
+		echo '<img id="img'.$c.'" src="'.$real_src.'" '.$w_attr.' loading="lazy" style="'.$ar_css.'width:auto;height:auto;max-width:100px;max-height:100px;padding:1px;background-color:#111;'.$item['border_css'].'" title="'.$tooltip.'" onerror="handleImgError(this)">';
 		echo '</a>';
 	}
 	echo '</TD></TR>';
@@ -234,27 +222,29 @@ echo '</TABLE>';
 
 	</TD>
 
-	<!-- Right Side Channel Preselection Window (Glued to Right Edge as in quickview.php) -->
+	<!-- Right Side Channel Preselection Window -->
 	<TD style="vertical-align:top; width:200px;">
+		<FORM id="chan_form" method="post" action="quickview_over.php">
 		<div id="channel_panel" style="position:sticky; top:0; right:0; border-left:1px solid #444; border-bottom:1px solid #444; background:#181818; padding:6px; box-sizing:border-box; width:200px; overflow-x:hidden;">
 			<div style="font-weight:bold; margin-bottom:6px; border-bottom:1px solid #444; padding-bottom:4px; color:#bff;">Channels</div>
 			<div style="margin-bottom:6px;">
-				<input type="button" value="All" onclick="toggleAllChannels(true)" style="margin-right:4px;">
-				<input type="button" value="None" onclick="toggleAllChannels(false)">
+				<input type="button" value="All" onclick="toggleAllChans(true)">
+				<input type="button" value="None" onclick="toggleAllChans(false)">
 			</div>
-			<div id="channel_checkboxes" style="display:flex; flex-direction:column; gap:4px; max-height:calc(100vh - 60px); overflow-y:auto; overflow-x:hidden;">
+			<div id="channel_checkboxes" style="display:flex; flex-direction:column; gap:4px; max-height:calc(100vh - 80px); overflow-y:auto; overflow-x:hidden;">
 <?php
 foreach ($unique_acqchans as $uchan) {
 	$escaped = htmlspecialchars($uchan);
 	$cb_checked = ($saved_overview_channels === null || in_array($uchan, $saved_overview_channels)) ? 'checked' : '';
 	echo '<label style="cursor:pointer; display:flex; align-items:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' . $escaped . '">';
-	echo '<input type="checkbox" class="chan-cb" value="' . $escaped . '" ' . $cb_checked . ' onchange="onChannelChange()" style="vertical-align:middle; margin-right:6px; flex-shrink:0;">';
+	echo '<input type="checkbox" name="chans[]" value="' . $escaped . '" ' . $cb_checked . ' onchange="this.form.submit()" style="vertical-align:middle; margin-right:6px; flex-shrink:0;">';
 	echo '<span style="overflow:hidden; text-overflow:ellipsis;">' . $escaped . '</span>';
 	echo '</label>';
 }
 ?>
 			</div>
 		</div>
+		</FORM>
 	</TD>
 
 </TR>
@@ -279,54 +269,12 @@ function handleImgError(img) {
   }
 }
 
-function getCheckedChannels() {
-  var checked = [];
-  var cbs = document.querySelectorAll('.chan-cb');
-  cbs.forEach(function(cb) {
-    if (cb.checked) checked.push(cb.value);
-  });
-  return checked;
-}
-
-function applyChannelFilters() {
-  var checked = getCheckedChannels();
-  try {
-    localStorage.setItem('wspa_overview_channels', JSON.stringify(checked));
-    var formData = new FormData();
-    formData.append('action', 'save_overview_channels');
-    formData.append('channels', checked.join(','));
-    if (navigator.sendBeacon) {
-      navigator.sendBeacon('quickview_over.php', formData);
-    } else {
-      fetch('quickview_over.php', { method: 'POST', body: formData });
-    }
-  } catch(e) {}
-
-  var links = document.querySelectorAll('.thumb-link');
-  links.forEach(function(link) {
-    var ch = link.getAttribute('data-channel');
-    if (!ch || checked.indexOf(ch) !== -1) {
-      link.style.display = 'inline-block';
-    } else {
-      link.style.display = 'none';
-    }
-  });
-
-  if (typeof initLazyLoading === 'function') {
-    initLazyLoading();
-  }
-}
-
-function onChannelChange() {
-  applyChannelFilters();
-}
-
-function toggleAllChannels(enable) {
-  var cbs = document.querySelectorAll('.chan-cb');
+function toggleAllChans(enable) {
+  var cbs = document.querySelectorAll('#channel_checkboxes input[type="checkbox"]');
   cbs.forEach(function(cb) {
     cb.checked = enable;
   });
-  applyChannelFilters();
+  document.getElementById('chan_form').submit();
 }
 
 function scrollToActiveImage() {
@@ -336,46 +284,7 @@ function scrollToActiveImage() {
   }
 }
 
-// 1. Initial preselection & presizing is rendered directly by server; scroll active image into view
 scrollToActiveImage();
-
-// 2. Populate off-screen images reliably with IntersectionObserver
-function initLazyLoading() {
-  var lazyImages = document.querySelectorAll('img[data-src]');
-  if ('IntersectionObserver' in window) {
-    var observer = new IntersectionObserver(function(entries, obs) {
-      entries.forEach(function(entry) {
-        if (entry.isIntersecting) {
-          var img = entry.target;
-          var dataSrc = img.getAttribute('data-src');
-          if (dataSrc) {
-            img.src = dataSrc;
-            img.removeAttribute('data-src');
-          }
-          obs.unobserve(img);
-        }
-      });
-    }, { rootMargin: '300px 0px' });
-
-    lazyImages.forEach(function(img) {
-      observer.observe(img);
-    });
-  } else {
-    lazyImages.forEach(function(img) {
-      var dataSrc = img.getAttribute('data-src');
-      if (dataSrc) {
-        img.src = dataSrc;
-        img.removeAttribute('data-src');
-      }
-    });
-  }
-}
-
-if (window.requestAnimationFrame) {
-  requestAnimationFrame(initLazyLoading);
-} else {
-  setTimeout(initLazyLoading, 0);
-}
 </script>
 
 </BODY>
