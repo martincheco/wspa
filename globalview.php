@@ -2936,12 +2936,13 @@ function drawScene() {
 
 	var showHaze = document.getElementById('gvShowHaze') ? document.getElementById('gvShowHaze').checked : false;
 	var hazeDensityMult = 1.0;
+	var hazeColor = '#808488';
 	if (showHaze) {
 		var hazeDensityEl = document.getElementById('gvHazeDensity');
 		if (hazeDensityEl) {
 			hazeDensityMult = parseFloat(hazeDensityEl.value) / 100.0;
 		}
-		ctx.fillStyle = '#d0d4d8';
+		ctx.fillStyle = hazeColor;
 		ctx.fillRect(0, 0, cw, ch);
 	}
 
@@ -3046,13 +3047,15 @@ function drawScene() {
 			ctx.mozImageSmoothingEnabled = false;
 			ctx.webkitImageSmoothingEnabled = false;
 			ctx.msImageSmoothingEnabled = false;
-			ctx.globalAlpha = alpha;
+
+			var tileAlpha = showHaze ? alpha * (1.0 - 0.75 * fogFactor) : alpha;
+			ctx.globalAlpha = tileAlpha;
 			ctx.drawImage(imgObj, 0, -hPx, wPx, hPx);
 
 			if (showHaze && fogFactor > 0.02) {
 				var blurCv = getBlurCanvas(item, imgObj);
 				if (blurCv) {
-					ctx.globalAlpha = alpha * Math.min(1.0, fogFactor * 1.1);
+					ctx.globalAlpha = alpha * fogFactor;
 					ctx.imageSmoothingEnabled = true;
 					ctx.mozImageSmoothingEnabled = true;
 					ctx.webkitImageSmoothingEnabled = true;
@@ -3063,8 +3066,8 @@ function drawScene() {
 
 			if (showHaze && fogFactor > 0.02) {
 				ctx.globalCompositeOperation = 'source-atop';
-				ctx.fillStyle = '#d0d4d8';
-				ctx.globalAlpha = 0.75 * fogFactor;
+				ctx.fillStyle = hazeColor;
+				ctx.globalAlpha = 0.85 * fogFactor;
 				ctx.fillRect(0, -hPx, wPx, hPx);
 			}
 
@@ -3080,7 +3083,7 @@ function drawScene() {
 
 		// Draw 3D bounding parallelogram
 		ctx.lineWidth = 1;
-		var rimAlpha = showHaze ? (0.25 * (1.0 - 0.75 * fogFactor)) : 0.25;
+		var rimAlpha = showHaze ? (0.25 * Math.pow(1.0 - fogFactor, 2.0)) : 0.25;
 		ctx.strokeStyle = 'rgba(255, 255, 255, ' + rimAlpha + ')';
 		ctx.beginPath();
 		ctx.moveTo(P0.x, P0.y);
