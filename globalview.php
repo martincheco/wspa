@@ -2941,7 +2941,7 @@ function drawScene() {
 		if (hazeDensityEl) {
 			hazeDensityMult = parseFloat(hazeDensityEl.value) / 100.0;
 		}
-		ctx.fillStyle = '#e8ecf0';
+		ctx.fillStyle = '#d0d4d8';
 		ctx.fillRect(0, 0, cw, ch);
 	}
 
@@ -2958,9 +2958,9 @@ function drawScene() {
 	var maxZSpan = 0;
 	if (showHaze && itemsWith3D.length > 0) {
 		itemsWith3D.forEach(function(e) {
-			var dz = e.zMeters - focZ;
-			if (dz > 0 && dz > maxZSpan) {
-				maxZSpan = dz;
+			var dzDeep = focZ - e.zMeters;
+			if (dzDeep > 0 && dzDeep > maxZSpan) {
+				maxZSpan = dzDeep;
 			}
 		});
 		if (maxZSpan <= 1e-12) maxZSpan = 1e-7;
@@ -3007,9 +3007,9 @@ function drawScene() {
 
 		var fogFactor = 0;
 		if (showHaze && maxZSpan > 0) {
-			var dz = entry.zMeters - focZ;
-			if (dz > 0) {
-				var normZ = dz / maxZSpan;
+			var dzDeep = focZ - entry.zMeters;
+			if (dzDeep > 0) {
+				var normZ = dzDeep / maxZSpan;
 				var decayRate = 2.5 * hazeDensityMult;
 				fogFactor = 1.0 - Math.exp(-decayRate * normZ);
 			}
@@ -3052,7 +3052,7 @@ function drawScene() {
 			if (showHaze && fogFactor > 0.02) {
 				var blurCv = getBlurCanvas(item, imgObj);
 				if (blurCv) {
-					ctx.globalAlpha = alpha * Math.min(1.0, fogFactor * 1.2);
+					ctx.globalAlpha = alpha * Math.min(1.0, fogFactor * 1.1);
 					ctx.imageSmoothingEnabled = true;
 					ctx.mozImageSmoothingEnabled = true;
 					ctx.webkitImageSmoothingEnabled = true;
@@ -3064,7 +3064,7 @@ function drawScene() {
 			if (showHaze && fogFactor > 0.02) {
 				ctx.globalCompositeOperation = 'source-atop';
 				ctx.fillStyle = '#d0d4d8';
-				ctx.globalAlpha = 0.70 * fogFactor;
+				ctx.globalAlpha = 0.75 * fogFactor;
 				ctx.fillRect(0, -hPx, wPx, hPx);
 			}
 
@@ -3080,7 +3080,8 @@ function drawScene() {
 
 		// Draw 3D bounding parallelogram
 		ctx.lineWidth = 1;
-		ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+		var rimAlpha = showHaze ? (0.25 * (1.0 - 0.75 * fogFactor)) : 0.25;
+		ctx.strokeStyle = 'rgba(255, 255, 255, ' + rimAlpha + ')';
 		ctx.beginPath();
 		ctx.moveTo(P0.x, P0.y);
 		ctx.lineTo(P1.x, P1.y);
