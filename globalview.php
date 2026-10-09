@@ -2734,17 +2734,20 @@ function drawScene() {
 	// 3D Isometric View Rendering
 	var itemsWith3D = buildItemsWith3D(visibleItems);
 
-	// Sort 3D tiles using corner-extent maxDepth comparison for Painter's Algorithm
+	// Sort 3D tiles using corner-extent maxDepth & Auto Z height comparison for Painter's Algorithm
 	itemsWith3D.sort(function(a, b) {
+		var physOverlap = do2DQuadsIntersect(get2DPhysicalCorners(a.item), get2DPhysicalCorners(b.item));
+
 		var overlapX = Math.max(0, Math.min(a.maxX, b.maxX) - Math.max(a.minX, b.minX));
 		var overlapY = Math.max(0, Math.min(a.maxY, b.maxY) - Math.max(a.minY, b.minY));
+		var screenOverlap = (overlapX > 0 && overlapY > 0);
 
-		if (overlapX > 0 && overlapY > 0) {
+		if (physOverlap || screenOverlap) {
+			if (Math.abs(a.zMeters - b.zMeters) > 1e-12) {
+				return a.zMeters - b.zMeters;
+			}
 			if (Math.abs(a.maxDepth - b.maxDepth) > 1e-6) {
 				return b.maxDepth - a.maxDepth;
-			}
-			if (Math.abs(a.minDepth - b.minDepth) > 1e-6) {
-				return b.minDepth - a.minDepth;
 			}
 		}
 
