@@ -3064,6 +3064,41 @@ function drawScene() {
 				}
 			}
 
+			if (showHaze && fogFactor > 0.05) {
+				var featherPx = Math.min(wPx * 0.25, hPx * 0.25, fogFactor * 45);
+				if (featherPx > 0.5) {
+					ctx.save();
+					ctx.globalCompositeOperation = 'destination-out';
+					var fadeAlpha = Math.min(1.0, 0.95 * fogFactor);
+
+					var gL = ctx.createLinearGradient(0, 0, featherPx, 0);
+					gL.addColorStop(0, 'rgba(0,0,0,' + fadeAlpha + ')');
+					gL.addColorStop(1, 'rgba(0,0,0,0)');
+					ctx.fillStyle = gL;
+					ctx.fillRect(0, -hPx, featherPx, hPx);
+
+					var gR = ctx.createLinearGradient(wPx - featherPx, 0, wPx, 0);
+					gR.addColorStop(0, 'rgba(0,0,0,0)');
+					gR.addColorStop(1, 'rgba(0,0,0,' + fadeAlpha + ')');
+					ctx.fillStyle = gR;
+					ctx.fillRect(wPx - featherPx, -hPx, featherPx, hPx);
+
+					var gT = ctx.createLinearGradient(0, 0, 0, -featherPx);
+					gT.addColorStop(0, 'rgba(0,0,0,' + fadeAlpha + ')');
+					gT.addColorStop(1, 'rgba(0,0,0,0)');
+					ctx.fillStyle = gT;
+					ctx.fillRect(0, -featherPx, wPx, featherPx);
+
+					var gB = ctx.createLinearGradient(0, -hPx + featherPx, 0, -hPx);
+					gB.addColorStop(0, 'rgba(0,0,0,0)');
+					gB.addColorStop(1, 'rgba(0,0,0,' + fadeAlpha + ')');
+					ctx.fillStyle = gB;
+					ctx.fillRect(0, -hPx, wPx, featherPx);
+
+					ctx.restore();
+				}
+			}
+
 			if (showHaze && fogFactor > 0.02) {
 				ctx.globalCompositeOperation = 'source-atop';
 				ctx.fillStyle = hazeColor;
