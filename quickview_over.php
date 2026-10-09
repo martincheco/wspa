@@ -2,6 +2,18 @@
 
 require('globals.php');
 require('auth.php');
+
+if (isset($_POST['action']) && $_POST['action'] === 'save_overview_channels') {
+	$channels = isset($_POST['channels']) ? trim($_POST['channels']) : '';
+	save_user_config(array('overview_channels' => $channels), $user);
+	exit;
+}
+
+$user_cfg = read_user_config($user);
+$saved_overview_channels = null;
+if (isset($user_cfg['overview_channels']) && trim($user_cfg['overview_channels']) !== '') {
+	$saved_overview_channels = array_map('trim', explode(',', $user_cfg['overview_channels']));
+}
 $tmpdat = $userdir . $user . "/tmp.dat";
 
 function get_base_channel_name($ch) {
@@ -158,7 +170,9 @@ foreach ($chans as $i) {
 	$chan_name = isset($acqchans[$c]) ? trim($acqchans[$c]) : '';
 	$base_chan_name = get_base_channel_name($chan_name);
 	$tooltip = htmlspecialchars($bi . ($chan_name !== '' ? ' [' . $chan_name . ']' : ''));
-	echo '<a class="thumb-link" data-channel="'.htmlspecialchars($base_chan_name).'" href="quickview.php?command=goto '.($c+1).'&over=over" title="'.$tooltip.'"><img id="img'.$c.'" '.$src_attr.' '.$w_attr.' style="'.$ar_css.'max-width:100px;max-height:100px;box-sizing:border-box;'.$border_css.'background-color:#111;" title="'.$tooltip.'" onerror="handleImgError(this)"></a>';
+	$is_checked = ($saved_overview_channels === null || in_array($base_chan_name, $saved_overview_channels));
+	$link_style = $is_checked ? 'display:inline-block;' : 'display:none;';
+	echo '<a class="thumb-link" data-channel="'.htmlspecialchars($base_chan_name).'" href="quickview.php?command=goto '.($c+1).'&over=over" title="'.$tooltip.'" style="'.$link_style.'"><img id="img'.$c.'" '.$src_attr.' '.$w_attr.' style="'.$ar_css.'max-width:100px;max-height:100px;box-sizing:border-box;'.$border_css.'background-color:#111;" title="'.$tooltip.'" onerror="handleImgError(this)"></a>';
 	$c++;
 	$obi = $bi;
 }
@@ -192,8 +206,9 @@ if (!empty($acqchans)) {
 <?php
 foreach ($unique_acqchans as $uchan) {
 	$escaped = htmlspecialchars($uchan);
+	$cb_checked = ($saved_overview_channels === null || in_array($uchan, $saved_overview_channels)) ? 'checked' : '';
 	echo '<label style="cursor:pointer; display:flex; align-items:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' . $escaped . '">';
-	echo '<input type="checkbox" class="chan-cb" value="' . $escaped . '" checked onchange="onChannelChange()" style="vertical-align:middle; margin-right:6px; flex-shrink:0;">';
+	echo '<input type="checkbox" class="chan-cb" value="' . $escaped . '" ' . $cb_checked . ' onchange="onChannelChange()" style="vertical-align:middle; margin-right:6px; flex-shrink:0;">';
 	echo '<span style="overflow:hidden; text-overflow:ellipsis;">' . $escaped . '</span>';
 	echo '</label>';
 }
@@ -237,6 +252,14 @@ function applyChannelFilters() {
   var checked = getCheckedChannels();
   try {
     localStorage.setItem('wspa_overview_channels', JSON.stringify(checked));
+    var formData = new FormData();
+    formData.append('action', 'save_overview_channels');
+    formData.append('channels', checked.join(','));
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon('quickview_over.php', formData);
+    } else {
+      fetch('quickview_over.php', { method: 'POST', body: formData });
+    }
   } catch(e) {}
 
   var links = document.querySelectorAll('.thumb-link');
