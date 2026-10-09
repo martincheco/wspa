@@ -142,7 +142,7 @@ foreach ($unique_acqchans as $uchan) {
 </div>
 
 <!-- Left Side Grid Container: opacity 0 during DOM assembly to prevent pre-scroll flash -->
-<div class="scrollfill" id="overview_scroll" style="height:calc(100vh - 20px); overflow-y:auto; overflow-x:auto; opacity:0; transition:opacity 0.05s ease-in;">
+<div class="scrollfill" id="overview_scroll" style="height:calc(100vh - 20px); overflow-y:auto; overflow-x:auto; opacity:0;">
 <?php
 if (empty($scan_groups)) {
 	echo '<div style="padding:20px; color:#aaa;">No channels selected. Use the Channels panel to select channels.</div>';
