@@ -953,6 +953,7 @@ var savedPanDx = 0, savedPanDy = 0;
 var savedPanCenterDx = 0, savedPanCenterDy = 0;
 var isPanLoaded = false, isPanCenterLoaded = false;
 var savedFocusFileIdx = null, isFocusLoaded = false;
+var isStateLoaded = false;
 
 function sliderValToZNm(v) {
 	var frac = Math.max(0, Math.min(1000, parseFloat(v))) / 1000.0;
@@ -978,6 +979,7 @@ function formatZNmDisplay(zNm) {
 }
 
 function saveSpatialViewState() {
+	if (!isStateLoaded) return;
 	try {
 		localStorage.setItem('wspa_gv_pitch', pitch3D);
 		localStorage.setItem('wspa_gv_yaw', viewAngle);
@@ -1248,7 +1250,10 @@ function loadSpatialViewState() {
 			var autoZInput = document.getElementById('gvAutoZSpacing');
 			if (autoZInput) autoZInput.checked = (String(sAutoZ) === 'true');
 		}
-	} catch (e) {}
+		isStateLoaded = true;
+	} catch (e) {
+		isStateLoaded = true;
+	}
 }
 
 function updateOverallAvgDim() {
@@ -2308,24 +2313,29 @@ function fitView(animate) {
 	updateMinZoomScale();
 	var maxScale = getMaxZoomScale();
 
-	var foc = getFocusedItemAndZ();
-	var visibleItems = getVisibleItems();
-	var count = visibleItems.length;
-	var maxZMeters = getItemZMeters(count > 0 ? count - 1 : 0, visibleItems);
-	var minZMeters = getItemZMeters(0, visibleItems);
-	var visibleZSpan = count > 1 ? (maxZMeters - minZMeters) : 0;
-	var zMid = count > 0 ? ((maxZMeters + minZMeters) / 2) : 0;
-	var pitchRad = pitch3D * Math.PI / 180.0;
+	var targetZoom = zoomScale;
+	if (!isZoomLoaded) {
+		var foc = getFocusedItemAndZ();
+		var visibleItems = getVisibleItems();
+		var count = visibleItems.length;
+		var maxZMeters = getItemZMeters(count > 0 ? count - 1 : 0, visibleItems);
+		var minZMeters = getItemZMeters(0, visibleItems);
+		var visibleZSpan = count > 1 ? (maxZMeters - minZMeters) : 0;
+		var zMid = count > 0 ? ((maxZMeters + minZMeters) / 2) : 0;
+		var pitchRad = pitch3D * Math.PI / 180.0;
 
-	var spanX = meta.maxDx * 2;
-	var spanY = (meta.maxDy * 2) * Math.sin(pitchRad) + visibleZSpan * Math.cos(pitchRad);
-	if (spanX <= 0) spanX = 1e-7;
-	if (spanY <= 0) spanY = 1e-7;
+		var spanX = meta.maxDx * 2;
+		var spanY = (meta.maxDy * 2) * Math.sin(pitchRad) + visibleZSpan * Math.cos(pitchRad);
+		if (spanX <= 0) spanX = 1e-7;
+		if (spanY <= 0) spanY = 1e-7;
 
-	var scaleX = (cw * 0.75) / spanX;
-	var scaleY = (ch * 0.75) / spanY;
-	var fitScale = Math.min(scaleX, scaleY);
-	var targetZoom = Math.max(minZoomScale, Math.min(maxScale, fitScale));
+		var scaleX = (cw * 0.75) / spanX;
+		var scaleY = (ch * 0.75) / spanY;
+		var fitScale = Math.min(scaleX, scaleY);
+		targetZoom = Math.max(minZoomScale, Math.min(maxScale, fitScale));
+	} else {
+		targetZoom = Math.max(minZoomScale, Math.min(maxScale, zoomScale));
+	}
 
 	var dx = meta.meanX - foc.x;
 	var dy = meta.meanY - foc.y;
@@ -3521,6 +3531,9 @@ window.addEventListener('mousemove', function(e) {
 });
 
 window.addEventListener('mouseup', function(e) {
+	if (hasDraggedMouse) {
+		saveSpatialViewState();
+	}
 	if (e.button === 0) {
 		if (isLeftClickPanning) {
 			isLeftClickPanning = false;
