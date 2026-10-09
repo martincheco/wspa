@@ -1479,7 +1479,8 @@ function project3DPoint(x, y, zMeters) {
 	var sx = panX + rotX * zoomScale;
 	var sy = panY - (rotY * cachedTrig.sinPitch + dz * cachedTrig.cosPitch) * zoomScale;
 
-	var depth = dz * cachedTrig.sinPitch - rotY * cachedTrig.cosPitch;
+	// Correct camera depth: larger = farther away (background), smaller = closer (foreground)
+	var depth = rotY * cachedTrig.sinPitch - dz * cachedTrig.cosPitch;
 
 	return { x: sx, y: sy, depth: depth };
 }
