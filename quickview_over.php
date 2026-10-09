@@ -115,24 +115,7 @@ foreach ($chans as $i) {
 	$c++;
 }
 
-// Pre-calculate heights & active row offset in PHP memory before generating HTML
-$active_row_top = 0;
-$active_row_height = 102;
-$current_y = 0;
-$found_target_row = false;
-
-foreach ($scan_groups as $bi => $group) {
-	$row_h = max(10, $group['max_h'] + 2);
-	if ($group['is_target_row'] && !$found_target_row) {
-		$active_row_top = $current_y;
-		$active_row_height = $row_h;
-		$found_target_row = true;
-	}
-	$current_y += $row_h;
-}
-$total_table_height = max(100, $current_y);
-
-// STEP c) Output HTML markup with hanging channels window and pre-positioned scroll
+// STEP c) Output HTML markup with hanging channels window
 ?>
 <div class="fill">
 
@@ -158,22 +141,14 @@ foreach ($unique_acqchans as $uchan) {
 	</FORM>
 </div>
 
-<!-- Left Side Grid Container -->
-<div class="scrollfill" id="overview_scroll" style="height:calc(100vh - 20px); overflow-y:auto; overflow-x:auto;">
+<!-- Left Side Grid Container: opacity 0 during DOM assembly to prevent pre-scroll flash -->
+<div class="scrollfill" id="overview_scroll" style="height:calc(100vh - 20px); overflow-y:auto; overflow-x:auto; opacity:0; transition:opacity 0.05s ease-in;">
 <?php
 if (empty($scan_groups)) {
 	echo '<div style="padding:20px; color:#aaa;">No channels selected. Use the Channels panel to select channels.</div>';
 } else {
-	echo '<TABLE style="position:relative; z-index:1; border-collapse:collapse; min-height:' . $total_table_height . 'px;">';
-	echo '<script>';
-	echo '(function(){';
-	echo '  var sf = document.getElementById("overview_scroll");';
-	echo '  if (sf) {';
-	echo '    var vH = sf.clientHeight || (window.innerHeight - 20);';
-	echo '    sf.scrollTop = Math.max(0, ' . ($active_row_top + ($active_row_height / 2)) . ' - (vH / 2));';
-	echo '  }';
-	echo '})();';
-	echo '</script>';
+	// TABLE has compact natural height without min-height to prevent row vertical stretching
+	echo '<TABLE style="position:relative; z-index:1; border-collapse:collapse;">';
 
 	// STEP d) Populate grid with images using native lazy loading
 	foreach ($scan_groups as $bi => $group) {
@@ -208,13 +183,19 @@ if ('scrollRestoration' in history) { history.scrollRestoration = 'manual'; }
 function centerActiveRow() {
 	var sf = document.getElementById("overview_scroll");
 	var row = document.getElementById("active_row");
-	if (sf && row) {
-		var sfRect = sf.getBoundingClientRect();
-		var rowRect = row.getBoundingClientRect();
-		var rowCenterInScroll = (rowRect.top - sfRect.top) + sf.scrollTop + (row.offsetHeight / 2);
-		sf.scrollTop = Math.max(0, rowCenterInScroll - (sf.clientHeight / 2));
+	if (sf) {
+		if (row) {
+			var sfRect = sf.getBoundingClientRect();
+			var rowRect = row.getBoundingClientRect();
+			var rowCenterInScroll = (rowRect.top - sfRect.top) + sf.scrollTop + (row.offsetHeight / 2);
+			sf.scrollTop = Math.max(0, rowCenterInScroll - (sf.clientHeight / 2));
+		}
+		sf.style.opacity = '1';
 	}
 }
+
+// Immediate scroll & reveal right after DOM table completion
+centerActiveRow();
 window.addEventListener("DOMContentLoaded", centerActiveRow);
 
 function handleImgError(img) {
