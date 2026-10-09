@@ -3140,6 +3140,7 @@ function drawScene() {
 			}
 
 			ctx.save();
+			ctx.globalAlpha = showHaze ? Math.max(0.0, 1.0 - 0.85 * fogFactor) : 1.0;
 			ctx.font = 'bold 12px monospace';
 			var txt = item.bi || '';
 			var txtW = ctx.measureText(txt).width;
