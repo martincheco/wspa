@@ -1431,7 +1431,7 @@ function getVisibleZHeights(visibleItems) {
 }
 
 function getItemZMeters(visIdx, visibleItems, zHeights) {
-	if (visIdx <= 0) return 0;
+	if (typeof visIdx === 'undefined' || visIdx === null || visIdx < 0) return 0;
 	if (zHeights && typeof zHeights[visIdx] !== 'undefined') {
 		return zHeights[visIdx];
 	}
