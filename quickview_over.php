@@ -52,6 +52,17 @@ $mapdir = pathinfo(trim(stripslashes($msg[0])), PATHINFO_DIRNAME);
 $parts = preg_split('/\s+/', $msg[1]);
 $index = $parts[1] - 1;
 
+// Resolve target base filename strictly for active $index
+$target_bi = "";
+if (isset($chans[$index])) {
+	$info = pathinfo($chans[$index]);
+	$val = isset($info['extension']) ? $info['extension'] : '';
+	$target_bi = basename($chans[$index], '.' . $val);
+	$info = pathinfo($target_bi);
+	$val = isset($info['extension']) ? $info['extension'] : '';
+	$target_bi = basename($target_bi, '.' . $val);
+}
+
 require('over.php');
 require('head.php');
 
@@ -179,14 +190,11 @@ foreach ($chans as $i) {
 				'has_sts' => $has_sts,
 				'items' => array(),
 				'max_h' => 0,
-				'is_active_row' => false
+				'is_target_row' => ($target_bi !== '' && $bi === $target_bi)
 			);
 		}
 
-		$is_active = ($c == $index || in_array($c, $chline));
-		if ($is_active) {
-			$scan_groups[$bi]['is_active_row'] = true;
-		}
+		$is_active = ($c == $index);
 
 		if (in_array($c, $chline)) {
 			$border_css = "border:1px solid #fff; outline: 2px solid #0aa; outline-offset: -2px;";
@@ -216,14 +224,14 @@ foreach ($chans as $i) {
 $active_row_top = 0;
 $active_row_height = 102;
 $current_y = 0;
-$found_active_row = false;
+$found_target_row = false;
 
 foreach ($scan_groups as $bi => $group) {
 	$row_h = max(10, $group['max_h'] + 2);
-	if ($group['is_active_row'] && !$found_active_row) {
+	if ($group['is_target_row'] && !$found_target_row) {
 		$active_row_top = $current_y;
 		$active_row_height = $row_h;
-		$found_active_row = true;
+		$found_target_row = true;
 	}
 	$current_y += $row_h;
 }
@@ -277,10 +285,10 @@ if (empty($scan_groups)) {
 	echo '</script>';
 
 	foreach ($scan_groups as $bi => $group) {
-		$tr_attr = $group['is_active_row'] ? ' id="active_row"' : '';
+		$tr_attr = $group['is_target_row'] ? ' id="active_row"' : '';
 		echo '<TR' . $tr_attr . '><TD style="padding:0; margin:0; white-space:nowrap;">';
-		if ($group['is_active_row']) {
-			echo '<script>(function(){ var sf = document.getElementById("overview_scroll"); var row = document.getElementById("active_row"); if (sf && row) { sf.scrollTop = Math.max(0, row.offsetTop + (row.offsetHeight / 2) - (sf.clientHeight / 2)); } })();</script>';
+		if ($group['is_target_row']) {
+			echo '<script>(function(){ var sf = document.getElementById("overview_scroll"); var row = document.getElementById("active_row"); if (sf && row) { var sfRect = sf.getBoundingClientRect(); var rowRect = row.getBoundingClientRect(); var targetY = (rowRect.top - sfRect.top) + sf.scrollTop; var rowCenter = targetY + (row.offsetHeight / 2); sf.scrollTop = Math.max(0, rowCenter - (sf.clientHeight / 2)); } })();</script>';
 		}
 		foreach ($group['items'] as $item) {
 			$c = $item['c'];
