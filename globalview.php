@@ -563,9 +563,9 @@ html, body {
 				<span id="gvTimeMaxVal" style="width:42px; text-align:right; color:#6cf; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo ($max_file_idx + 1); ?></span>
 			</div>
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
-				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Max img</span>
+				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Max file</span>
 				<input type="submit" onclick="stepMaxVis(-1)" value="&lt;" style="font-weight:normal; flex-shrink:0;">
-				<input type="range" id="gvMaxVisibleImages" min="10" max="200" value="100" step="10" oninput="onMaxVisibleImagesChange()" title="Max preceding images limit" style="flex:1; min-width:0;">
+				<input type="range" id="gvMaxVisibleImages" min="10" max="200" value="100" step="10" oninput="onMaxVisibleImagesChange()" title="Max visible files limit" style="flex:1; min-width:0;">
 				<input type="submit" onclick="stepMaxVis(1)" value="&gt;" style="font-weight:normal; flex-shrink:0;">
 				<span id="gvMaxVisibleVal" style="width:42px; text-align:right; color:#ff0; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">100</span>
 			</div>
@@ -935,8 +935,8 @@ var maxFileIdx = <?php echo $max_file_idx; ?>;
 var activeFileIdx = <?php echo $active_file_idx; ?>;
 var activeFileAng = <?php echo $active_file_ang; ?>;
 var maxVisibleImages = 100;
-var fileMin = Math.max(0, activeFileIdx - (maxVisibleImages - 1));
-var fileMax = activeFileIdx;
+var fileMin = 0;
+var fileMax = maxFileIdx;
 var viewAngle = 45;
 var dpr = window.devicePixelRatio || 1;
 var activeAnim = null;
