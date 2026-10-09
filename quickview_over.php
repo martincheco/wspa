@@ -204,17 +204,39 @@ foreach ($chans as $i) {
 	$c++;
 }
 
-// STEP 4: Output HTML layout with pre-allocated flexbox bounds & pre-sized grid
+// STEP 4: Output HTML layout with Channels Panel IN THE BEGINNING hanging OVER images on top-right
 ?>
 
-<div class="fill" style="height:calc(100vh - 20px); overflow:hidden;">
-<div style="display:flex; flex-direction:row; width:100%; height:100%;">
+<div class="fill">
 
-	<!-- Left Side: Grid View Container -->
-	<div class="scrollfill" id="overview_scroll" style="flex:1; height:100%; overflow-y:auto; overflow-x:auto;">
+<!-- Channels Panel: Rendered IN THE BEGINNING, hanging OVER images on top-right -->
+<div id="channel_panel" style="position:fixed; top:25px; right:20px; z-index:1000; background:#181818; border:1px solid #444; padding:6px; box-sizing:border-box; width:200px; max-height:calc(100vh - 40px); overflow-y:auto;">
+	<FORM id="chan_form" method="post" action="quickview_over.php#active_target">
+	<div style="font-weight:bold; margin-bottom:6px; border-bottom:1px solid #444; padding-bottom:4px; color:#bff;">Channels</div>
+	<div style="margin-bottom:6px;">
+		<input type="button" value="All" onclick="toggleAllChans(true)">
+		<input type="button" value="None" onclick="toggleAllChans(false)">
+	</div>
+	<div id="channel_checkboxes" style="display:flex; flex-direction:column; gap:4px;">
+<?php
+foreach ($unique_acqchans as $uchan) {
+	$escaped = htmlspecialchars($uchan);
+	$cb_checked = ($saved_overview_channels === null || in_array($uchan, $saved_overview_channels)) ? 'checked' : '';
+	echo '<label style="cursor:pointer; display:flex; align-items:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' . $escaped . '">';
+	echo '<input type="checkbox" name="chans[]" value="' . $escaped . '" ' . $cb_checked . ' onchange="this.form.submit()" style="vertical-align:middle; margin-right:6px; flex-shrink:0;">';
+	echo '<span style="overflow:hidden; text-overflow:ellipsis;">' . $escaped . '</span>';
+	echo '</label>';
+}
+?>
+	</div>
+	</FORM>
+</div>
+
+<!-- Left Side Grid Container: Starts hidden until scrollTop is set synchronously at active target -->
+<div class="scrollfill" id="overview_scroll" style="height:calc(100vh - 20px); overflow-y:auto; overflow-x:auto; visibility:hidden;">
 <?php
 if (empty($scan_groups)) {
-	echo '<div style="padding:20px; color:#aaa;">No channels selected. Use the right panel to select channels.</div>';
+	echo '<div style="padding:20px; color:#aaa;">No channels selected. Use the Channels panel to select channels.</div>';
 } else {
 	echo '<TABLE style="position:relative; z-index:1; border-collapse:collapse;">';
 	foreach ($scan_groups as $bi => $group) {
@@ -239,7 +261,7 @@ if (empty($scan_groups)) {
 			// STEP 5: Fill images by native HTML5 loading="lazy"
 			echo '<a' . $anchor_id . ' href="quickview.php?command=goto '.($c+1).'&over=over" title="'.$tooltip.'">';
 			if ($is_target) {
-				echo '<script>(function(){ var container = document.getElementById("overview_scroll"); var target = document.getElementById("active_target"); if (container && target) { container.scrollTop = Math.max(0, target.offsetTop - (container.clientHeight / 2) + 50); } })();</script>';
+				echo '<script>(function(){ var container = document.getElementById("overview_scroll"); var target = document.getElementById("active_target"); if (container && target) { container.scrollTop = Math.max(0, target.offsetTop - (container.clientHeight / 2) + 50); } if (container) container.style.visibility = "visible"; })();</script>';
 			}
 			echo '<img id="img'.$c.'" src="'.$real_src.'" '.$w_attr.' loading="lazy" style="'.$ar_css.'max-width:100px;max-height:100px;padding:1px;background-color:#111;'.$item['border_css'].'" title="'.$tooltip.'" onerror="handleImgError(this)">';
 			echo '</a>';
@@ -249,38 +271,17 @@ if (empty($scan_groups)) {
 	echo '</TABLE>';
 }
 ?>
-	</div>
-
-	<!-- Right Side: Channel Preselection Window -->
-	<div id="channel_panel" style="width:200px; flex-shrink:0; height:100%; border-left:1px solid #444; background:#181818; padding:6px; box-sizing:border-box; overflow-y:auto;">
-		<FORM id="chan_form" method="post" action="quickview_over.php#active_target">
-		<div style="font-weight:bold; margin-bottom:6px; border-bottom:1px solid #444; padding-bottom:4px; color:#bff;">Channels</div>
-		<div style="margin-bottom:6px;">
-			<input type="button" value="All" onclick="toggleAllChans(true)">
-			<input type="button" value="None" onclick="toggleAllChans(false)">
-		</div>
-		<div id="channel_checkboxes" style="display:flex; flex-direction:column; gap:4px;">
-<?php
-foreach ($unique_acqchans as $uchan) {
-	$escaped = htmlspecialchars($uchan);
-	$cb_checked = ($saved_overview_channels === null || in_array($uchan, $saved_overview_channels)) ? 'checked' : '';
-	echo '<label style="cursor:pointer; display:flex; align-items:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' . $escaped . '">';
-	echo '<input type="checkbox" name="chans[]" value="' . $escaped . '" ' . $cb_checked . ' onchange="this.form.submit()" style="vertical-align:middle; margin-right:6px; flex-shrink:0;">';
-	echo '<span style="overflow:hidden; text-overflow:ellipsis;">' . $escaped . '</span>';
-	echo '</label>';
-}
-?>
-		</div>
-		</FORM>
-	</div>
-
 </div>
+
 </div>
 
 <script>
 if ('scrollRestoration' in history) {
   history.scrollRestoration = 'manual';
 }
+
+var sf = document.getElementById("overview_scroll");
+if (sf) sf.style.visibility = "visible";
 
 function handleImgError(img) {
   if (!img.getAttribute('data-retried')) {
