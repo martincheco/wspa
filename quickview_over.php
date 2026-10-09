@@ -51,12 +51,9 @@ if ($shm != '') { $userlnk = $userlink; } else { $userlnk = $userdir; }
 
 <div class="fill">
 <div class="scrollfill">
-<TABLE>
+<TABLE style="width:100%; border-collapse:collapse;">
 <TR>
 	<TD style="vertical-align:top;height:100%;width:100%;">
-		<TABLE style="position:relative;z-index:1;">
-		<TR>
-			<TD>
 <?php
 
 $scan_dim_cache = array();
@@ -130,6 +127,9 @@ function get_channel_dimensions($c, $bi, $img_file, $raw_file, $chans, $userlnk,
 	return array('w' => 100, 'h' => 100, 'css_w' => 100, 'css_h' => 100);
 }
 
+$scan_groups = array();
+$unique_acqchans = array();
+
 $c = 0;
 $obi = "";
 foreach ($chans as $i) {
@@ -142,88 +142,96 @@ foreach ($chans as $i) {
 	$value = isset($info['extension']) ? $info['extension'] : '';
 	$bi = basename($bi, '.' . $value);
 
-	if ($bi != $obi) {
-		echo "</TD></TR><TR><TD>";
+	$chan_name = isset($acqchans[$c]) ? trim($acqchans[$c]) : '';
+	$base_chan_name = get_base_channel_name($chan_name);
+	if ($base_chan_name !== '' && !in_array($base_chan_name, $unique_acqchans)) {
+		$unique_acqchans[] = $base_chan_name;
+	}
 
+	$is_checked = ($saved_overview_channels === null || in_array($base_chan_name, $saved_overview_channels));
+
+	if ($is_checked) {
 		$raw_file = isset($raw_chans[$c]) ? trim(stripslashes($raw_chans[$c])) : "";
-		$mapdir = pathinfo($raw_file, PATHINFO_DIRNAME);
-		$mapfile = $mapdir . '/' . $bi . '.map';
-		if (!file_exists($mapfile)) {
-			$meta_map = get_meta_path_for_file($raw_file, 'map', $user);
-			if (file_exists($meta_map) && is_file($meta_map)) {
-				$mapfile = $meta_map;
-			} else {
-				$mapfile = "";
-			}
-		}
+		$img_file = $userlnk . $user . '/tmp' . $c . '.png';
+		$dim = get_channel_dimensions($c, $bi, $img_file, $raw_file, $chans, $userlnk, $user);
 
-		$has_sts = false;
-		if ($mapfile !== "" && file_exists($mapfile) && filesize($mapfile) > 0) {
-			$stsim = 'sts.png'; $mtagc = 'color:#0e0;';
-			$bordercol = "#00ff41";
-			$has_sts = true;
-		} else {
-			$bordercol = "#567";
+		if (!isset($scan_groups[$bi])) {
+			$mapdir = pathinfo($raw_file, PATHINFO_DIRNAME);
+			$mapfile = $mapdir . '/' . $bi . '.map';
+			if (!file_exists($mapfile)) {
+				$meta_map = get_meta_path_for_file($raw_file, 'map', $user);
+				if (file_exists($meta_map) && is_file($meta_map)) {
+					$mapfile = $meta_map;
+				} else {
+					$mapfile = "";
+				}
+			}
+
+			$has_sts = ($mapfile !== "" && file_exists($mapfile) && filesize($mapfile) > 0);
+			$scan_groups[$bi] = array(
+				'bi' => $bi,
+				'has_sts' => $has_sts,
+				'items' => array()
+			);
 		}
 
 		if (in_array($c, $chline)) {
 			$border_css = "border:2px solid #fff; outline: 2px solid #0aa; outline-offset: -2px;";
-		} else if ($has_sts) {
+		} else if ($scan_groups[$bi]['has_sts']) {
 			$border_css = "border:2px solid #00ff41; box-shadow: 0 0 3px rgba(0, 255, 65, 0.4);";
 		} else {
-			$border_css = "border:1px solid " . $bordercol . ";";
+			$border_css = "border:1px solid #567;";
 		}
 
-		$mapfile = "";
+		$scan_groups[$bi]['items'][] = array(
+			'c' => $c,
+			'chan_name' => $chan_name,
+			'base_chan_name' => $base_chan_name,
+			'img_file' => $img_file,
+			'dim' => $dim,
+			'border_css' => $border_css,
+			'is_active' => in_array($c, $chline)
+		);
 	}
-
-	$chan_name = isset($acqchans[$c]) ? trim($acqchans[$c]) : '';
-	$base_chan_name = get_base_channel_name($chan_name);
-	$is_checked = ($saved_overview_channels === null || in_array($base_chan_name, $saved_overview_channels));
-
-	$raw_file = isset($raw_chans[$c]) ? trim(stripslashes($raw_chans[$c])) : "";
-	$img_file = $userlnk . $user . '/tmp' . $c . '.png';
-	$dim = get_channel_dimensions($c, $bi, $img_file, $raw_file, $chans, $userlnk, $user);
-	$w = $dim['w']; $h = $dim['h'];
-	$css_w = $dim['css_w']; $css_h = $dim['css_h'];
-
-	$w_attr = 'width="' . $w . '" height="' . $h . '"';
-	$ar_css = 'width:' . $css_w . 'px; height:' . $css_h . 'px; aspect-ratio: ' . $w . ' / ' . $h . '; ';
-
-	$hash = @filemtime($img_file);
-	$real_src = 'serve_image.php?file=' . urlencode($img_file) . '&v=' . $hash;
-
-	// Eager load preselected images currently in the view window (near active index)
-	$is_in_view = $is_checked && (abs($c - $index) <= 30 || in_array($c, $chline));
-	if ($is_in_view) {
-		$src_attr = 'src="' . $real_src . '"';
-	} else {
-		$placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='" . $css_w . "' height='" . $css_h . "'%3E%3C/svg%3E";
-		$src_attr = 'src="' . $placeholder . '" data-src="' . $real_src . '"';
-	}
-
-	$tooltip = htmlspecialchars($bi . ($chan_name !== '' ? ' [' . $chan_name . ']' : ''));
-	$link_style = $is_checked ? 'display:inline-block;' : 'display:none;';
-	echo '<a class="thumb-link" data-channel="'.htmlspecialchars($base_chan_name).'" href="quickview.php?command=goto '.($c+1).'&over=over" title="'.$tooltip.'" style="'.$link_style.'"><img id="img'.$c.'" '.$src_attr.' '.$w_attr.' style="'.$ar_css.'max-width:100px;max-height:100px;box-sizing:border-box;'.$border_css.'background-color:#111;" title="'.$tooltip.'" onerror="handleImgError(this)"></a>';
 	$c++;
-	$obi = $bi;
 }
 
-// Compute unique acquisition base channels for preselection panel
-$unique_acqchans = array();
-if (!empty($acqchans)) {
-	foreach ($acqchans as $acname) {
-		$base = get_base_channel_name($acname);
-		if ($base !== '' && !in_array($base, $unique_acqchans)) {
-			$unique_acqchans[] = $base;
+// Output HTML grid strictly pre-filtered and presized at exact dimensions
+echo '<TABLE style="position:relative; z-index:1; border-collapse:collapse;">';
+foreach ($scan_groups as $bi => $group) {
+	echo '<TR><TD style="padding:2px 0; vertical-align:top;">';
+	foreach ($group['items'] as $item) {
+		$c = $item['c'];
+		$dim = $item['dim'];
+		$w = $dim['w'];
+		$h = $dim['h'];
+		$css_w = $dim['css_w'];
+		$css_h = $dim['css_h'];
+
+		$hash = @filemtime($item['img_file']);
+		$real_src = 'serve_image.php?file=' . urlencode($item['img_file']) . '&v=' . $hash;
+
+		// Step 5: Fill images by lazyloading (in-view vs off-screen placeholder)
+		$is_in_view = (abs($c - $index) <= 30 || $item['is_active']);
+		if ($is_in_view) {
+			$src_attr = 'src="' . $real_src . '"';
+		} else {
+			$placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='" . $css_w . "' height='" . $css_h . "'%3E%3C/svg%3E";
+			$src_attr = 'src="' . $placeholder . '" data-src="' . $real_src . '"';
 		}
+
+		$tooltip = htmlspecialchars($bi . ($item['chan_name'] !== '' ? ' [' . $item['chan_name'] . ']' : ''));
+
+		echo '<a class="thumb-link" data-channel="'.htmlspecialchars($item['base_chan_name']).'" href="quickview.php?command=goto '.($c+1).'&over=over" title="'.$tooltip.'" style="display:inline-block; width:'.$css_w.'px; height:'.$css_h.'px; margin-right:4px; margin-bottom:4px; vertical-align:top;">';
+		echo '<img id="img'.$c.'" '.$src_attr.' width="'.$w.'" height="'.$h.'" style="width:'.$css_w.'px; height:'.$css_h.'px; aspect-ratio: '.$w.' / '.$h.'; max-width:100px; max-height:100px; box-sizing:border-box; '.$item['border_css'].' background-color:#111; display:block;" title="'.$tooltip.'" onerror="handleImgError(this)">';
+		echo '</a>';
 	}
+	echo '</TD></TR>';
 }
+echo '</TABLE>';
 
 ?>
 
-	</TR>
-	</TABLE>
 	</TD>
 
 	<!-- Right Side Channel Preselection Window (Glued to Right Edge as in quickview.php) -->
