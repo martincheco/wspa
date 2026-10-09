@@ -1361,10 +1361,17 @@ function getZStepMeters() {
 	return zNm * 1e-9;
 }
 
+var cachedZHeights = null;
+var cachedZHeightsKey = '';
+
+function invalidateZCache() {
+	cachedZHeights = null;
+	cachedZHeightsKey = '';
+}
+
 function getVisibleZHeights(visibleItems) {
 	if (!visibleItems || visibleItems.length === 0) return [];
-	var zHeights = new Array(visibleItems.length);
-	zHeights[0] = 0;
+
 	var autoZEl = document.getElementById('gvAutoZSpacing');
 	var isAutoZ = autoZEl ? autoZEl.checked : false;
 	var zFactorCheck = document.getElementById('gvZFactorEnabled');
@@ -1372,6 +1379,16 @@ function getVisibleZHeights(visibleItems) {
 	var zFactorSlider = document.getElementById('gvZFactor');
 	var factorPower = zFactorSlider ? parseFloat(zFactorSlider.value) : 1.0;
 	var baseZStep = getZStepMeters();
+
+	var visKeys = visibleItems.map(function(it) { return it.c; }).join(',');
+	var currentKey = visKeys + '|' + isAutoZ + '|' + isFactorEnabled + '|' + factorPower + '|' + baseZStep;
+
+	if (cachedZHeights && cachedZHeightsKey === currentKey && cachedZHeights.length === visibleItems.length) {
+		return cachedZHeights;
+	}
+
+	var zHeights = new Array(visibleItems.length);
+	zHeights[0] = 0;
 
 	var avgDiag = overallAvgDim * Math.SQRT2;
 	if (avgDiag <= 0) avgDiag = 1e-7;
@@ -1428,6 +1445,8 @@ function getVisibleZHeights(visibleItems) {
 			zHeights[k] = assignedZ[k] || 0;
 		}
 	}
+	cachedZHeights = zHeights;
+	cachedZHeightsKey = currentKey;
 	return zHeights;
 }
 
@@ -2681,6 +2700,7 @@ function buildItemsWith3D(visibleItems) {
 	return visibleItems.map(function(item, visIdx) {
 		var zM = zHeights[visIdx];
 		var quad = get3DQuadCorners(item, visIdx, zM);
+		var physCorners = get2DPhysicalCorners(item);
 
 		var quadMinX = Math.min(quad[0].x, quad[1].x, quad[2].x, quad[3].x);
 		var quadMaxX = Math.max(quad[0].x, quad[1].x, quad[2].x, quad[3].x);
@@ -2721,6 +2741,7 @@ function buildItemsWith3D(visibleItems) {
 			visIdx: visIdx,
 			zMeters: zM,
 			quad: quad,
+			physCorners: physCorners,
 			quadMinX: quadMinX,
 			quadMaxX: quadMaxX,
 			quadMinY: quadMinY,
@@ -2743,7 +2764,7 @@ function sort3DItems(itemsWith3D) {
 	itemsWith3D.sort(function(a, b) {
 		// 1. Physical Quad Overlap (XY Plane): higher Z elevation sits on top (foreground)
 		// Invariant to camera pitch and yaw rotation
-		var physOverlap = do2DQuadsIntersect(get2DPhysicalCorners(a.item), get2DPhysicalCorners(b.item));
+		var physOverlap = do2DQuadsIntersect(a.physCorners, b.physCorners);
 		if (physOverlap) {
 			var diffZ = a.zMeters - b.zMeters;
 			if (Math.abs(diffZ) > 1e-12) {
