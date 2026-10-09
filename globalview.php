@@ -2680,7 +2680,9 @@ function buildItemsWith3D(visibleItems) {
 			});
 		}
 
-		var avgDepth = (quad[0].depth + quad[1].depth + quad[2].depth + quad[3].depth) / 4;
+		var minD = Math.min(quad[0].depth, quad[1].depth, quad[2].depth, quad[3].depth);
+		var maxD = Math.max(quad[0].depth, quad[1].depth, quad[2].depth, quad[3].depth);
+
 		return {
 			item: item,
 			visIdx: visIdx,
@@ -2694,7 +2696,9 @@ function buildItemsWith3D(visibleItems) {
 			maxX: totalMaxX,
 			minY: totalMinY,
 			maxY: totalMaxY,
-			depth: avgDepth
+			minDepth: minD,
+			maxDepth: maxD,
+			depth: maxD
 		};
 	});
 }
@@ -2725,9 +2729,24 @@ function drawScene() {
 	// 3D Isometric View Rendering
 	var itemsWith3D = buildItemsWith3D(visibleItems);
 
-	// Sort descending by 3D camera depth (farthest depth drawn first, nearest depth drawn last on top)
+	// Sort 3D tiles using corner-extent maxDepth comparison for Painter's Algorithm
 	itemsWith3D.sort(function(a, b) {
-		return b.depth - a.depth;
+		var overlapX = Math.max(0, Math.min(a.maxX, b.maxX) - Math.max(a.minX, b.minX));
+		var overlapY = Math.max(0, Math.min(a.maxY, b.maxY) - Math.max(a.minY, b.minY));
+
+		if (overlapX > 0 && overlapY > 0) {
+			if (Math.abs(a.maxDepth - b.maxDepth) > 1e-6) {
+				return b.maxDepth - a.maxDepth;
+			}
+			if (Math.abs(a.minDepth - b.minDepth) > 1e-6) {
+				return b.minDepth - a.minDepth;
+			}
+		}
+
+		if (Math.abs(a.maxDepth - b.maxDepth) > 1e-6) {
+			return b.maxDepth - a.maxDepth;
+		}
+		return a.visIdx - b.visIdx;
 	});
 	lastRenderedItemsWith3D = itemsWith3D;
 
