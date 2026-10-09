@@ -1472,7 +1472,7 @@ function project3DPoint(x, y, zMeters) {
 	var sy = panY - (rotY * cachedTrig.sinPitch + dz * cachedTrig.cosPitch) * zoomScale;
 
 	// Correct camera depth: larger = farther away (background), smaller = closer (foreground)
-	var depth = rotY * cachedTrig.sinPitch - dz * cachedTrig.cosPitch;
+	var depth = rotY * cachedTrig.cosPitch - dz * cachedTrig.sinPitch;
 
 	return { x: sx, y: sy, depth: depth };
 }
@@ -2687,6 +2687,7 @@ function buildItemsWith3D(visibleItems) {
 
 		var minD = Math.min(quad[0].depth, quad[1].depth, quad[2].depth, quad[3].depth);
 		var maxD = Math.max(quad[0].depth, quad[1].depth, quad[2].depth, quad[3].depth);
+		var meanD = (quad[0].depth + quad[1].depth + quad[2].depth + quad[3].depth) / 4.0;
 
 		return {
 			item: item,
@@ -2703,6 +2704,7 @@ function buildItemsWith3D(visibleItems) {
 			maxY: totalMaxY,
 			minDepth: minD,
 			maxDepth: maxD,
+			meanDepth: meanD,
 			depth: maxD
 		};
 	});
@@ -2734,25 +2736,19 @@ function drawScene() {
 	// 3D Isometric View Rendering
 	var itemsWith3D = buildItemsWith3D(visibleItems);
 
-	// Sort 3D tiles using corner-extent maxDepth & Auto Z height comparison for Painter's Algorithm
+	// Sort 3D tiles using true 3D camera depth derived from real-world 3D corner coordinates for Painter's Algorithm
 	itemsWith3D.sort(function(a, b) {
-		var physOverlap = do2DQuadsIntersect(get2DPhysicalCorners(a.item), get2DPhysicalCorners(b.item));
-
-		var overlapX = Math.max(0, Math.min(a.maxX, b.maxX) - Math.max(a.minX, b.minX));
-		var overlapY = Math.max(0, Math.min(a.maxY, b.maxY) - Math.max(a.minY, b.minY));
-		var screenOverlap = (overlapX > 0 && overlapY > 0);
-
-		if (physOverlap || screenOverlap) {
-			if (Math.abs(a.zMeters - b.zMeters) > 1e-12) {
-				return a.zMeters - b.zMeters;
-			}
-			if (Math.abs(a.maxDepth - b.maxDepth) > 1e-6) {
-				return b.maxDepth - a.maxDepth;
-			}
+		var diffMax = b.maxDepth - a.maxDepth;
+		if (Math.abs(diffMax) > 1e-6) {
+			return diffMax;
 		}
-
-		if (Math.abs(a.maxDepth - b.maxDepth) > 1e-6) {
-			return b.maxDepth - a.maxDepth;
+		var diffMean = b.meanDepth - a.meanDepth;
+		if (Math.abs(diffMean) > 1e-6) {
+			return diffMean;
+		}
+		var diffMin = b.minDepth - a.minDepth;
+		if (Math.abs(diffMin) > 1e-6) {
+			return diffMin;
 		}
 		return a.visIdx - b.visIdx;
 	});
@@ -3184,6 +3180,10 @@ function findTopmostImageUnderCursor(mouseX, mouseY, itemsWith3D) {
 	}
 
 	var topFirst = itemsWith3D.slice().sort(function(a, b) {
+		var diffMax = a.maxDepth - b.maxDepth;
+		if (Math.abs(diffMax) > 1e-6) return diffMax;
+		var diffMean = a.meanDepth - b.meanDepth;
+		if (Math.abs(diffMean) > 1e-6) return diffMean;
 		return b.visIdx - a.visIdx;
 	});
 
