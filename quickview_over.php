@@ -12,11 +12,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	exit;
 }
 
+// STEP 1: Load preselection of the channels from user config
 $user_cfg = read_user_config($user);
 $saved_overview_channels = null;
-if (isset($user_cfg['overview_channels']) && trim($user_cfg['overview_channels']) !== '') {
-	$saved_overview_channels = array_map('trim', explode(',', $user_cfg['overview_channels']));
+if (array_key_exists('overview_channels', $user_cfg)) {
+	$val = trim($user_cfg['overview_channels']);
+	if ($val === '') {
+		$saved_overview_channels = array(); // Explicitly 0 channels selected
+	} else {
+		$saved_overview_channels = array_map('trim', explode(',', $val));
+	}
 }
+
 $tmpdat = $userdir . $user . "/tmp.dat";
 
 function get_base_channel_name($ch) {
@@ -49,15 +56,6 @@ require('over.php');
 require('head.php');
 
 if ($shm != '') { $userlnk = $userlink; } else { $userlnk = $userdir; }
-
-?>
-
-<div class="fill">
-<div class="scrollfill">
-<TABLE style="width:100%; border-collapse:collapse;">
-<TR>
-	<TD style="vertical-align:top;height:100%;width:100%;">
-<?php
 
 $scan_dim_cache = array();
 
@@ -124,6 +122,7 @@ function get_channel_dimensions($c, $bi, $img_file, $raw_file, $chans, $userlnk,
 	return array('w' => 100, 'h' => 100);
 }
 
+// STEP 2 & STEP 3: Pre-extract unique channels & build grid structure in PHP memory
 $scan_groups = array();
 $unique_acqchans = array();
 
@@ -195,51 +194,60 @@ foreach ($chans as $i) {
 	$c++;
 }
 
-// Step 4: Output HTML grid at exact sizes, matching past over.php / quickview_over.php / browser.php preview mode
-echo '<TABLE style="position:relative; z-index:1;">';
-foreach ($scan_groups as $bi => $group) {
-	echo '<TR><TD>';
-	foreach ($group['items'] as $item) {
-		$c = $item['c'];
-		$w = $item['dim']['w'];
-		$h = $item['dim']['h'];
-
-		$hash = @filemtime($item['img_file']);
-		$real_src = 'serve_image.php?file=' . urlencode($item['img_file']) . '&v=' . $hash;
-
-		$w_attr = ($w > 0 && $h > 0) ? 'width="' . $w . '" height="' . $h . '"' : '';
-		$ar_css = ($w > 0 && $h > 0) ? 'aspect-ratio: ' . $w . ' / ' . $h . '; ' : '';
-		$tooltip = htmlspecialchars($bi . ($item['chan_name'] !== '' ? ' [' . $item['chan_name'] . ']' : ''));
-
-		$is_target = ($c == $index);
-		$anchor_id = $is_target ? ' id="active_target"' : '';
-
-		// Step 5: Fill images by native HTML5 loading="lazy"
-		echo '<a' . $anchor_id . ' href="quickview.php?command=goto '.($c+1).'&over=over" title="'.$tooltip.'">';
-		if ($is_target) {
-			echo '<script>(function(){ var container = document.querySelector(".scrollfill"); var target = document.getElementById("active_target"); if (container && target) { container.scrollTop = Math.max(0, target.offsetTop - (container.clientHeight / 2) + 50); } })();</script>';
-		}
-		echo '<img id="img'.$c.'" src="'.$real_src.'" '.$w_attr.' loading="lazy" style="'.$ar_css.'width:auto;height:auto;max-width:100px;max-height:100px;padding:1px;background-color:#111;'.$item['border_css'].'" title="'.$tooltip.'" onerror="handleImgError(this)">';
-		echo '</a>';
-	}
-	echo '</TD></TR>';
-}
-echo '</TABLE>';
-
+// STEP 4: Output HTML layout with pre-allocated flexbox bounds & pre-sized grid
 ?>
 
-	</TD>
+<div class="fill" style="height:calc(100vh - 20px); overflow:hidden;">
+<div style="display:flex; flex-direction:row; width:100%; height:100%;">
 
-	<!-- Right Side Channel Preselection Window -->
-	<TD style="vertical-align:top; width:200px;">
+	<!-- Left Side: Grid View Container -->
+	<div class="scrollfill" id="overview_scroll" style="flex:1; height:100%; overflow-y:auto; overflow-x:auto;">
+<?php
+if (empty($scan_groups)) {
+	echo '<div style="padding:20px; color:#aaa;">No channels selected. Use the right panel to select channels.</div>';
+} else {
+	echo '<TABLE style="position:relative; z-index:1; border-collapse:collapse;">';
+	foreach ($scan_groups as $bi => $group) {
+		echo '<TR><TD style="padding:0; margin:0; white-space:nowrap;">';
+		foreach ($group['items'] as $item) {
+			$c = $item['c'];
+			$w = $item['dim']['w'];
+			$h = $item['dim']['h'];
+
+			$hash = @filemtime($item['img_file']);
+			$real_src = 'serve_image.php?file=' . urlencode($item['img_file']) . '&v=' . $hash;
+
+			$w_attr = ($w > 0 && $h > 0) ? 'width="' . $w . '" height="' . $h . '"' : '';
+			$ar_css = ($w > 0 && $h > 0) ? 'aspect-ratio: ' . $w . ' / ' . $h . '; ' : '';
+			$tooltip = htmlspecialchars($bi . ($item['chan_name'] !== '' ? ' [' . $item['chan_name'] . ']' : ''));
+
+			$is_target = ($c == $index);
+			$anchor_id = $is_target ? ' id="active_target"' : '';
+
+			// STEP 5: Fill images by native HTML5 loading="lazy"
+			echo '<a' . $anchor_id . ' href="quickview.php?command=goto '.($c+1).'&over=over" title="'.$tooltip.'">';
+			if ($is_target) {
+				echo '<script>(function(){ var container = document.getElementById("overview_scroll"); var target = document.getElementById("active_target"); if (container && target) { container.scrollTop = Math.max(0, target.offsetTop - (container.clientHeight / 2) + 50); } })();</script>';
+			}
+			echo '<img id="img'.$c.'" src="'.$real_src.'" '.$w_attr.' loading="lazy" style="'.$ar_css.'width:auto;height:auto;max-width:100px;max-height:100px;padding:1px;background-color:#111;'.$item['border_css'].'" title="'.$tooltip.'" onerror="handleImgError(this)">';
+			echo '</a>';
+		}
+		echo '</TD></TR>';
+	}
+	echo '</TABLE>';
+}
+?>
+	</div>
+
+	<!-- Right Side: Channel Preselection Window -->
+	<div id="channel_panel" style="width:200px; flex-shrink:0; height:100%; border-left:1px solid #444; background:#181818; padding:6px; box-sizing:border-box; overflow-y:auto;">
 		<FORM id="chan_form" method="post" action="quickview_over.php#active_target">
-		<div id="channel_panel" style="position:sticky; top:0; right:0; border-left:1px solid #444; border-bottom:1px solid #444; background:#181818; padding:6px; box-sizing:border-box; width:200px; overflow-x:hidden;">
-			<div style="font-weight:bold; margin-bottom:6px; border-bottom:1px solid #444; padding-bottom:4px; color:#bff;">Channels</div>
-			<div style="margin-bottom:6px;">
-				<input type="button" value="All" onclick="toggleAllChans(true)">
-				<input type="button" value="None" onclick="toggleAllChans(false)">
-			</div>
-			<div id="channel_checkboxes" style="display:flex; flex-direction:column; gap:4px; max-height:calc(100vh - 80px); overflow-y:auto; overflow-x:hidden;">
+		<div style="font-weight:bold; margin-bottom:6px; border-bottom:1px solid #444; padding-bottom:4px; color:#bff;">Channels</div>
+		<div style="margin-bottom:6px;">
+			<input type="button" value="All" onclick="toggleAllChans(true)">
+			<input type="button" value="None" onclick="toggleAllChans(false)">
+		</div>
+		<div id="channel_checkboxes" style="display:flex; flex-direction:column; gap:4px;">
 <?php
 foreach ($unique_acqchans as $uchan) {
 	$escaped = htmlspecialchars($uchan);
@@ -250,13 +258,10 @@ foreach ($unique_acqchans as $uchan) {
 	echo '</label>';
 }
 ?>
-			</div>
 		</div>
 		</FORM>
-	</TD>
+	</div>
 
-</TR>
-</TABLE>
 </div>
 </div>
 
