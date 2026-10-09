@@ -2746,10 +2746,10 @@ function sort3DItems(itemsWith3D) {
 		if (b.minDepth - a.maxDepth > 1e-12) return 1;  // b drawn first (background)
 		if (a.minDepth - b.maxDepth > 1e-12) return -1; // a drawn first (background)
 
-		// 2. Physical Quad Overlap:
-		// Where physical 2D quads overlap on the XY plane, higher Z elevation sits on top
-		var physOverlap = do2DQuadsIntersect(get2DPhysicalCorners(a.item), get2DPhysicalCorners(b.item));
-		if (physOverlap) {
+		// 2. Projected 2D Screen Quad Overlap:
+		// Where projected 2D quads overlap on screen at active pitch/yaw, higher Z elevation sits on top
+		var screenOverlap = do2DQuadsIntersect(a.quad, b.quad);
+		if (screenOverlap) {
 			var diffZ = a.zMeters - b.zMeters;
 			if (Math.abs(diffZ) > 1e-12) {
 				return diffZ; // Lower Z drawn first (background), higher Z drawn later (foreground)
