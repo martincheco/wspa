@@ -128,6 +128,11 @@ Navigation state in WSPA is governed strictly by three variables:
     - **Central Shadow Root (`data/.shadow/`)**: Read-only dataset directories (where web server lacks write permissions directly to `data/<path>/process/`) MUST store default pre-rendered PNG previews in a shared central shadow directory: `data/.shadow/<rel_data_path>/process/<basename>.png`.
     - **Shared Access**: All users share these pre-rendered default previews from `data/.shadow/` without per-user duplication or write permission errors.
     - **In-Situ vs Shadow Resolution**: Local writable dataset folders (`is_wspa_localdir` or writable) store `process/` in-situ (`<data_path>/process/<basename>.png`). Read-only datasets store default previews in `data/.shadow/<rel_path>/process/<basename>.png`. User custom-filtered previews (`.flt`) on read-only datasets reside in `users/<user>/shadow/<rel_path>/process/<basename>.png`.
+15. **Sacrosanct File Ownership & Permission Dogma (`<user>:www-data`)**:
+    - **Group Ownership Invariant**: All files and directories within WSPA (excluding `data/`) MUST be owned by group `www-data` (`<user>:www-data`, e.g. `martin:www-data`).
+    - **Group Write Permissions**: User configuration files (`users/*/*.cfg`) and dynamic output files MUST maintain `0664` file permissions (`-rw-rw-r--`) and `0775` directory permissions (`drwxrwxr-x`), ensuring web servers (Nginx/Apache running as `www-data`) have write access.
+    - **No User Ownership Alteration (`chown` Forbidden in PHP)**: PHP scripts MUST NOT invoke `chown` to alter file owner usernames. PHP code MUST strictly use `@chgrp($file, 'www-data')` and `@chmod($file, 0664)`.
+
 
 
 

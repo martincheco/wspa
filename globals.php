@@ -495,6 +495,8 @@ function save_user_config($data = array(), $user = null) {
     $dir = dirname($cfg_file);
     if (!is_dir($dir)) {
         @mkdir($dir, 0775, true);
+        @chgrp($dir, 'www-data');
+        @chmod($dir, 0775);
     }
     $current = read_user_config($user);
     foreach ($data as $k => $v) {
@@ -509,7 +511,6 @@ function save_user_config($data = array(), $user = null) {
     }
     $res = @file_put_contents($cfg_file, implode("\n", $lines) . "\n");
     if ($res !== false) {
-        @chown($cfg_file, 'martin');
         @chgrp($cfg_file, 'www-data');
         @chmod($cfg_file, 0664);
         return true;
