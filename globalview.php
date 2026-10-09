@@ -659,7 +659,7 @@ html, body {
 			<div id="gvHazeControlRow" style="margin-left:22px; margin-top:2px; display:<?php echo (!isset($user_cfg['gv_show_haze']) || $user_cfg['gv_show_haze'] === 'true') ? 'block' : 'none'; ?>;">
 				<div style="display:flex; align-items:center; gap:4px;">
 					<span style="width:40px; white-space:nowrap; color:#aaa; font-size:9.5pt; font-weight:normal; flex-shrink:0;">Fade</span>
-					<input type="range" id="gvHazeDensity" min="20" max="300" value="<?php echo isset($user_cfg['gv_haze_density']) ? intval($user_cfg['gv_haze_density']) : 100; ?>" step="10" oninput="onHazeSliderChange()" title="Haze fade distance multiplier (20% to 300%)" style="flex:1; min-width:0;">
+					<input type="range" id="gvHazeDensity" min="20" max="300" value="<?php echo isset($user_cfg['gv_haze_density']) ? intval($user_cfg['gv_haze_density']) : 100; ?>" step="10" oninput="onHazeSliderChange()" title="Haze fog thickness multiplier (20% to 300%)" style="flex:1; min-width:0;">
 					<span id="gvHazeVal" style="width:36px; text-align:right; color:#ff0; font-size:9.5pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo isset($user_cfg['gv_haze_density']) ? sprintf('%.1fx', floatval($user_cfg['gv_haze_density']) / 100.0) : '1.0x'; ?></span>
 				</div>
 			</div>
@@ -2951,8 +2951,12 @@ function drawScene() {
 			var dx = e.item.xo - focX;
 			var dy = e.item.yo - focY;
 			var dz = e.zMeters - focZ;
-			var dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-			if (dist > maxHazeDist) maxHazeDist = dist;
+			var rotY = dx * cachedTrig.sinYaw + dy * cachedTrig.cosYaw;
+			var depthRel = rotY * cachedTrig.cosPitch - dz * cachedTrig.sinPitch;
+			if (depthRel > 0) {
+				var dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+				if (dist > maxHazeDist) maxHazeDist = dist;
+			}
 		});
 		if (maxHazeDist <= 1e-12) maxHazeDist = 1e-7;
 	}
@@ -3005,9 +3009,13 @@ function drawScene() {
 			var dx = entry.item.xo - focX;
 			var dy = entry.item.yo - focY;
 			var dz = entry.zMeters - focZ;
-			var dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-			var relDist = dist / maxHazeDist;
-			fogFactor = Math.min(1.0, relDist / hazeDensityMult);
+			var rotY = dx * cachedTrig.sinYaw + dy * cachedTrig.cosYaw;
+			var depthRel = rotY * cachedTrig.cosPitch - dz * cachedTrig.sinPitch;
+			if (depthRel > 0) {
+				var dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+				var relDist = dist / maxHazeDist;
+				fogFactor = Math.min(1.0, relDist * hazeDensityMult);
+			}
 		}
 
 		var imgObj = loadedImages[item.c];
