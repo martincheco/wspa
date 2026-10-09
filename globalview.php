@@ -2771,11 +2771,46 @@ function getBlurCanvas(item, imgObj) {
 
 	try {
 		var cv = document.createElement('canvas');
-		cv.width = Math.max(8, Math.floor(imgObj.naturalWidth / 10));
-		cv.height = Math.max(8, Math.floor(imgObj.naturalHeight / 10));
+		var w = Math.max(16, Math.floor(imgObj.naturalWidth / 8));
+		var h = Math.max(16, Math.floor(imgObj.naturalHeight / 8));
+		cv.width = w;
+		cv.height = h;
+
 		var cctx = cv.getContext('2d');
 		cctx.imageSmoothingEnabled = true;
-		cctx.drawImage(imgObj, 0, 0, cv.width, cv.height);
+		cctx.drawImage(imgObj, 0, 0, w, h);
+
+		cctx.save();
+		cctx.globalCompositeOperation = 'destination-out';
+		var fadeW = Math.max(2, Math.floor(w * 0.12));
+		var fadeH = Math.max(2, Math.floor(h * 0.12));
+
+		var gL = cctx.createLinearGradient(0, 0, fadeW, 0);
+		gL.addColorStop(0, 'rgba(0,0,0,1)');
+		gL.addColorStop(1, 'rgba(0,0,0,0)');
+		cctx.fillStyle = gL;
+		cctx.fillRect(0, 0, fadeW, h);
+
+		var gR = cctx.createLinearGradient(w - fadeW, 0, w, 0);
+		gR.addColorStop(0, 'rgba(0,0,0,0)');
+		gR.addColorStop(1, 'rgba(0,0,0,1)');
+		cctx.fillStyle = gR;
+		cctx.fillRect(w - fadeW, 0, fadeW, h);
+
+		var gT = cctx.createLinearGradient(0, 0, 0, fadeH);
+		gT.addColorStop(0, 'rgba(0,0,0,1)');
+		gT.addColorStop(1, 'rgba(0,0,0,0)');
+		cctx.fillStyle = gT;
+		cctx.fillRect(0, 0, w, fadeH);
+
+		var gB = cctx.createLinearGradient(0, h - fadeH, 0, h);
+		gB.addColorStop(0, 'rgba(0,0,0,0)');
+		gB.addColorStop(1, 'rgba(0,0,0,1)');
+		cctx.fillStyle = gB;
+		cctx.fillRect(0, h - fadeH, w, fadeH);
+
+		cctx.restore();
+
 		loadedBlurImages[item.c] = cv;
 		return cv;
 	} catch (e) {
@@ -3055,12 +3090,21 @@ function drawScene() {
 			if (showHaze && fogFactor > 0.02) {
 				var blurCv = getBlurCanvas(item, imgObj);
 				if (blurCv) {
+					var blurPx = Math.max(1, Math.round(fogFactor * 14));
+					ctx.save();
+					if ('filter' in ctx) {
+						ctx.filter = 'blur(' + blurPx + 'px)';
+					}
 					ctx.globalAlpha = alpha * fogFactor;
 					ctx.imageSmoothingEnabled = true;
 					ctx.mozImageSmoothingEnabled = true;
 					ctx.webkitImageSmoothingEnabled = true;
 					ctx.msImageSmoothingEnabled = true;
 					ctx.drawImage(blurCv, 0, -hPx, wPx, hPx);
+					if ('filter' in ctx) {
+						ctx.filter = 'none';
+					}
+					ctx.restore();
 				}
 			}
 
@@ -3083,7 +3127,7 @@ function drawScene() {
 
 		// Draw 3D bounding parallelogram
 		ctx.lineWidth = 1;
-		var rimAlpha = showHaze ? (0.25 * Math.pow(1.0 - fogFactor, 2.0)) : 0.25;
+		var rimAlpha = showHaze ? (0.25 * Math.pow(1.0 - fogFactor, 3.0)) : 0.25;
 		ctx.strokeStyle = 'rgba(255, 255, 255, ' + rimAlpha + ')';
 		ctx.beginPath();
 		ctx.moveTo(P0.x, P0.y);
