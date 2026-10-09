@@ -2430,9 +2430,7 @@ function preloadImages() {
 function processPreloadQueueBatch() {
 	if (!preloadQueue || preloadQueue.length === 0) return;
 
-	var batch = preloadQueue.splice(0, 10);
-	var loadedAny = false;
-
+	var batch = preloadQueue.splice(0, 20);
 	batch.forEach(function(item) {
 		if (!loadedImages[item.c]) {
 			var img = new Image();
@@ -2440,12 +2438,11 @@ function processPreloadQueueBatch() {
 			img.onerror = function() { requestDraw(); };
 			img.src = item.src;
 			loadedImages[item.c] = img;
-			loadedAny = true;
 		}
 	});
 
 	if (preloadQueue.length > 0) {
-		preloadTimer = setTimeout(processPreloadQueueBatch, 50);
+		preloadTimer = setTimeout(processPreloadQueueBatch, 0);
 	}
 }
 
@@ -2750,25 +2747,19 @@ function drawScene() {
 	// 3D Isometric View Rendering
 	var itemsWith3D = buildItemsWith3D(visibleItems);
 
-	// Sort 3D tiles using corner-extent maxDepth & Auto Z height comparison for Painter's Algorithm
+	// Sort 3D tiles using pure 3D camera line-of-sight depth derived from real-world 3D corner coordinates
 	itemsWith3D.sort(function(a, b) {
-		var physOverlap = do2DQuadsIntersect(get2DPhysicalCorners(a.item), get2DPhysicalCorners(b.item));
-
-		var overlapX = Math.max(0, Math.min(a.maxX, b.maxX) - Math.max(a.minX, b.minX));
-		var overlapY = Math.max(0, Math.min(a.maxY, b.maxY) - Math.max(a.minY, b.minY));
-		var screenOverlap = (overlapX > 0 && overlapY > 0);
-
-		if (physOverlap || screenOverlap) {
-			if (Math.abs(a.zMeters - b.zMeters) > 1e-12) {
-				return a.zMeters - b.zMeters;
-			}
-			if (Math.abs(a.maxDepth - b.maxDepth) > 1e-6) {
-				return b.maxDepth - a.maxDepth;
-			}
+		var diffMax = b.maxDepth - a.maxDepth;
+		if (Math.abs(diffMax) > 1e-6) {
+			return diffMax;
 		}
-
-		if (Math.abs(a.maxDepth - b.maxDepth) > 1e-6) {
-			return b.maxDepth - a.maxDepth;
+		var diffMean = b.meanDepth - a.meanDepth;
+		if (Math.abs(diffMean) > 1e-6) {
+			return diffMean;
+		}
+		var diffMin = b.minDepth - a.minDepth;
+		if (Math.abs(diffMin) > 1e-6) {
+			return diffMin;
 		}
 		return a.visIdx - b.visIdx;
 	});
@@ -2818,6 +2809,13 @@ function drawScene() {
 		}
 
 		var imgObj = loadedImages[item.c];
+		if (!imgObj) {
+			imgObj = new Image();
+			imgObj.onload = function() { requestDraw(); };
+			imgObj.onerror = function() { requestDraw(); };
+			imgObj.src = item.src;
+			loadedImages[item.c] = imgObj;
+		}
 
 		ctx.save();
 		var a = (P1.x - P0.x) / wPx;
@@ -3801,7 +3799,6 @@ loadSpatialViewState();
 var lastDatasetSig = localStorage.getItem('wspa_gv_last_dataset');
 var isNewDataset = (!lastDatasetSig || lastDatasetSig !== window.DATASET_SIGNATURE);
 
-preloadImages();
 resizeCanvas();
 
 if (isNewDataset) {
@@ -3817,6 +3814,7 @@ if (isNewDataset) {
 	isFocusLoaded = false;
 	showAllImages();
 	fitView();
+	preloadImages();
 } else {
 	var activeItem = rawData.find(function(item) { return item.c === qvudIndex; }) || rawData[0];
 	if (activeItem) {
@@ -3836,6 +3834,7 @@ if (isNewDataset) {
 	onTimeSliderChange();
 	updateProjectionCache();
 	updateHeaderReadout();
+	preloadImages();
 
 	if (isPanCenterLoaded) {
 		var cw = viewport ? viewport.clientWidth : 0;
