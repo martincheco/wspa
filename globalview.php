@@ -2761,18 +2761,8 @@ function drawScene() {
 	// 3D Isometric View Rendering
 	var itemsWith3D = buildItemsWith3D(visibleItems);
 
-	// Sort 3D tiles using physical overlap Z-elevation and 3D camera line-of-sight depth
+	// Sort 3D tiles using pure 3D camera line-of-sight depth derived from real-world 3D corner coordinates
 	itemsWith3D.sort(function(a, b) {
-		var physOverlap = do2DQuadsIntersect(get2DPhysicalCorners(a.item), get2DPhysicalCorners(b.item));
-
-		if (physOverlap) {
-			// Physical overlap: higher Z scan sits above lower Z scan
-			if (Math.abs(a.zMeters - b.zMeters) > 1e-12) {
-				return a.zMeters - b.zMeters;
-			}
-		}
-
-		// Spatial depth ordering: sort by 3D camera line-of-sight depth
 		var diffMax = b.maxDepth - a.maxDepth;
 		if (Math.abs(diffMax) > 1e-6) {
 			return diffMax;
