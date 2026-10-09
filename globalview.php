@@ -889,10 +889,11 @@ function drawObscurableEdge(ptA, ptB, targetVisIdx, higherItems, solidColor, fai
 }
 
 function drawObscurableFrame(entry, itemsWith3D, solidColor, faintColor, insetPx) {
-	if (!entry) return;
+	if (!entry || !itemsWith3D) return;
+	var entryRenderIdx = itemsWith3D.indexOf(entry);
 	var targetVisIdx = entry.visIdx;
-	var higherItems = itemsWith3D.filter(function(e) {
-		return e.visIdx > targetVisIdx && e.item.c !== entry.item.c;
+	var higherItems = itemsWith3D.filter(function(e, idx) {
+		return idx > entryRenderIdx && e.item.c !== entry.item.c;
 	});
 	var q = entry.quad;
 	if (insetPx && insetPx !== 0) {
@@ -2761,20 +2762,23 @@ function drawScene() {
 	// 3D Isometric View Rendering
 	var itemsWith3D = buildItemsWith3D(visibleItems);
 
-	// Sort 3D tiles using pure 3D camera line-of-sight depth derived from real-world 3D corner coordinates
+	// Sort 3D tiles for rendering (from background to foreground)
 	itemsWith3D.sort(function(a, b) {
-		var diffMax = b.maxDepth - a.maxDepth;
-		if (Math.abs(diffMax) > 1e-12) {
-			return diffMax;
+		// 1. Where physical 2D quads overlap, higher Z elevation sits on top (foreground)
+		var physOverlap = do2DQuadsIntersect(get2DPhysicalCorners(a.item), get2DPhysicalCorners(b.item));
+		if (physOverlap) {
+			var diffZ = a.zMeters - b.zMeters;
+			if (Math.abs(diffZ) > 1e-12) {
+				return diffZ; // Lower Z drawn first (background), higher Z drawn later (foreground)
+			}
 		}
+
+		// 2. Pure 3D camera line-of-sight depth derived from center coordinates
 		var diffMean = b.meanDepth - a.meanDepth;
 		if (Math.abs(diffMean) > 1e-12) {
-			return diffMean;
+			return diffMean; // Larger camera depth drawn first (background)
 		}
-		var diffMin = b.minDepth - a.minDepth;
-		if (Math.abs(diffMin) > 1e-12) {
-			return diffMin;
-		}
+
 		return a.visIdx - b.visIdx;
 	});
 	lastRenderedItemsWith3D = itemsWith3D;
@@ -3182,9 +3186,12 @@ function isPointOccludedByNewerImage(screenX, screenY, itemIdx, itemsWith3D) {
 	var alphaVal = parseInt(document.getElementById('gvAlpha').value, 10);
 	if (alphaVal < 95) return false;
 
+	var targetEntry = itemsWith3D.find(function(e) { return e.visIdx === itemIdx; });
+	var targetRenderIdx = targetEntry ? itemsWith3D.indexOf(targetEntry) : -1;
+
 	for (var j = 0; j < itemsWith3D.length; j++) {
+		if (j <= targetRenderIdx) continue;
 		var other = itemsWith3D[j];
-		if (other.visIdx <= itemIdx) continue;
 		var qMinX = (typeof other.quadMinX !== 'undefined') ? other.quadMinX : other.minX;
 		var qMaxX = (typeof other.quadMaxX !== 'undefined') ? other.quadMaxX : other.maxX;
 		var qMinY = (typeof other.quadMinY !== 'undefined') ? other.quadMinY : other.minY;
@@ -3209,18 +3216,21 @@ function findTopmostImageUnderCursor(mouseX, mouseY, itemsWith3D) {
 
 	if (!itemsWith3D) {
 		itemsWith3D = buildItemsWith3D(visibleItems);
+		itemsWith3D.sort(function(a, b) {
+			var physOverlap = do2DQuadsIntersect(get2DPhysicalCorners(a.item), get2DPhysicalCorners(b.item));
+			if (physOverlap) {
+				var diffZ = a.zMeters - b.zMeters;
+				if (Math.abs(diffZ) > 1e-12) return diffZ;
+			}
+			var diffMean = b.meanDepth - a.meanDepth;
+			if (Math.abs(diffMean) > 1e-12) return diffMean;
+			return a.visIdx - b.visIdx;
+		});
 	}
 
-	var topFirst = itemsWith3D.slice().sort(function(a, b) {
-		var diffMax = a.maxDepth - b.maxDepth;
-		if (Math.abs(diffMax) > 1e-12) return diffMax;
-		var diffMean = a.meanDepth - b.meanDepth;
-		if (Math.abs(diffMean) > 1e-12) return diffMean;
-		return b.visIdx - a.visIdx;
-	});
-
-	for (var i = 0; i < topFirst.length; i++) {
-		var entry = topFirst[i];
+	// Iterate backwards (from top/foreground to bottom/background)
+	for (var i = itemsWith3D.length - 1; i >= 0; i--) {
+		var entry = itemsWith3D[i];
 		var qMinX = (typeof entry.quadMinX !== 'undefined') ? entry.quadMinX : entry.minX;
 		var qMaxX = (typeof entry.quadMaxX !== 'undefined') ? entry.quadMaxX : entry.maxX;
 		var qMinY = (typeof entry.quadMinY !== 'undefined') ? entry.quadMinY : entry.minY;
@@ -3246,7 +3256,14 @@ function findSTSPointsUnderCursor(mouseX, mouseY, itemsWith3D) {
 	if (!itemsWith3D) {
 		itemsWith3D = buildItemsWith3D(visibleItems);
 		itemsWith3D.sort(function(a, b) {
-			return b.visIdx - a.visIdx;
+			var physOverlap = do2DQuadsIntersect(get2DPhysicalCorners(a.item), get2DPhysicalCorners(b.item));
+			if (physOverlap) {
+				var diffZ = a.zMeters - b.zMeters;
+				if (Math.abs(diffZ) > 1e-12) return diffZ;
+			}
+			var diffMean = b.meanDepth - a.meanDepth;
+			if (Math.abs(diffMean) > 1e-12) return diffMean;
+			return a.visIdx - b.visIdx;
 		});
 	}
 
@@ -3254,7 +3271,7 @@ function findSTSPointsUnderCursor(mouseX, mouseY, itemsWith3D) {
 	var hitRadius = Math.max(8, armPx + 4);
 	var preFilterPad = hitRadius + 15;
 
-	for (var i = 0; i < itemsWith3D.length; i++) {
+	for (var i = itemsWith3D.length - 1; i >= 0; i--) {
 		var entry = itemsWith3D[i];
 		var item = entry.item;
 		if (!item.sts_points || item.sts_points.length === 0) continue;
