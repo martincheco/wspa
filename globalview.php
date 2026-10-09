@@ -2736,6 +2736,37 @@ function buildItemsWith3D(visibleItems) {
 	});
 }
 
+// Authoritative Unified 3D Tile Depth Sorting (from background to foreground)
+function sort3DItems(itemsWith3D) {
+	if (!itemsWith3D || itemsWith3D.length <= 1) return itemsWith3D;
+	itemsWith3D.sort(function(a, b) {
+		// 1. Strict 3D Camera Depth Disjointness:
+		// If all 4 corners of b are strictly behind all 4 corners of a in camera depth space
+		if (b.minDepth - a.maxDepth > 1e-12) return 1;  // b drawn first (background)
+		if (a.minDepth - b.maxDepth > 1e-12) return -1; // a drawn first (background)
+
+		// 2. Physical Quad Overlap:
+		// Where physical 2D quads overlap on the XY plane, higher Z elevation sits on top
+		var physOverlap = do2DQuadsIntersect(get2DPhysicalCorners(a.item), get2DPhysicalCorners(b.item));
+		if (physOverlap) {
+			var diffZ = a.zMeters - b.zMeters;
+			if (Math.abs(diffZ) > 1e-12) {
+				return diffZ; // Lower Z drawn first (background), higher Z drawn later (foreground)
+			}
+		}
+
+		// 3. Pure 3D Center Camera Line-of-Sight Depth
+		var diffMean = b.meanDepth - a.meanDepth;
+		if (Math.abs(diffMean) > 1e-12) {
+			return diffMean; // Larger camera depth drawn first (background)
+		}
+
+		// 4. Stable Deterministic Sequence Tie-Breaker
+		return a.visIdx - b.visIdx;
+	});
+	return itemsWith3D;
+}
+
 function drawScene() {
 	updateProjectionCache();
 	updateZoomSliderReadout();
@@ -2760,27 +2791,7 @@ function drawScene() {
 	var visibleItems = getVisibleItems();
 
 	// 3D Isometric View Rendering
-	var itemsWith3D = buildItemsWith3D(visibleItems);
-
-	// Sort 3D tiles for rendering (from background to foreground)
-	itemsWith3D.sort(function(a, b) {
-		// 1. Where physical 2D quads overlap, higher Z elevation sits on top (foreground)
-		var physOverlap = do2DQuadsIntersect(get2DPhysicalCorners(a.item), get2DPhysicalCorners(b.item));
-		if (physOverlap) {
-			var diffZ = a.zMeters - b.zMeters;
-			if (Math.abs(diffZ) > 1e-12) {
-				return diffZ; // Lower Z drawn first (background), higher Z drawn later (foreground)
-			}
-		}
-
-		// 2. Pure 3D camera line-of-sight depth derived from center coordinates
-		var diffMean = b.meanDepth - a.meanDepth;
-		if (Math.abs(diffMean) > 1e-12) {
-			return diffMean; // Larger camera depth drawn first (background)
-		}
-
-		return a.visIdx - b.visIdx;
-	});
+	var itemsWith3D = sort3DItems(buildItemsWith3D(visibleItems));
 	lastRenderedItemsWith3D = itemsWith3D;
 
 	// Draw 3D Time Sequence Connector Lines between consecutive scans in visible order
@@ -3215,17 +3226,7 @@ function findTopmostImageUnderCursor(mouseX, mouseY, itemsWith3D) {
 	var visibleItems = getVisibleItems();
 
 	if (!itemsWith3D) {
-		itemsWith3D = buildItemsWith3D(visibleItems);
-		itemsWith3D.sort(function(a, b) {
-			var physOverlap = do2DQuadsIntersect(get2DPhysicalCorners(a.item), get2DPhysicalCorners(b.item));
-			if (physOverlap) {
-				var diffZ = a.zMeters - b.zMeters;
-				if (Math.abs(diffZ) > 1e-12) return diffZ;
-			}
-			var diffMean = b.meanDepth - a.meanDepth;
-			if (Math.abs(diffMean) > 1e-12) return diffMean;
-			return a.visIdx - b.visIdx;
-		});
+		itemsWith3D = sort3DItems(buildItemsWith3D(visibleItems));
 	}
 
 	// Iterate backwards (from top/foreground to bottom/background)
@@ -3254,17 +3255,7 @@ function findSTSPointsUnderCursor(mouseX, mouseY, itemsWith3D) {
 	var hitPoints = [];
 
 	if (!itemsWith3D) {
-		itemsWith3D = buildItemsWith3D(visibleItems);
-		itemsWith3D.sort(function(a, b) {
-			var physOverlap = do2DQuadsIntersect(get2DPhysicalCorners(a.item), get2DPhysicalCorners(b.item));
-			if (physOverlap) {
-				var diffZ = a.zMeters - b.zMeters;
-				if (Math.abs(diffZ) > 1e-12) return diffZ;
-			}
-			var diffMean = b.meanDepth - a.meanDepth;
-			if (Math.abs(diffMean) > 1e-12) return diffMean;
-			return a.visIdx - b.visIdx;
-		});
+		itemsWith3D = sort3DItems(buildItemsWith3D(visibleItems));
 	}
 
 	var armPx = Math.max(1.875, 0.075e-9 * zoomScale);
