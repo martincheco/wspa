@@ -59,6 +59,64 @@ if ($shm != '') { $userlnk = $userlink; } else { $userlnk = $userdir; }
 			<TD>
 <?php
 
+$scan_dim_cache = array();
+
+function get_channel_dimensions($c, $bi, $img_file, $chans, $userlnk, $user) {
+	global $scan_dim_cache;
+
+	$sz = @filesize($img_file);
+	// Flat image constant value placeholder (< 500 bytes) -> render at 8x8px
+	if ($sz !== false && $sz < 500) {
+		return array('w' => 8, 'h' => 8, 'css_w' => 8, 'css_h' => 8);
+	}
+
+	// Check scan group cache first
+	if (isset($scan_dim_cache[$bi])) {
+		$w = $scan_dim_cache[$bi][0];
+		$h = $scan_dim_cache[$bi][1];
+		$scale = min(100 / $w, 100 / $h, 1.0);
+		return array('w' => $w, 'h' => $h, 'css_w' => max(1, round($w * $scale)), 'css_h' => max(1, round($h * $scale)));
+	}
+
+	// Try getimagesize on current thumbnail if >= 500 bytes
+	if ($sz !== false && $sz >= 500) {
+		$hh = @getimagesize($img_file);
+		if ($hh && !empty($hh[0]) && !empty($hh[1])) {
+			$scan_dim_cache[$bi] = array($hh[0], $hh[1]);
+			$scale = min(100 / $hh[0], 100 / $hh[1], 1.0);
+			return array('w' => $hh[0], 'h' => $hh[1], 'css_w' => max(1, round($hh[0] * $scale)), 'css_h' => max(1, round($hh[1] * $scale)));
+		}
+	}
+
+	// Check sibling channel thumbnails for same base file $bi
+	$chk_c = $c;
+	while (isset($chans[$chk_c])) {
+		$chk_info = pathinfo($chans[$chk_c]);
+		$chk_val = isset($chk_info['extension']) ? $chk_info['extension'] : '';
+		$chk_bi = basename($chans[$chk_c], '.' . $chk_val);
+		$chk_info = pathinfo($chk_bi);
+		$chk_val = isset($chk_info['extension']) ? $chk_info['extension'] : '';
+		$chk_bi = basename($chk_bi, '.' . $chk_val);
+		if ($chk_bi != $bi) break;
+
+		$chk_img = $userlnk . $user . '/tmp' . $chk_c . '.png';
+		$chk_sz = @filesize($chk_img);
+		if ($chk_sz !== false && $chk_sz >= 500) {
+			$chk_hh = @getimagesize($chk_img);
+			if ($chk_hh && !empty($chk_hh[0]) && !empty($chk_hh[1])) {
+				$scan_dim_cache[$bi] = array($chk_hh[0], $chk_hh[1]);
+				$scale = min(100 / $chk_hh[0], 100 / $chk_hh[1], 1.0);
+				return array('w' => $chk_hh[0], 'h' => $chk_hh[1], 'css_w' => max(1, round($chk_hh[0] * $scale)), 'css_h' => max(1, round($chk_hh[1] * $scale)));
+			}
+		}
+		$chk_c++;
+	}
+
+	// Default 100x100 if thumbnail image not generated yet
+	$scan_dim_cache[$bi] = array(100, 100);
+	return array('w' => 100, 'h' => 100, 'css_w' => 100, 'css_h' => 100);
+}
+
 $c = 0;
 $obi = "";
 foreach ($chans as $i) {
@@ -106,71 +164,31 @@ foreach ($chans as $i) {
 		$mapfile = "";
 	}
 
-	$img_file = $userlnk . $user . '/tmp' . $c . '.png';
-	$hash = @filemtime($img_file);
-
-	// Fetch image dimensions for current channel's own thumbnail image
-	$hh = null;
-	$sz = @filesize($img_file);
-	if ($sz !== false && $sz >= 500) {
-		$hh = @getimagesize($img_file);
-	}
-
-	// Fallback to scan dataset image size if current channel thumbnail is not generated yet
-	if (!$hh || empty($hh[0]) || empty($hh[1])) {
-		if ($bi != $obi || !isset($fallback_hh)) {
-			$fallback_hh = null;
-			$chk_c = $c;
-			while (isset($chans[$chk_c])) {
-				$chk_info = pathinfo($chans[$chk_c]);
-				$chk_val = isset($chk_info['extension']) ? $chk_info['extension'] : '';
-				$chk_bi = basename($chans[$chk_c], '.' . $chk_val);
-				$chk_info = pathinfo($chk_bi);
-				$chk_val = isset($chk_info['extension']) ? $chk_info['extension'] : '';
-				$chk_bi = basename($chk_bi, '.' . $chk_val);
-				if ($chk_bi != $bi) break;
-
-				$chk_img = $userlnk . $user . '/tmp' . $chk_c . '.png';
-				$chk_sz = @filesize($chk_img);
-				if ($chk_sz !== false && $chk_sz >= 500) {
-					$chk_hh = @getimagesize($chk_img);
-					if ($chk_hh && !empty($chk_hh[0]) && !empty($chk_hh[1])) {
-						$fallback_hh = $chk_hh;
-						break;
-					}
-				}
-				$chk_c++;
-			}
-		}
-		$hh = $fallback_hh;
-	}
-
-	if ($sz !== false && $sz < 500) {
-		$w_attr = 'width="8" height="8"';
-		$ar_css = 'width:8px; height:8px; aspect-ratio: 1 / 1; ';
-		$cached_w = 8; $cached_h = 8;
-	} else if ($hh && !empty($hh[0]) && !empty($hh[1])) {
-		$scale = min(100 / $hh[0], 100 / $hh[1], 1.0);
-		$css_w = max(1, round($hh[0] * $scale));
-		$css_h = max(1, round($hh[1] * $scale));
-		$w_attr = 'width="' . $hh[0] . '" height="' . $hh[1] . '"';
-		$ar_css = 'width:' . $css_w . 'px; height:' . $css_h . 'px; aspect-ratio: ' . $hh[0] . ' / ' . $hh[1] . '; ';
-		$cached_w = $css_w; $cached_h = $css_h;
-	} else {
-		$w_attr = '';
-		$ar_css = '';
-		$cached_w = 100; $cached_h = 100;
-	}
-
-	$real_src = 'serve_image.php?file=' . urlencode($img_file) . '&v=' . $hash;
-
-	$placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='" . $cached_w . "' height='" . $cached_h . "'%3E%3C/svg%3E";
-	$src_attr = 'src="' . $placeholder . '" data-src="' . $real_src . '"';
-
 	$chan_name = isset($acqchans[$c]) ? trim($acqchans[$c]) : '';
 	$base_chan_name = get_base_channel_name($chan_name);
-	$tooltip = htmlspecialchars($bi . ($chan_name !== '' ? ' [' . $chan_name . ']' : ''));
 	$is_checked = ($saved_overview_channels === null || in_array($base_chan_name, $saved_overview_channels));
+
+	$img_file = $userlnk . $user . '/tmp' . $c . '.png';
+	$dim = get_channel_dimensions($c, $bi, $img_file, $chans, $userlnk, $user);
+	$w = $dim['w']; $h = $dim['h'];
+	$css_w = $dim['css_w']; $css_h = $dim['css_h'];
+
+	$w_attr = 'width="' . $w . '" height="' . $h . '"';
+	$ar_css = 'width:' . $css_w . 'px; height:' . $css_h . 'px; aspect-ratio: ' . $w . ' / ' . $h . '; ';
+
+	$hash = @filemtime($img_file);
+	$real_src = 'serve_image.php?file=' . urlencode($img_file) . '&v=' . $hash;
+
+	// Eager load preselected images currently in the view window (near active index)
+	$is_in_view = $is_checked && (abs($c - $index) <= 30 || in_array($c, $chline));
+	if ($is_in_view) {
+		$src_attr = 'src="' . $real_src . '"';
+	} else {
+		$placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='" . $css_w . "' height='" . $css_h . "'%3E%3C/svg%3E";
+		$src_attr = 'src="' . $placeholder . '" data-src="' . $real_src . '"';
+	}
+
+	$tooltip = htmlspecialchars($bi . ($chan_name !== '' ? ' [' . $chan_name . ']' : ''));
 	$link_style = $is_checked ? 'display:inline-block;' : 'display:none;';
 	echo '<a class="thumb-link" data-channel="'.htmlspecialchars($base_chan_name).'" href="quickview.php?command=goto '.($c+1).'&over=over" title="'.$tooltip.'" style="'.$link_style.'"><img id="img'.$c.'" '.$src_attr.' '.$w_attr.' style="'.$ar_css.'max-width:100px;max-height:100px;box-sizing:border-box;'.$border_css.'background-color:#111;" title="'.$tooltip.'" onerror="handleImgError(this)"></a>';
 	$c++;
