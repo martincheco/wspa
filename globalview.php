@@ -701,32 +701,24 @@ function updateHeaderReadout() {
 	}
 }
 
-function updateRangeForFocus(targetFileIdx) {
+function ensureFocusWithinThresholds(targetFileIdx) {
 	if (typeof targetFileIdx === 'undefined' || targetFileIdx === null) return;
-
-	var halfBelow = Math.floor((maxVisibleImages - 1) / 2);
-	var halfAbove = Math.ceil((maxVisibleImages - 1) / 2);
-
-	var newMin = targetFileIdx - halfBelow;
-	var newMax = targetFileIdx + halfAbove;
-
-	if (newMin < 0) {
-		newMin = 0;
-		newMax = Math.min(maxFileIdx, maxVisibleImages - 1);
+	var changed = false;
+	if (targetFileIdx < fileMin) {
+		fileMin = targetFileIdx;
+		if (timeMinInput) timeMinInput.value = fileMin;
+		changed = true;
 	}
-	if (newMax > maxFileIdx) {
-		newMax = maxFileIdx;
-		newMin = Math.max(0, maxFileIdx - (maxVisibleImages - 1));
+	if (targetFileIdx > fileMax) {
+		fileMax = targetFileIdx;
+		if (timeMaxInput) timeMaxInput.value = fileMax;
+		changed = true;
 	}
-
-	if (timeMinInput && timeMaxInput) {
-		var currMin = parseInt(timeMinInput.value, 10);
-		var currMax = parseInt(timeMaxInput.value, 10);
-		if (currMin !== newMin || currMax !== newMax) {
-			timeMinInput.value = newMin;
-			timeMaxInput.value = newMax;
-			onTimeSliderChange();
-		}
+	if (changed) {
+		var minValSpan = document.getElementById('gvTimeMinVal');
+		var maxValSpan = document.getElementById('gvTimeMaxVal');
+		if (minValSpan) minValSpan.textContent = (fileMin + 1);
+		if (maxValSpan) maxValSpan.textContent = (fileMax + 1);
 	}
 }
 
@@ -735,7 +727,7 @@ function onFocusSliderChange() {
 	if (!focusInput) return;
 	var targetFileIdx = parseInt(focusInput.value, 10);
 
-	updateRangeForFocus(targetFileIdx);
+	ensureFocusWithinThresholds(targetFileIdx);
 
 	var channelItems = getAllChannelItems();
 	if (channelItems.length > 0) {
@@ -1924,11 +1916,23 @@ function getVisibleItems() {
 	var targetClean = cleanChanName(chanFilter);
 	var secClean = (secChanFilter && secChanFilter !== 'none') ? cleanChanName(secChanFilter) : null;
 
+	var focusItem = rawData.find(function(it) { return it.c === focusedIndex; });
+	var focusedFileIdx = focusItem ? focusItem.file_idx : fileMax;
+
+	var halfBelow = Math.floor((maxVisibleImages - 1) / 2);
+	var halfAbove = Math.ceil((maxVisibleImages - 1) / 2);
+
+	var winMin = focusedFileIdx - halfBelow;
+	var winMax = focusedFileIdx + halfAbove;
+
+	var effMin = Math.max(fileMin, winMin);
+	var effMax = Math.min(fileMax, winMax);
+
 	var itemsMap = {};
 	var secMap = {};
 
 	rawData.forEach(function(item) {
-		if (item.file_idx < fileMin || item.file_idx > fileMax) return;
+		if (item.file_idx < effMin || item.file_idx > effMax) return;
 		var cName = cleanChanName(item.chan);
 		if (chanFilter === 'all' || cName === targetClean) {
 			if (!itemsMap[item.file_idx]) itemsMap[item.file_idx] = item;
@@ -2506,22 +2510,12 @@ function onMaxVisibleImagesChange() {
 	if (maxValSpan) maxValSpan.textContent = maxVisibleImages;
 
 	saveSpatialViewState();
-
-	var focusItem = rawData.find(function(it) { return it.c === focusedIndex; });
-	var focusFileIdx = focusItem ? focusItem.file_idx : (timeMaxInput ? parseInt(timeMaxInput.value, 10) : 0);
-	updateRangeForFocus(focusFileIdx);
+	onTimeSliderChange();
 }
 
 function onTimeSliderChange() {
 	fileMin = parseInt(timeMinInput.value, 10);
 	fileMax = parseInt(timeMaxInput.value, 10);
-
-	if (document.activeElement === timeMaxInput || document.activeElement !== timeMinInput) {
-		if (fileMax - fileMin + 1 > maxVisibleImages) {
-			fileMin = Math.max(0, fileMax - (maxVisibleImages - 1));
-			timeMinInput.value = fileMin;
-		}
-	}
 
 	if (fileMin > fileMax) {
 		if (document.activeElement === timeMinInput) {
@@ -2530,6 +2524,17 @@ function onTimeSliderChange() {
 		} else {
 			fileMin = fileMax;
 			timeMinInput.value = fileMin;
+		}
+	}
+
+	var focusItem = rawData.find(function(it) { return it.c === focusedIndex; });
+	if (focusItem) {
+		if (focusItem.file_idx < fileMin) {
+			fileMin = focusItem.file_idx;
+			timeMinInput.value = fileMin;
+		} else if (focusItem.file_idx > fileMax) {
+			fileMax = focusItem.file_idx;
+			timeMaxInput.value = fileMax;
 		}
 	}
 
@@ -3265,7 +3270,7 @@ function centerImage(item, animate) {
 	if (cw <= 0 || ch <= 0) return;
 
 	if (typeof item.file_idx !== 'undefined') {
-		updateRangeForFocus(item.file_idx);
+		ensureFocusWithinThresholds(item.file_idx);
 	}
 
 	var visItems = getVisibleItems();
