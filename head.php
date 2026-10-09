@@ -177,7 +177,7 @@ echo ' href="sts.php">&nbsp;&nbsp;Sts&nbsp;&nbsp;</a>';
 
 echo '<a title="Currently loaded data overview"';
 if ($curphp=='quickview_over.php' || $curphp=='quickview_over2.php'){echo ' style="color:#ff0"';}
-echo ' href="quickview_over.php">&nbsp;&nbsp;Overview&nbsp;&nbsp;</a>';
+echo ' href="quickview_over.php#active_target">&nbsp;&nbsp;Overview&nbsp;&nbsp;</a>';
 
 echo '<a title="3D Spatial arrangement of dataset scans"';
 if ($curphp=='globalview.php'){echo ' style="color:#ff0"';}

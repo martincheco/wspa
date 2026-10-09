@@ -8,7 +8,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	$selected_chans = isset($_POST['chans']) && is_array($_POST['chans']) ? $_POST['chans'] : array();
 	$chans_str = implode(',', $selected_chans);
 	save_user_config(array('overview_channels' => $chans_str), $user);
-	header('Location: quickview_over.php');
+	header('Location: quickview_over.php#active_target');
 	exit;
 }
 
@@ -129,9 +129,6 @@ $unique_acqchans = array();
 
 $c = 0;
 $obi = "";
-$active_row_idx = 0;
-$row_counter = 0;
-
 foreach ($chans as $i) {
 	$info = pathinfo($i);
 
@@ -173,13 +170,9 @@ foreach ($chans as $i) {
 				'has_sts' => $has_sts,
 				'items' => array()
 			);
-			$row_counter++;
 		}
 
 		$is_active = ($c == $index || in_array($c, $chline));
-		if ($is_active && $active_row_idx === 0) {
-			$active_row_idx = max(0, $row_counter - 1);
-		}
 
 		if (in_array($c, $chline)) {
 			$border_css = "border:1px solid #fff; outline: 2px solid #0aa; outline-offset: -2px;";
@@ -202,15 +195,6 @@ foreach ($chans as $i) {
 	$c++;
 }
 
-$estimated_scroll_top = max(0, ($active_row_idx * 104) - 200);
-
-echo '<script>';
-echo '(function(){';
-echo '  var sf = document.querySelector(".scrollfill");';
-echo '  if (sf) { sf.scrollTop = ' . $estimated_scroll_top . '; }';
-echo '})();';
-echo '</script>';
-
 // Step 4: Output HTML grid at exact sizes, matching past over.php / quickview_over.php / browser.php preview mode
 echo '<TABLE style="position:relative; z-index:1;">';
 foreach ($scan_groups as $bi => $group) {
@@ -227,14 +211,16 @@ foreach ($scan_groups as $bi => $group) {
 		$ar_css = ($w > 0 && $h > 0) ? 'aspect-ratio: ' . $w . ' / ' . $h . '; ' : '';
 		$tooltip = htmlspecialchars($bi . ($item['chan_name'] !== '' ? ' [' . $item['chan_name'] . ']' : ''));
 
+		$is_target = ($c == $index);
+		$anchor_id = $is_target ? ' id="active_target"' : '';
+
 		// Step 5: Fill images by native HTML5 loading="lazy"
-		echo '<a href="quickview.php?command=goto '.($c+1).'&over=over" title="'.$tooltip.'">';
+		echo '<a' . $anchor_id . ' href="quickview.php?command=goto '.($c+1).'&over=over" title="'.$tooltip.'">';
+		if ($is_target) {
+			echo '<script>(function(){ var container = document.querySelector(".scrollfill"); var target = document.getElementById("active_target"); if (container && target) { container.scrollTop = Math.max(0, target.offsetTop - (container.clientHeight / 2) + 50); } })();</script>';
+		}
 		echo '<img id="img'.$c.'" src="'.$real_src.'" '.$w_attr.' loading="lazy" style="'.$ar_css.'width:auto;height:auto;max-width:100px;max-height:100px;padding:1px;background-color:#111;'.$item['border_css'].'" title="'.$tooltip.'" onerror="handleImgError(this)">';
 		echo '</a>';
-
-		if ($c == $index) {
-			echo '<script>(function(){ var el = document.getElementById("img' . $c . '"); if (el) { el.scrollIntoView({ behavior: "auto", block: "center", inline: "center" }); } })();</script>';
-		}
 	}
 	echo '</TD></TR>';
 }
@@ -246,7 +232,7 @@ echo '</TABLE>';
 
 	<!-- Right Side Channel Preselection Window -->
 	<TD style="vertical-align:top; width:200px;">
-		<FORM id="chan_form" method="post" action="quickview_over.php">
+		<FORM id="chan_form" method="post" action="quickview_over.php#active_target">
 		<div id="channel_panel" style="position:sticky; top:0; right:0; border-left:1px solid #444; border-bottom:1px solid #444; background:#181818; padding:6px; box-sizing:border-box; width:200px; overflow-x:hidden;">
 			<div style="font-weight:bold; margin-bottom:6px; border-bottom:1px solid #444; padding-bottom:4px; color:#bff;">Channels</div>
 			<div style="margin-bottom:6px;">
@@ -298,15 +284,6 @@ function toggleAllChans(enable) {
   });
   document.getElementById('chan_form').submit();
 }
-
-function scrollToActiveImage() {
-  var targetImage = document.getElementById('<?echo 'img'.$index;?>');
-  if (targetImage) {
-    targetImage.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
-  }
-}
-
-scrollToActiveImage();
 </script>
 
 </BODY>
