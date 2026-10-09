@@ -653,6 +653,16 @@ html, body {
 			<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
 				<input type="checkbox" id="gvZFactorEnabled" <?php echo (!isset($user_cfg['gv_zfactor_enabled']) || $user_cfg['gv_zfactor_enabled'] === 'true') ? 'checked' : ''; ?> onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Size-proportional &Delta;Z
 			</label>
+			<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
+				<input type="checkbox" id="gvShowHaze" <?php echo (!isset($user_cfg['gv_show_haze']) || $user_cfg['gv_show_haze'] === 'true') ? 'checked' : ''; ?> onchange="onHazeCheckboxToggle()" style="vertical-align:middle; margin-right:6px;"> Depth haze
+			</label>
+			<div id="gvHazeControlRow" style="margin-left:22px; margin-top:2px; display:<?php echo (!isset($user_cfg['gv_show_haze']) || $user_cfg['gv_show_haze'] === 'true') ? 'block' : 'none'; ?>;">
+				<div style="display:flex; align-items:center; gap:4px;">
+					<span style="width:40px; white-space:nowrap; color:#aaa; font-size:9.5pt; font-weight:normal; flex-shrink:0;">Fade</span>
+					<input type="range" id="gvHazeDensity" min="20" max="300" value="<?php echo isset($user_cfg['gv_haze_density']) ? intval($user_cfg['gv_haze_density']) : 100; ?>" step="10" oninput="onHazeSliderChange()" title="Haze fade distance multiplier (20% to 300%)" style="flex:1; min-width:0;">
+					<span id="gvHazeVal" style="width:36px; text-align:right; color:#ff0; font-size:9.5pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo isset($user_cfg['gv_haze_density']) ? sprintf('%.1fx', floatval($user_cfg['gv_haze_density']) / 100.0) : '1.0x'; ?></span>
+				</div>
+			</div>
 		</div>
 
 		<!-- 6. Coordinates readout at bottom of sidebar -->
@@ -1017,6 +1027,12 @@ function saveSpatialViewState(immediate) {
 		var autoZEl = document.getElementById('gvAutoZSpacing');
 		if (autoZEl) localStorage.setItem('wspa_gv_auto_zspacing', autoZEl.checked ? 'true' : 'false');
 
+		var hazeEl = document.getElementById('gvShowHaze');
+		if (hazeEl) localStorage.setItem('wspa_gv_show_haze', hazeEl.checked ? 'true' : 'false');
+
+		var hazeDensityEl = document.getElementById('gvHazeDensity');
+		if (hazeDensityEl) localStorage.setItem('wspa_gv_haze_density', hazeDensityEl.value);
+
 		var primChanEl = document.getElementById('gvChanFilter');
 		if (primChanEl) localStorage.setItem('wspa_gv_prim_chan', primChanEl.value);
 
@@ -1062,6 +1078,8 @@ function saveSpatialViewState(immediate) {
 			var projFrameEl = document.getElementById('gvShowProjFrame');
 			var centerLineEl = document.getElementById('gvShowCenterLine');
 			var autoZEl = document.getElementById('gvAutoZSpacing');
+			var hazeEl = document.getElementById('gvShowHaze');
+			var hazeDensityEl = document.getElementById('gvHazeDensity');
 			var primChanEl = document.getElementById('gvChanFilter');
 			var secChanEl = document.getElementById('gvSecChanFilter');
 			var maxImgEl = document.getElementById('gvMaxVisibleImages');
@@ -1096,6 +1114,8 @@ function saveSpatialViewState(immediate) {
 			if (projFrameEl) formData.append('gv_show_proj_frame', projFrameEl.checked ? 'true' : 'false');
 			if (centerLineEl) formData.append('gv_show_center_line', centerLineEl.checked ? 'true' : 'false');
 			if (autoZEl) formData.append('gv_auto_zspacing', autoZEl.checked ? 'true' : 'false');
+			if (hazeEl) formData.append('gv_show_haze', hazeEl.checked ? 'true' : 'false');
+			if (hazeDensityEl) formData.append('gv_haze_density', hazeDensityEl.value);
 			if (primChanEl) formData.append('gv_prim_chan', primChanEl.value);
 			if (secChanEl) formData.append('gv_sec_chan', secChanEl.value);
 			if (maxImgEl) formData.append('gv_max_visible_images', maxImgEl.value);
@@ -1122,6 +1142,8 @@ function loadSpatialViewState() {
 		var sYaw = cfg.gv_yaw !== undefined ? cfg.gv_yaw : localStorage.getItem('wspa_gv_yaw');
 		var sZSpace = cfg.gv_zspacing !== undefined ? cfg.gv_zspacing : localStorage.getItem('wspa_gv_zspacing');
 		var sAutoZ = cfg.gv_auto_zspacing !== undefined ? cfg.gv_auto_zspacing : localStorage.getItem('wspa_gv_auto_zspacing');
+		var sHaze = cfg.gv_show_haze !== undefined ? cfg.gv_show_haze : localStorage.getItem('wspa_gv_show_haze');
+		var sHazeDensity = cfg.gv_haze_density !== undefined ? cfg.gv_haze_density : localStorage.getItem('wspa_gv_haze_density');
 		var sZFactor = cfg.gv_zfactor !== undefined ? cfg.gv_zfactor : localStorage.getItem('wspa_gv_zfactor');
 		var sZFactorEnabled = cfg.gv_zfactor_enabled !== undefined ? cfg.gv_zfactor_enabled : localStorage.getItem('wspa_gv_zfactor_enabled');
 		var sZoom = cfg.gv_zoom !== undefined ? cfg.gv_zoom : localStorage.getItem('wspa_gv_zoom');
@@ -1287,6 +1309,19 @@ function loadSpatialViewState() {
 			var autoZInput = document.getElementById('gvAutoZSpacing');
 			if (autoZInput) autoZInput.checked = (String(sAutoZ) === 'true');
 		}
+
+		if (sHaze !== null && sHaze !== undefined) {
+			var hInput = document.getElementById('gvShowHaze');
+			if (hInput) hInput.checked = (String(sHaze) === 'true');
+		}
+
+		if (sHazeDensity !== null && sHazeDensity !== undefined && !isNaN(parseInt(sHazeDensity, 10))) {
+			var hazeDensityVal = Math.max(20, Math.min(300, parseInt(sHazeDensity, 10)));
+			var hazeDensityInput = document.getElementById('gvHazeDensity');
+			if (hazeDensityInput) hazeDensityInput.value = hazeDensityVal;
+		}
+
+		updateHazeSliderReadout();
 		isStateLoaded = true;
 	} catch (e) {
 		isStateLoaded = true;
@@ -2728,7 +2763,51 @@ function onAlphaChange() {
 	requestDraw();
 }
 
+var loadedBlurImages = {};
+
+function getBlurCanvas(item, imgObj) {
+	if (!imgObj || !imgObj.complete || imgObj.naturalWidth === 0) return null;
+	if (loadedBlurImages[item.c]) return loadedBlurImages[item.c];
+
+	try {
+		var cv = document.createElement('canvas');
+		cv.width = Math.max(8, Math.floor(imgObj.naturalWidth / 10));
+		cv.height = Math.max(8, Math.floor(imgObj.naturalHeight / 10));
+		var cctx = cv.getContext('2d');
+		cctx.imageSmoothingEnabled = true;
+		cctx.drawImage(imgObj, 0, 0, cv.width, cv.height);
+		loadedBlurImages[item.c] = cv;
+		return cv;
+	} catch (e) {
+		return null;
+	}
+}
+
+function updateHazeSliderReadout() {
+	var chk = document.getElementById('gvShowHaze');
+	var row = document.getElementById('gvHazeControlRow');
+	var slider = document.getElementById('gvHazeDensity');
+	var readout = document.getElementById('gvHazeVal');
+	if (!chk || !row || !slider || !readout) return;
+	row.style.display = chk.checked ? 'block' : 'none';
+	var mult = parseFloat(slider.value) / 100.0;
+	readout.textContent = mult.toFixed(1) + 'x';
+}
+
+function onHazeCheckboxToggle() {
+	updateHazeSliderReadout();
+	saveSpatialViewState(true);
+	requestDraw();
+}
+
+function onHazeSliderChange() {
+	updateHazeSliderReadout();
+	saveSpatialViewState(true);
+	requestDraw();
+}
+
 function onCheckboxChange() {
+	updateHazeSliderReadout();
 	saveSpatialViewState(true);
 	requestDraw();
 }
@@ -2845,9 +2924,38 @@ function drawScene() {
 	var radRot = -(viewAngle * Math.PI / 180.0);
 	var visibleItems = getVisibleItems();
 
+	var showHaze = document.getElementById('gvShowHaze') ? document.getElementById('gvShowHaze').checked : false;
+	var hazeDensityMult = 1.0;
+	if (showHaze) {
+		var hazeDensityEl = document.getElementById('gvHazeDensity');
+		if (hazeDensityEl) {
+			hazeDensityMult = parseFloat(hazeDensityEl.value) / 100.0;
+		}
+		ctx.fillStyle = '#e8ecf0';
+		ctx.fillRect(0, 0, cw, ch);
+	}
+
 	// 3D Isometric View Rendering
 	var itemsWith3D = sort3DItems(buildItemsWith3D(visibleItems));
 	lastRenderedItemsWith3D = itemsWith3D;
+
+	var focItem = rawData.find(function(it) { return it.c === focusedIndex; }) || rawData[0];
+	var focX = focItem ? focItem.xo : 0;
+	var focY = focItem ? focItem.yo : 0;
+	var focEntry = itemsWith3D.find(function(e) { return e.item.c === focusedIndex; });
+	var focZ = focEntry ? focEntry.zMeters : 0;
+
+	var maxHazeDist = 0;
+	if (showHaze && itemsWith3D.length > 0) {
+		itemsWith3D.forEach(function(e) {
+			var dx = e.item.xo - focX;
+			var dy = e.item.yo - focY;
+			var dz = e.zMeters - focZ;
+			var dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+			if (dist > maxHazeDist) maxHazeDist = dist;
+		});
+		if (maxHazeDist <= 1e-12) maxHazeDist = 1e-7;
+	}
 
 	// Draw 3D Time Sequence Connector Lines between consecutive scans in visible order
 	var showCenterLine = document.getElementById('gvShowCenterLine') ? document.getElementById('gvShowCenterLine').checked : true;
@@ -2882,7 +2990,7 @@ function drawScene() {
 		var maxX = entry.maxX;
 		var minY = entry.minY;
 		var maxY = entry.maxY;
-		if (maxX < 0 || minX > cw || maxY < 0 || minY > ch) {
+		if (maxX < 0 || minX > cw || minY < 0 || minY > ch) {
 			return;
 		}
 
@@ -2890,6 +2998,16 @@ function drawScene() {
 		var hPx = item.ys * zoomScale;
 		if (wPx <= 1e-6 || hPx <= 1e-6 || !isFinite(wPx) || !isFinite(hPx)) {
 			return;
+		}
+
+		var fogFactor = 0;
+		if (showHaze && maxHazeDist > 0) {
+			var dx = entry.item.xo - focX;
+			var dy = entry.item.yo - focY;
+			var dz = entry.zMeters - focZ;
+			var dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+			var relDist = dist / maxHazeDist;
+			fogFactor = Math.min(1.0, relDist / hazeDensityMult);
 		}
 
 		var imgObj = loadedImages[item.c];
@@ -2916,14 +3034,35 @@ function drawScene() {
 
 		ctx.transform(a, b, c, d, e, f);
 		if (imgObj && imgObj.complete && imgObj.naturalWidth !== 0) {
+			ctx.save();
+			ctx.scale(1, -1);
+
 			ctx.imageSmoothingEnabled = false;
 			ctx.mozImageSmoothingEnabled = false;
 			ctx.webkitImageSmoothingEnabled = false;
 			ctx.msImageSmoothingEnabled = false;
 			ctx.globalAlpha = alpha;
-			ctx.save();
-			ctx.scale(1, -1);
 			ctx.drawImage(imgObj, 0, -hPx, wPx, hPx);
+
+			if (showHaze && fogFactor > 0.05) {
+				var blurCv = getBlurCanvas(item, imgObj);
+				if (blurCv) {
+					ctx.globalAlpha = alpha * Math.min(1.0, fogFactor * 1.2);
+					ctx.imageSmoothingEnabled = true;
+					ctx.mozImageSmoothingEnabled = true;
+					ctx.webkitImageSmoothingEnabled = true;
+					ctx.msImageSmoothingEnabled = true;
+					ctx.drawImage(blurCv, 0, -hPx, wPx, hPx);
+				}
+			}
+
+			if (showHaze && fogFactor > 0.05) {
+				ctx.globalCompositeOperation = 'source-atop';
+				ctx.fillStyle = '#ffffff';
+				ctx.globalAlpha = 0.65 * fogFactor;
+				ctx.fillRect(0, -hPx, wPx, hPx);
+			}
+
 			ctx.restore();
 		}
 		ctx.restore();
