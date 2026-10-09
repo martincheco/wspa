@@ -2737,10 +2737,29 @@ function buildItemsWith3D(visibleItems) {
 	});
 }
 
-// Pure Geometrical 3D Camera Depth Sorting (from background to foreground)
+// Invariant Physical Elevation & 3D Camera Depth Sort (from background to foreground)
 function sort3DItems(itemsWith3D) {
 	if (!itemsWith3D || itemsWith3D.length <= 1) return itemsWith3D;
-	itemsWith3D.sort(function(a, b) { return (b.depth - a.depth) || (a.visIdx - b.visIdx); });
+	itemsWith3D.sort(function(a, b) {
+		// 1. Physical Quad Overlap (XY Plane): higher Z elevation sits on top (foreground)
+		// Invariant to camera pitch and yaw rotation
+		var physOverlap = do2DQuadsIntersect(get2DPhysicalCorners(a.item), get2DPhysicalCorners(b.item));
+		if (physOverlap) {
+			var diffZ = a.zMeters - b.zMeters;
+			if (Math.abs(diffZ) > 1e-12) {
+				return diffZ; // Lower Z drawn first (background), higher Z drawn later (foreground)
+			}
+		}
+
+		// 2. Pure 3D Camera Line-of-Sight Depth for non-overlapping scans
+		var diffDepth = b.depth - a.depth;
+		if (Math.abs(diffDepth) > 1e-12) {
+			return diffDepth; // Larger camera depth drawn first (background)
+		}
+
+		// 3. Stable Deterministic Sequence Tie-Breaker
+		return a.visIdx - b.visIdx;
+	});
 	return itemsWith3D;
 }
 
