@@ -1384,33 +1384,47 @@ function getVisibleZHeights(visibleItems) {
 			zHeights[i] = zHeights[i - 1] + effZStep;
 		}
 	} else {
-		var physCorners = visibleItems.map(function(item) {
-			return get2DPhysicalCorners(item);
+		var indexedItems = visibleItems.map(function(item, index) {
+			var area = item.xs * item.ys;
+			return { item: item, index: index, area: area, corners: get2DPhysicalCorners(item) };
 		});
 
-		for (var i = 1; i < visibleItems.length; i++) {
-			var cornersCurr = physCorners[i];
-			var itemCurr = visibleItems[i];
-			var diagCurr = Math.sqrt(itemCurr.xs * itemCurr.xs + itemCurr.ys * itemCurr.ys);
+		var priorityItems = indexedItems.slice().sort(function(a, b) {
+			if (Math.abs(b.area - a.area) > 1e-12) {
+				return b.area - a.area;
+			}
+			return a.index - b.index;
+		});
+
+		var assignedZ = new Array(visibleItems.length);
+		var processed = [];
+
+		priorityItems.forEach(function(pItem) {
+			var diagCurr = Math.sqrt(pItem.item.xs * pItem.item.xs + pItem.item.ys * pItem.item.ys);
 			var scaleMultiplier = isFactorEnabled ? Math.pow(diagCurr / avgDiag, factorPower) : 1.0;
 			var effZStep = baseZStep * scaleMultiplier;
 
 			var maxOverlappingZ = -1;
 
-			for (var j = 0; j < i; j++) {
-				var cornersPrev = physCorners[j];
-				if (do2DQuadsIntersect(cornersCurr, cornersPrev)) {
-					if (zHeights[j] > maxOverlappingZ) {
-						maxOverlappingZ = zHeights[j];
+			processed.forEach(function(prev) {
+				if (do2DQuadsIntersect(pItem.corners, prev.corners)) {
+					if (assignedZ[prev.index] > maxOverlappingZ) {
+						maxOverlappingZ = assignedZ[prev.index];
 					}
 				}
-			}
+			});
 
 			if (maxOverlappingZ >= 0) {
-				zHeights[i] = maxOverlappingZ + effZStep;
+				assignedZ[pItem.index] = maxOverlappingZ + effZStep;
 			} else {
-				zHeights[i] = zHeights[i - 1];
+				assignedZ[pItem.index] = 0;
 			}
+
+			processed.push(pItem);
+		});
+
+		for (var k = 0; k < visibleItems.length; k++) {
+			zHeights[k] = assignedZ[k] || 0;
 		}
 	}
 	return zHeights;
