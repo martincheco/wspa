@@ -1475,7 +1475,7 @@ function updateProjectionCache() {
 		var visIdx = visibleItems.findIndex(function(v) { return v.c === focusedItem.c; });
 		if (visIdx < 0) visIdx = 0;
 		var zMeters = getItemZMeters(visIdx, visibleItems);
-		cachedFoc = { item: focusedItem, x: focusedItem.xo, y: focusedItem.yo, z: zMeters };
+		cachedFoc = { item: focusedItem, x: (focusedItem.xo || 0), y: (focusedItem.yo || 0), z: (zMeters || 0) };
 	}
 
 	var totalYawRad = -viewAngle * Math.PI / 180.0;
@@ -2758,15 +2758,15 @@ function buildItemsWith3D(visibleItems) {
 	});
 }
 
-// Pure Continuous Floating-Point 3D Depth Sort (from background to foreground)
+// Strict Transitive Lexicographical 3D Depth Sort (from background to foreground)
 function sort3DItems(itemsWith3D) {
 	if (!itemsWith3D || itemsWith3D.length <= 1) return itemsWith3D;
 	itemsWith3D.sort(function(a, b) {
-		var physOverlap = do2DQuadsIntersect(a.physCorners, b.physCorners);
-		if (physOverlap) {
-			return (a.zMeters - b.zMeters) || (b.depth - a.depth) || (a.visIdx - b.visIdx);
-		}
-		return (b.depth - a.depth) || (a.visIdx - b.visIdx);
+		var diffZ = a.zMeters - b.zMeters;
+		if (diffZ !== 0) return diffZ;
+		var diffDepth = b.depth - a.depth;
+		if (diffDepth !== 0) return diffDepth;
+		return a.visIdx - b.visIdx;
 	});
 	return itemsWith3D;
 }
