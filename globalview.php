@@ -2403,36 +2403,50 @@ function resetZoom() {
 	centerOnActiveImage();
 }
 
-// Preload all thumbnail images into memory starting from the active image downwards, then remaining items
+var preloadQueue = [];
+var preloadTimer = null;
+
+// Lazy load thumbnail images into memory centered on the focused image in queued batches
 function preloadImages() {
 	if (!rawData || rawData.length === 0) return;
 
-	var activeItem = rawData.find(function(it) { return it.c === qvudIndex; }) || rawData[0];
-	var targetFileIdx = activeItem ? activeItem.file_idx : 0;
+	if (preloadTimer) {
+		clearTimeout(preloadTimer);
+		preloadTimer = null;
+	}
 
-	var sorted = rawData.slice().sort(function(a, b) {
-		var aInVis = (a.file_idx <= targetFileIdx);
-		var bInVis = (b.file_idx <= targetFileIdx);
+	var focusItem = rawData.find(function(it) { return it.c === focusedIndex; }) || rawData[0];
+	var targetFileIdx = focusItem ? focusItem.file_idx : 0;
 
-		if (aInVis && !bInVis) return -1;
-		if (!aInVis && bInVis) return 1;
+	preloadQueue = rawData.slice().sort(function(a, b) {
+		var distA = Math.abs(a.file_idx - targetFileIdx);
+		var distB = Math.abs(b.file_idx - targetFileIdx);
+		return distA - distB;
+	});
 
-		if (aInVis && bInVis) {
-			// Both in visible range: sort descending from targetFileIdx down to 0
-			return b.file_idx - a.file_idx;
-		} else {
-			// Both above targetFileIdx: sort ascending from targetFileIdx + 1 upwards
-			return a.file_idx - b.file_idx;
+	processPreloadQueueBatch();
+}
+
+function processPreloadQueueBatch() {
+	if (!preloadQueue || preloadQueue.length === 0) return;
+
+	var batch = preloadQueue.splice(0, 10);
+	var loadedAny = false;
+
+	batch.forEach(function(item) {
+		if (!loadedImages[item.c]) {
+			var img = new Image();
+			img.onload = function() { requestDraw(); };
+			img.onerror = function() { requestDraw(); };
+			img.src = item.src;
+			loadedImages[item.c] = img;
+			loadedAny = true;
 		}
 	});
 
-	sorted.forEach(function(item) {
-		var img = new Image();
-		img.onload = function() { requestDraw(); };
-		img.onerror = function() { requestDraw(); };
-		img.src = item.src;
-		loadedImages[item.c] = img;
-	});
+	if (preloadQueue.length > 0) {
+		preloadTimer = setTimeout(processPreloadQueueBatch, 50);
+	}
 }
 
 function physToScreen(x, y) {
@@ -2736,19 +2750,25 @@ function drawScene() {
 	// 3D Isometric View Rendering
 	var itemsWith3D = buildItemsWith3D(visibleItems);
 
-	// Sort 3D tiles using true 3D camera depth derived from real-world 3D corner coordinates for Painter's Algorithm
+	// Sort 3D tiles using corner-extent maxDepth & Auto Z height comparison for Painter's Algorithm
 	itemsWith3D.sort(function(a, b) {
-		var diffMax = b.maxDepth - a.maxDepth;
-		if (Math.abs(diffMax) > 1e-6) {
-			return diffMax;
+		var physOverlap = do2DQuadsIntersect(get2DPhysicalCorners(a.item), get2DPhysicalCorners(b.item));
+
+		var overlapX = Math.max(0, Math.min(a.maxX, b.maxX) - Math.max(a.minX, b.minX));
+		var overlapY = Math.max(0, Math.min(a.maxY, b.maxY) - Math.max(a.minY, b.minY));
+		var screenOverlap = (overlapX > 0 && overlapY > 0);
+
+		if (physOverlap || screenOverlap) {
+			if (Math.abs(a.zMeters - b.zMeters) > 1e-12) {
+				return a.zMeters - b.zMeters;
+			}
+			if (Math.abs(a.maxDepth - b.maxDepth) > 1e-6) {
+				return b.maxDepth - a.maxDepth;
+			}
 		}
-		var diffMean = b.meanDepth - a.meanDepth;
-		if (Math.abs(diffMean) > 1e-6) {
-			return diffMean;
-		}
-		var diffMin = b.minDepth - a.minDepth;
-		if (Math.abs(diffMin) > 1e-6) {
-			return diffMin;
+
+		if (Math.abs(a.maxDepth - b.maxDepth) > 1e-6) {
+			return b.maxDepth - a.maxDepth;
 		}
 		return a.visIdx - b.visIdx;
 	});
@@ -3285,6 +3305,7 @@ function centerImage(item, animate) {
 	focusedIndex = item.c;
 	activeIndex = item.c;
 	updateHeaderReadout();
+	preloadImages();
 
 	panX = currScreen.x;
 	panY = currScreen.y;
