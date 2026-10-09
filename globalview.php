@@ -2901,6 +2901,16 @@ function sort3DItems(itemsWith3D) {
 	return itemsWith3D;
 }
 
+function isTileFullyOffscreen(quad, cw, ch, margin) {
+	if (!quad || quad.length < 4) return true;
+	if (typeof margin === 'undefined') margin = 500;
+	var allLeft   = quad.every(function(p) { return p.x < -margin; });
+	var allRight  = quad.every(function(p) { return p.x > cw + margin; });
+	var allAbove  = quad.every(function(p) { return p.y < -margin; });
+	var allBelow  = quad.every(function(p) { return p.y > ch + margin; });
+	return allLeft || allRight || allAbove || allBelow;
+}
+
 function drawScene() {
 	updateProjectionCache();
 	updateZoomSliderReadout();
@@ -2946,6 +2956,7 @@ function drawScene() {
 	var focZ = focEntry ? focEntry.zMeters : 0;
 
 	var maxHazeDist = 0;
+	var maxDepthRel = 0;
 	if (showHaze && itemsWith3D.length > 0) {
 		itemsWith3D.forEach(function(e) {
 			var dx = e.item.xo - focX;
@@ -2956,9 +2967,11 @@ function drawScene() {
 			if (depthRel > 0) {
 				var dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 				if (dist > maxHazeDist) maxHazeDist = dist;
+				if (depthRel > maxDepthRel) maxDepthRel = depthRel;
 			}
 		});
 		if (maxHazeDist <= 1e-12) maxHazeDist = 1e-7;
+		if (maxDepthRel <= 1e-12) maxDepthRel = 1e-7;
 	}
 
 	// Draw 3D Time Sequence Connector Lines between consecutive scans in visible order
@@ -2990,11 +3003,7 @@ function drawScene() {
 		var quad = entry.quad;
 		var P0 = quad[0], P1 = quad[1], P2 = quad[2], P3 = quad[3];
 
-		var minX = entry.minX;
-		var maxX = entry.maxX;
-		var minY = entry.minY;
-		var maxY = entry.maxY;
-		if (maxX < 0 || minX > cw || minY < 0 || minY > ch) {
+		if (isTileFullyOffscreen(quad, cw, ch, 500)) {
 			return;
 		}
 
@@ -3014,7 +3023,11 @@ function drawScene() {
 			if (depthRel > 0) {
 				var dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 				var relDist = dist / maxHazeDist;
-				fogFactor = Math.min(1.0, relDist * hazeDensityMult);
+				var rampSpan = maxDepthRel * 0.25;
+				if (rampSpan <= 1e-12) rampSpan = 1e-7;
+				var tRamp = Math.max(0, Math.min(1.0, depthRel / rampSpan));
+				var depthRamp = tRamp * tRamp * (3.0 - 2.0 * tRamp);
+				fogFactor = Math.min(1.0, relDist * hazeDensityMult * depthRamp);
 			}
 		}
 
