@@ -61,7 +61,7 @@ if ($shm != '') { $userlnk = $userlink; } else { $userlnk = $userdir; }
 
 $scan_dim_cache = array();
 
-function get_channel_dimensions($c, $bi, $img_file, $chans, $userlnk, $user) {
+function get_channel_dimensions($c, $bi, $img_file, $raw_file, $chans, $userlnk, $user) {
 	global $scan_dim_cache;
 
 	$sz = @filesize($img_file);
@@ -112,7 +112,20 @@ function get_channel_dimensions($c, $bi, $img_file, $chans, $userlnk, $user) {
 		$chk_c++;
 	}
 
-	// Default 100x100 if thumbnail image not generated yet
+	// Native Physical Scan Dimensions Fallback (xs / ys)
+	if ($raw_file !== '' && file_exists($raw_file)) {
+		$hdr = parse_spm_header($raw_file);
+		if ($hdr['xs'] > 0 && $hdr['ys'] > 0) {
+			$ratio = $hdr['xs'] / $hdr['ys'];
+			$w = 100;
+			$h = max(1, round(100 / $ratio));
+			$scan_dim_cache[$bi] = array($w, $h);
+			$scale = min(100 / $w, 100 / $h, 1.0);
+			return array('w' => $w, 'h' => $h, 'css_w' => max(1, round($w * $scale)), 'css_h' => max(1, round($h * $scale)));
+		}
+	}
+
+	// Default 100x100 if no raw file header exists
 	$scan_dim_cache[$bi] = array(100, 100);
 	return array('w' => 100, 'h' => 100, 'css_w' => 100, 'css_h' => 100);
 }
@@ -168,8 +181,9 @@ foreach ($chans as $i) {
 	$base_chan_name = get_base_channel_name($chan_name);
 	$is_checked = ($saved_overview_channels === null || in_array($base_chan_name, $saved_overview_channels));
 
+	$raw_file = isset($raw_chans[$c]) ? trim(stripslashes($raw_chans[$c])) : "";
 	$img_file = $userlnk . $user . '/tmp' . $c . '.png';
-	$dim = get_channel_dimensions($c, $bi, $img_file, $chans, $userlnk, $user);
+	$dim = get_channel_dimensions($c, $bi, $img_file, $raw_file, $chans, $userlnk, $user);
 	$w = $dim['w']; $h = $dim['h'];
 	$css_w = $dim['css_w']; $css_h = $dim['css_h'];
 
@@ -307,22 +321,6 @@ function toggleAllChannels(enable) {
   applyChannelFilters();
 }
 
-function loadChannelPreferences() {
-  try {
-    var saved = localStorage.getItem('wspa_overview_channels');
-    if (saved) {
-      var checkedArr = JSON.parse(saved);
-      if (Array.isArray(checkedArr)) {
-        var cbs = document.querySelectorAll('.chan-cb');
-        cbs.forEach(function(cb) {
-          cb.checked = (checkedArr.indexOf(cb.value) !== -1);
-        });
-      }
-    }
-  } catch(e) {}
-  applyChannelFilters();
-}
-
 function scrollToActiveImage() {
   var targetImage = document.getElementById('<?echo 'img'.$index;?>');
   if (targetImage) {
@@ -330,8 +328,7 @@ function scrollToActiveImage() {
   }
 }
 
-// 1. Synchronously apply channel preselection & prepare grid BEFORE image loading
-loadChannelPreferences();
+// 1. Initial preselection & presizing is rendered directly by server; scroll active image into view
 scrollToActiveImage();
 
 // 2. Populate off-screen images reliably with IntersectionObserver
