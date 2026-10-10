@@ -91,19 +91,24 @@ foreach ($chans as $i) {
 			$mapfile = $mapdir . '/' . $bi . '.map';
 			if (!file_exists($mapfile)) {
 				$meta_map = get_meta_path_for_file($raw_file, 'map', $user);
-				$mapfile = (file_exists($meta_map) && is_file($meta_map)) ? $meta_map : "";
+				if (file_exists($meta_map)) {
+					$mapfile = $meta_map;
+				} else {
+					$mapfile = "";
+				}
 			}
 			$scan_groups[$bi] = array(
 				'bi' => $bi,
-				'has_sts' => ($mapfile !== "" && file_exists($mapfile) && filesize($mapfile) > 0),
+				'has_sts' => ($mapfile !== "" && file_exists($mapfile)),
 				'items' => array(),
 				'max_h' => 0,
 				'is_target_row' => ($target_bi !== '' && $bi === $target_bi)
 			);
 		}
 
-		$border_css = in_array($c, $chline) ? "border:1px solid #fff; outline: 2px solid #0aa; outline-offset: -2px;" :
-			($scan_groups[$bi]['has_sts'] ? "border:1px solid #0e0;" : "border:1px solid #567;");
+		$base_border = $scan_groups[$bi]['has_sts'] ? "border:1px solid #0e0;" : (in_array($c, $chline) ? "border:1px solid #fff;" : "border:1px solid #567;");
+		$outline_css = in_array($c, $chline) ? " outline: 2px solid #0aa; outline-offset: -2px;" : "";
+		$border_css = $base_border . $outline_css;
 
 		$scan_groups[$bi]['items'][] = array(
 			'c' => $c, 'chan_name' => $chan_name, 'img_file' => $img_file, 'dim' => $dim, 'border_css' => $border_css
