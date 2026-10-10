@@ -508,6 +508,34 @@ html, body {
 	background: #333 !important;
 	border-color: #666 !important;
 }
+.gv-num-input {
+	background: transparent;
+	border: 1px solid transparent;
+	font-family: monospace;
+	font-size: 10pt;
+	font-weight: normal;
+	text-align: right;
+	width: 30px;
+	padding: 0 1px;
+	margin: 0;
+	outline: none;
+	border-radius: 0px;
+	box-sizing: border-box;
+}
+.gv-num-input::-webkit-outer-spin-button,
+.gv-num-input::-webkit-inner-spin-button {
+	-webkit-appearance: none;
+	margin: 0;
+}
+.gv-num-input:hover {
+	border-color: #555;
+	background: #1a1a1a;
+}
+.gv-num-input:focus {
+	border-color: #0ff;
+	background: #000;
+	color: #fff !important;
+}
 </style>
 
 <div class="fill" style="display:flex; width:100vw; height:calc(100vh - 20px); overflow:hidden;">
@@ -557,22 +585,30 @@ html, body {
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
 				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Focus</span>
 				<input type="range" id="gvTimeFocus" min="0" max="<?php echo $max_file_idx; ?>" value="<?php echo $active_file_idx; ?>" step="1" oninput="onFocusSliderChange()" title="Focus slider (Up/Down arrow)" style="flex:1; min-width:0;">
-				<span id="gvTimeFocusVal" style="width:42px; text-align:right; color:#0f0; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo ($active_file_idx + 1); ?></span>
+				<div style="width:48px; display:flex; align-items:center; justify-content:flex-end; flex-shrink:0;">
+					<input type="text" id="gvTimeFocusNum" value="<?php echo ($active_file_idx + 1); ?>" onchange="onNumInputChange('gvTimeFocus', this.value)" onkeydown="if(event.key==='Enter')this.blur()" class="gv-num-input" style="color:#0f0;" title="Type 1-indexed file number">
+				</div>
 			</div>
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
 				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">From</span>
 				<input type="range" id="gvTimeMin" min="0" max="<?php echo $max_file_idx; ?>" value="0" step="1" oninput="onTimeSliderChange()" style="flex:1; min-width:0;">
-				<span id="gvTimeMinVal" style="width:42px; text-align:right; color:#6cf; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">1</span>
+				<div style="width:48px; display:flex; align-items:center; justify-content:flex-end; flex-shrink:0;">
+					<input type="text" id="gvTimeMinNum" value="1" onchange="onNumInputChange('gvTimeMin', this.value)" onkeydown="if(event.key==='Enter')this.blur()" class="gv-num-input" style="color:#6cf;" title="Type 1-indexed file number">
+				</div>
 			</div>
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
 				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">To</span>
 				<input type="range" id="gvTimeMax" min="0" max="<?php echo $max_file_idx; ?>" value="<?php echo $max_file_idx; ?>" step="1" oninput="onTimeSliderChange()" style="flex:1; min-width:0;">
-				<span id="gvTimeMaxVal" style="width:42px; text-align:right; color:#6cf; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo ($max_file_idx + 1); ?></span>
+				<div style="width:48px; display:flex; align-items:center; justify-content:flex-end; flex-shrink:0;">
+					<input type="text" id="gvTimeMaxNum" value="<?php echo ($max_file_idx + 1); ?>" onchange="onNumInputChange('gvTimeMax', this.value)" onkeydown="if(event.key==='Enter')this.blur()" class="gv-num-input" style="color:#6cf;" title="Type 1-indexed file number">
+				</div>
 			</div>
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
 				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Max img</span>
 				<input type="range" id="gvMaxVisibleImages" min="10" max="400" value="100" step="10" oninput="onMaxVisibleImagesChange()" title="Max visible files limit" style="flex:1; min-width:0;">
-				<span id="gvMaxVisibleVal" style="width:42px; text-align:right; color:#ff0; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">100</span>
+				<div style="width:48px; display:flex; align-items:center; justify-content:flex-end; flex-shrink:0;">
+					<input type="text" id="gvMaxVisibleNum" value="100" onchange="onNumInputChange('gvMaxVisibleImages', this.value)" onkeydown="if(event.key==='Enter')this.blur()" class="gv-num-input" style="color:#ff0;" title="Type visible images limit (10-400)">
+				</div>
 			</div>
 			<div style="display:flex; gap:4px; margin-top:4px;">
 				<input type="submit" onclick="setFocusAsMinRange()" value="SetFrom" title="Set lower range bound to current focus (PageDown)" style="flex:1; font-weight:normal;">
@@ -588,27 +624,42 @@ html, body {
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
 				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Yaw</span>
 				<input type="range" id="gvRot" min="-180" max="180" value="<?php echo isset($user_cfg['gv_yaw']) ? intval($user_cfg['gv_yaw']) : 0; ?>" step="1" oninput="onRotChange()" title="Yaw slider (A / D or Q / E keys)" style="flex:1; min-width:0;">
-				<span id="gvRotVal" style="width:42px; text-align:right; color:#0f0; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo isset($user_cfg['gv_yaw']) ? intval($user_cfg['gv_yaw']) : 0; ?>°</span>
+				<div style="width:48px; display:flex; align-items:center; justify-content:flex-end; flex-shrink:0;">
+					<input type="text" id="gvRotNum" value="<?php echo isset($user_cfg['gv_yaw']) ? intval($user_cfg['gv_yaw']) : 0; ?>" onchange="onNumInputChange('gvRot', this.value)" onkeydown="if(event.key==='Enter')this.blur()" class="gv-num-input" style="color:#0f0;" title="Type yaw angle (-180 to 180)">
+					<span style="color:#0f0; font-family:monospace; font-size:10pt; font-weight:normal;">°</span>
+				</div>
 			</div>
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
 				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Pitch</span>
 				<input type="range" id="gv3DPitch" min="0" max="90" value="<?php echo isset($user_cfg['gv_pitch']) ? intval($user_cfg['gv_pitch']) : 45; ?>" step="1" oninput="on3DParamChange()" title="Pitch slider (W / S keys)" style="flex:1; min-width:0;">
-				<span id="gv3DPitchVal" style="width:42px; text-align:right; color:#0ff; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo isset($user_cfg['gv_pitch']) ? intval($user_cfg['gv_pitch']) : 45; ?>°</span>
+				<div style="width:48px; display:flex; align-items:center; justify-content:flex-end; flex-shrink:0;">
+					<input type="text" id="gv3DPitchNum" value="<?php echo isset($user_cfg['gv_pitch']) ? intval($user_cfg['gv_pitch']) : 45; ?>" onchange="onNumInputChange('gv3DPitch', this.value)" onkeydown="if(event.key==='Enter')this.blur()" class="gv-num-input" style="color:#0ff;" title="Type pitch angle (0 to 90)">
+					<span style="color:#0ff; font-family:monospace; font-size:10pt; font-weight:normal;">°</span>
+				</div>
 			</div>
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
 				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Zoom</span>
 				<input type="range" id="gvZoomSlider" min="1" max="100" value="50" step="1" oninput="onZoomSliderChange()" title="Zoom slider (= / - keys)" style="flex:1; min-width:0;">
-				<span id="gvZoomVal" style="width:42px; text-align:right; color:#6cf; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">100x</span>
+				<div style="width:48px; display:flex; align-items:center; justify-content:flex-end; flex-shrink:0;">
+					<input type="text" id="gvZoomNum" value="100" onchange="onNumInputChange('gvZoomSlider', this.value)" onkeydown="if(event.key==='Enter')this.blur()" class="gv-num-input" style="color:#6cf;" title="Type zoom level (1 to 100)">
+					<span style="color:#6cf; font-family:monospace; font-size:10pt; font-weight:normal;">x</span>
+				</div>
 			</div>
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
 				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">dZ</span>
 				<input type="range" id="gv3DTimeZ" min="0" max="1000" value="459" step="1" oninput="on3DParamChange()" title="Z separation slider (Z / X keys)" style="flex:1; min-width:0;">
-				<span id="gv3DTimeZVal" style="width:42px; text-align:right; color:#0ff; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">5.0nm</span>
+				<div style="width:48px; display:flex; align-items:center; justify-content:flex-end; flex-shrink:0;">
+					<input type="text" id="gv3DTimeZNum" value="5.0" onchange="onNumInputChange('gv3DTimeZ', this.value)" onkeydown="if(event.key==='Enter')this.blur()" class="gv-num-input" style="color:#0ff; width:30px;" title="Type dZ value">
+					<span id="gv3DTimeZUnit" style="color:#0ff; font-family:monospace; font-size:10pt; font-weight:normal;">nm</span>
+				</div>
 			</div>
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
 				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Alpha</span>
 				<input type="range" id="gvAlpha" min="10" max="100" value="<?php echo isset($user_cfg['gv_alpha']) ? intval($user_cfg['gv_alpha']) : 100; ?>" step="5" oninput="onAlphaChange()" title="Image opacity / alpha slider" style="flex:1; min-width:0;">
-				<span id="gvAlphaVal" style="width:42px; text-align:right; color:#0f0; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo isset($user_cfg['gv_alpha']) ? intval($user_cfg['gv_alpha']) : 100; ?>%</span>
+				<div style="width:48px; display:flex; align-items:center; justify-content:flex-end; flex-shrink:0;">
+					<input type="text" id="gvAlphaNum" value="<?php echo isset($user_cfg['gv_alpha']) ? intval($user_cfg['gv_alpha']) : 100; ?>" onchange="onNumInputChange('gvAlpha', this.value)" onkeydown="if(event.key==='Enter')this.blur()" class="gv-num-input" style="color:#0f0;" title="Type opacity percentage (10-100)">
+					<span style="color:#0f0; font-family:monospace; font-size:10pt; font-weight:normal;">%</span>
+				</div>
 			</div>
 			<div style="display:flex; gap:4px; margin-top:4px;">
 				<input type="submit" onclick="setPitch2D()" value="2D" title="Pitch view to 2D top-down" style="flex:1; font-weight:normal;">
@@ -646,7 +697,9 @@ html, body {
 					<div style="display:flex; align-items:center; gap:4px;">
 						<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Factor</span>
 						<input type="range" id="gvZFactor" min="0.1" max="10.0" value="1.0" step="0.1" oninput="on3DParamChange()" title="Z size scaling factor (0.1 to 10.0)" style="flex:1; min-width:0;">
-						<span id="gvZFactorVal" style="width:42px; text-align:right; color:#0ff; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">1.0</span>
+						<div style="width:48px; display:flex; align-items:center; justify-content:flex-end; flex-shrink:0;">
+							<input type="text" id="gvZFactorNum" value="1.0" onchange="onNumInputChange('gvZFactor', this.value)" onkeydown="if(event.key==='Enter')this.blur()" class="gv-num-input" style="color:#0ff; width:34px;" title="Type scaling factor (0.1 to 10.0)">
+						</div>
 					</div>
 				</div>
 				<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
@@ -656,7 +709,10 @@ html, body {
 					<div style="display:flex; align-items:center; gap:4px;">
 						<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Fade</span>
 						<input type="range" id="gvHazeDensity" min="20" max="300" value="<?php echo isset($user_cfg['gv_haze_density']) ? intval($user_cfg['gv_haze_density']) : 100; ?>" step="10" oninput="onHazeSliderChange()" title="Haze fog thickness multiplier (20% to 300%)" style="flex:1; min-width:0;">
-						<span id="gvHazeVal" style="width:42px; text-align:right; color:#ff0; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo isset($user_cfg['gv_haze_density']) ? sprintf('%.1fx', floatval($user_cfg['gv_haze_density']) / 100.0) : '1.0x'; ?></span>
+						<div style="width:48px; display:flex; align-items:center; justify-content:flex-end; flex-shrink:0;">
+							<input type="text" id="gvHazeNum" value="<?php echo isset($user_cfg['gv_haze_density']) ? sprintf('%.1f', floatval($user_cfg['gv_haze_density']) / 100.0) : '1.0'; ?>" onchange="onNumInputChange('gvHazeDensity', this.value)" onkeydown="if(event.key==='Enter')this.blur()" class="gv-num-input" style="color:#ff0;" title="Type haze multiplier (0.2x to 3.0x)">
+							<span style="color:#ff0; font-family:monospace; font-size:10pt; font-weight:normal;">x</span>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -701,47 +757,128 @@ function updateHeaderReadout() {
 	}
 
 	var focusInput = document.getElementById('gvTimeFocus');
-	var focusValSpan = document.getElementById('gvTimeFocusVal');
+	var focusNumInput = document.getElementById('gvTimeFocusNum');
 	if (focusItem) {
 		if (focusInput) focusInput.value = focusItem.file_idx;
-		if (focusValSpan) focusValSpan.textContent = (focusItem.file_idx + 1);
+		if (focusNumInput && document.activeElement !== focusNumInput) focusNumInput.value = (focusItem.file_idx + 1);
 	}
-	updateFocusSliderTrack();
+	updateAllSliderTracks();
 }
 
-function updateFocusSliderTrack() {
-	var focusInput = document.getElementById('gvTimeFocus');
-	if (!focusInput) return;
-
-	var focusItem = rawData.find(function(it) { return it.c === focusedIndex; });
-	var focusedFileIdx = focusItem ? focusItem.file_idx : fileMax;
-
-	var totalAvailable = fileMax - fileMin + 1;
-	var targetSpan = Math.min(totalAvailable, maxVisibleImages);
-
-	var winMinCandidate = focusedFileIdx - Math.floor((targetSpan - 1) / 2);
-
-	if (winMinCandidate < fileMin) {
-		winMinCandidate = fileMin;
+function formatZNmDisplayParts(zNm) {
+	if (zNm < 1.0) {
+		return { val: zNm.toFixed(2), unit: 'nm' };
+	} else if (zNm < 10.0) {
+		return { val: zNm.toFixed(1), unit: 'nm' };
+	} else {
+		return { val: String(Math.round(zNm)), unit: 'nm' };
 	}
-	if (winMinCandidate + targetSpan - 1 > fileMax) {
-		winMinCandidate = fileMax - targetSpan + 1;
-	}
+}
 
-	var visibleMin = winMinCandidate;
-	var visibleMax = winMinCandidate + targetSpan - 1;
-
+function updateAllSliderTracks() {
 	var minPct = maxFileIdx > 0 ? (fileMin / maxFileIdx) * 100 : 0;
 	var maxPct = maxFileIdx > 0 ? (fileMax / maxFileIdx) * 100 : 100;
-	var visMinPct = maxFileIdx > 0 ? (visibleMin / maxFileIdx) * 100 : 0;
-	var visMaxPct = maxFileIdx > 0 ? (visibleMax / maxFileIdx) * 100 : 100;
 
-	focusInput.style.background = 'linear-gradient(to right, ' +
-		'#222 0%, #222 ' + minPct.toFixed(2) + '%, ' +
-		'#006622 ' + minPct.toFixed(2) + '%, #006622 ' + visMinPct.toFixed(2) + '%, ' +
-		'#00ff41 ' + visMinPct.toFixed(2) + '%, #00ff41 ' + visMaxPct.toFixed(2) + '%, ' +
-		'#006622 ' + visMaxPct.toFixed(2) + '%, #006622 ' + maxPct.toFixed(2) + '%, ' +
-		'#222 ' + maxPct.toFixed(2) + '%, #222 100%)';
+	if (timeMinInput) {
+		timeMinInput.style.background = 'linear-gradient(to right, #b42 0%, #b42 ' + minPct.toFixed(2) + '%, #222 ' + minPct.toFixed(2) + '%, #222 100%)';
+	}
+	if (timeMaxInput) {
+		timeMaxInput.style.background = 'linear-gradient(to right, #222 0%, #222 ' + maxPct.toFixed(2) + '%, #b42 ' + maxPct.toFixed(2) + '%, #b42 100%)';
+	}
+
+	var focusInput = document.getElementById('gvTimeFocus');
+	if (focusInput) {
+		var focusItem = rawData.find(function(it) { return it.c === focusedIndex; });
+		var focusedFileIdx = focusItem ? focusItem.file_idx : fileMax;
+
+		var totalAvailable = fileMax - fileMin + 1;
+		var targetSpan = Math.min(totalAvailable, maxVisibleImages);
+
+		var winMinCandidate = focusedFileIdx - Math.floor((targetSpan - 1) / 2);
+
+		if (winMinCandidate < fileMin) {
+			winMinCandidate = fileMin;
+		}
+		if (winMinCandidate + targetSpan - 1 > fileMax) {
+			winMinCandidate = fileMax - targetSpan + 1;
+		}
+
+		var visibleMin = winMinCandidate;
+		var visibleMax = winMinCandidate + targetSpan - 1;
+
+		var visMinPct = maxFileIdx > 0 ? (visibleMin / maxFileIdx) * 100 : 0;
+		var visMaxPct = maxFileIdx > 0 ? (visibleMax / maxFileIdx) * 100 : 100;
+
+		focusInput.style.background = 'linear-gradient(to right, ' +
+			'#222 0%, #222 ' + minPct.toFixed(2) + '%, ' +
+			'#006622 ' + minPct.toFixed(2) + '%, #006622 ' + visMinPct.toFixed(2) + '%, ' +
+			'#00ff41 ' + visMinPct.toFixed(2) + '%, #00ff41 ' + visMaxPct.toFixed(2) + '%, ' +
+			'#006622 ' + visMaxPct.toFixed(2) + '%, #006622 ' + maxPct.toFixed(2) + '%, ' +
+			'#222 ' + maxPct.toFixed(2) + '%, #222 100%)';
+	}
+}
+
+function onNumInputChange(sliderId, rawVal) {
+	var val = parseFloat(rawVal);
+	if (isNaN(val)) return;
+
+	var slider = document.getElementById(sliderId);
+	if (!slider) return;
+
+	if (sliderId === 'gvTimeFocus') {
+		var fileIdx = Math.round(val) - 1;
+		fileIdx = Math.max(0, Math.min(maxFileIdx, fileIdx));
+		slider.value = fileIdx;
+		onFocusSliderChange();
+	} else if (sliderId === 'gvTimeMin') {
+		var fileIdx = Math.round(val) - 1;
+		fileIdx = Math.max(0, Math.min(maxFileIdx, fileIdx));
+		slider.value = fileIdx;
+		onTimeSliderChange();
+	} else if (sliderId === 'gvTimeMax') {
+		var fileIdx = Math.round(val) - 1;
+		fileIdx = Math.max(0, Math.min(maxFileIdx, fileIdx));
+		slider.value = fileIdx;
+		onTimeSliderChange();
+	} else if (sliderId === 'gvMaxVisibleImages') {
+		var cnt = Math.round(val);
+		cnt = Math.max(10, Math.min(400, cnt));
+		slider.value = cnt;
+		onMaxVisibleImagesChange();
+	} else if (sliderId === 'gvRot') {
+		var angle = Math.round(val);
+		angle = Math.max(-180, Math.min(180, angle));
+		slider.value = angle;
+		onRotChange();
+	} else if (sliderId === 'gv3DPitch') {
+		var angle = Math.round(val);
+		angle = Math.max(0, Math.min(90, angle));
+		slider.value = angle;
+		on3DParamChange();
+	} else if (sliderId === 'gvZoomSlider') {
+		var z = Math.round(val);
+		z = Math.max(1, Math.min(100, z));
+		slider.value = z;
+		onZoomSliderChange();
+	} else if (sliderId === 'gv3DTimeZ') {
+		var zSliderVal = zNmToSliderVal(val);
+		slider.value = zSliderVal;
+		on3DParamChange();
+	} else if (sliderId === 'gvAlpha') {
+		var a = Math.round(val);
+		a = Math.max(10, Math.min(100, a));
+		slider.value = a;
+		onAlphaChange();
+	} else if (sliderId === 'gvZFactor') {
+		var zf = Math.max(0.1, Math.min(10.0, val));
+		slider.value = zf.toFixed(1);
+		on3DParamChange();
+	} else if (sliderId === 'gvHazeDensity') {
+		var hazeVal = Math.round(val * 100);
+		hazeVal = Math.max(20, Math.min(300, hazeVal));
+		slider.value = hazeVal;
+		onHazeSliderChange();
+	}
 }
 
 function ensureFocusWithinThresholds(targetFileIdx) {
@@ -758,10 +895,11 @@ function ensureFocusWithinThresholds(targetFileIdx) {
 		changed = true;
 	}
 	if (changed) {
-		var minValSpan = document.getElementById('gvTimeMinVal');
-		var maxValSpan = document.getElementById('gvTimeMaxVal');
-		if (minValSpan) minValSpan.textContent = (fileMin + 1);
-		if (maxValSpan) maxValSpan.textContent = (fileMax + 1);
+		var minNum = document.getElementById('gvTimeMinNum');
+		var maxNum = document.getElementById('gvTimeMaxNum');
+		if (minNum && document.activeElement !== minNum) minNum.value = (fileMin + 1);
+		if (maxNum && document.activeElement !== maxNum) maxNum.value = (fileMax + 1);
+		updateAllSliderTracks();
 	}
 }
 
@@ -1300,25 +1438,25 @@ function loadSpatialViewState() {
 		if (sMaxImg !== null && sMaxImg !== undefined && !isNaN(parseInt(sMaxImg, 10))) {
 			maxVisibleImages = Math.max(10, Math.min(200, parseInt(sMaxImg, 10)));
 			var maxInput = document.getElementById('gvMaxVisibleImages');
-			var maxValSpan = document.getElementById('gvMaxVisibleVal');
+			var maxNum = document.getElementById('gvMaxVisibleNum');
 			if (maxInput) maxInput.value = maxVisibleImages;
-			if (maxValSpan) maxValSpan.textContent = maxVisibleImages;
+			if (maxNum && document.activeElement !== maxNum) maxNum.value = maxVisibleImages;
 		}
 
 		var minInput = document.getElementById('gvTimeMin');
-		var minValSpan = document.getElementById('gvTimeMinVal');
+		var minNum = document.getElementById('gvTimeMinNum');
 		if (sTimeMin !== null && sTimeMin !== undefined && !isNaN(parseInt(sTimeMin, 10)) && minInput) {
 			var parsedMin = Math.max(0, Math.min(maxFileIdx, parseInt(sTimeMin, 10)));
 			minInput.value = parsedMin;
-			if (minValSpan) minValSpan.textContent = parsedMin + 1;
+			if (minNum && document.activeElement !== minNum) minNum.value = parsedMin + 1;
 		}
 
 		var maxRangeInput = document.getElementById('gvTimeMax');
-		var maxRangeValSpan = document.getElementById('gvTimeMaxVal');
+		var maxRangeNum = document.getElementById('gvTimeMaxNum');
 		if (sTimeMax !== null && sTimeMax !== undefined && !isNaN(parseInt(sTimeMax, 10)) && maxRangeInput) {
 			var parsedMax = Math.max(0, Math.min(maxFileIdx, parseInt(sTimeMax, 10)));
 			maxRangeInput.value = parsedMax;
-			if (maxRangeValSpan) maxRangeValSpan.textContent = parsedMax + 1;
+			if (maxRangeNum && document.activeElement !== maxRangeNum) maxRangeNum.value = parsedMax + 1;
 		}
 
 		var primChanEl = document.getElementById('gvChanFilter');
@@ -1346,17 +1484,17 @@ function loadSpatialViewState() {
 		if (sPitch !== null && sPitch !== undefined && !isNaN(parseInt(sPitch, 10))) {
 			pitch3D = Math.max(10, Math.min(90, parseInt(sPitch, 10)));
 			var pInput = document.getElementById('gv3DPitch');
-			var pVal = document.getElementById('gv3DPitchVal');
+			var pNum = document.getElementById('gv3DPitchNum');
 			if (pInput) pInput.value = pitch3D;
-			if (pVal) pVal.textContent = pitch3D + '°';
+			if (pNum && document.activeElement !== pNum) pNum.value = pitch3D;
 		}
 
 		if (sYaw !== null && sYaw !== undefined && !isNaN(parseInt(sYaw, 10))) {
 			viewAngle = Math.max(-180, Math.min(180, parseInt(sYaw, 10)));
 			var rInput = document.getElementById('gvRot');
-			var rVal = document.getElementById('gvRotVal');
+			var rNum = document.getElementById('gvRotNum');
 			if (rInput) rInput.value = viewAngle;
-			if (rVal) rVal.textContent = viewAngle + '°';
+			if (rNum && document.activeElement !== rNum) rNum.value = viewAngle;
 		}
 
 		if (sZSpace !== null && sZSpace !== undefined && !isNaN(parseInt(sZSpace, 10))) {
@@ -1369,17 +1507,22 @@ function loadSpatialViewState() {
 				timeZSpacing = Math.max(0, Math.min(1000, parsedZ));
 			}
 			var zInput = document.getElementById('gv3DTimeZ');
-			var zVal = document.getElementById('gv3DTimeZVal');
+			var zNum = document.getElementById('gv3DTimeZNum');
+			var zUnit = document.getElementById('gv3DTimeZUnit');
 			if (zInput) zInput.value = timeZSpacing;
-			if (zVal) zVal.textContent = formatZNmDisplay(sliderValToZNm(timeZSpacing));
+			if (zNum || zUnit) {
+				var parts = formatZNmDisplayParts(sliderValToZNm(timeZSpacing));
+				if (zNum && document.activeElement !== zNum) zNum.value = parts.val;
+				if (zUnit) zUnit.textContent = parts.unit;
+			}
 		}
 
 		if (sZFactor !== null && sZFactor !== undefined && !isNaN(parseFloat(sZFactor))) {
 			var zFactorVal = Math.max(0.1, Math.min(10.0, parseFloat(sZFactor)));
 			var zFactorInput = document.getElementById('gvZFactor');
-			var zFactorSpan = document.getElementById('gvZFactorVal');
+			var zFactorNum = document.getElementById('gvZFactorNum');
 			if (zFactorInput) zFactorInput.value = zFactorVal.toFixed(1);
-			if (zFactorSpan) zFactorSpan.textContent = zFactorVal.toFixed(1);
+			if (zFactorNum && document.activeElement !== zFactorNum) zFactorNum.value = zFactorVal.toFixed(1);
 		}
 
 		if (sZFactorEnabled !== null && sZFactorEnabled !== undefined) {
@@ -1398,9 +1541,9 @@ function loadSpatialViewState() {
 		if (sAlpha !== null && sAlpha !== undefined && !isNaN(parseInt(sAlpha, 10))) {
 			var alphaVal = Math.max(10, Math.min(100, parseInt(sAlpha, 10)));
 			var aInput = document.getElementById('gvAlpha');
-			var aVal = document.getElementById('gvAlphaVal');
+			var aNum = document.getElementById('gvAlphaNum');
 			if (aInput) aInput.value = alphaVal;
-			if (aVal) aVal.textContent = alphaVal + '%';
+			if (aNum && document.activeElement !== aNum) aNum.value = alphaVal;
 		}
 
 		if (sLabels !== null && sLabels !== undefined) {
@@ -1532,25 +1675,28 @@ function on3DParamChange() {
 		var newPitch = parseInt(pInput.value, 10);
 		if (newPitch !== pitch3D) {
 			update3DOrientation(viewAngle, newPitch);
-			var pVal = document.getElementById('gv3DPitchVal');
-			if (pVal) pVal.textContent = Math.round(pitch3D) + '°';
+			var pNum = document.getElementById('gv3DPitchNum');
+			if (pNum && document.activeElement !== pNum) pNum.value = Math.round(pitch3D);
 		}
 	}
 	if (zInput) {
 		var newZVal = parseInt(zInput.value, 10);
 		if (newZVal !== timeZSpacing) {
 			timeZSpacing = newZVal;
-			var zVal = document.getElementById('gv3DTimeZVal');
-			if (zVal) {
+			var zNum = document.getElementById('gv3DTimeZNum');
+			var zUnit = document.getElementById('gv3DTimeZUnit');
+			if (zNum || zUnit) {
 				var zNm = sliderValToZNm(timeZSpacing);
-				zVal.textContent = formatZNmDisplay(zNm);
+				var parts = formatZNmDisplayParts(zNm);
+				if (zNum && document.activeElement !== zNum) zNum.value = parts.val;
+				if (zUnit) zUnit.textContent = parts.unit;
 			}
 			saveSpatialViewState();
 		}
 	}
 	if (fInput) {
-		var fVal = document.getElementById('gvZFactorVal');
-		if (fVal) fVal.textContent = parseFloat(fInput.value).toFixed(1);
+		var fNum = document.getElementById('gvZFactorNum');
+		if (fNum && document.activeElement !== fNum) fNum.value = parseFloat(fInput.value).toFixed(1);
 		saveSpatialViewState();
 	}
 	requestDraw();
@@ -2022,14 +2168,14 @@ function animateViewTo(targetPanX, targetPanY, targetZoomScale, targetViewAngle,
 		pitch3D = Math.max(10, Math.min(90, currentPitch));
 
 		var rotInput = document.getElementById('gvRot');
-		var rotVal = document.getElementById('gvRotVal');
+		var rotNum = document.getElementById('gvRotNum');
 		if (rotInput) rotInput.value = viewAngle;
-		if (rotVal) rotVal.textContent = viewAngle + '°';
+		if (rotNum && document.activeElement !== rotNum) rotNum.value = viewAngle;
 
 		var pInput = document.getElementById('gv3DPitch');
-		var pVal = document.getElementById('gv3DPitchVal');
+		var pNum = document.getElementById('gv3DPitchNum');
 		if (pInput) pInput.value = pitch3D;
-		if (pVal) pVal.textContent = pitch3D + '°';
+		if (pNum && document.activeElement !== pNum) pNum.value = pitch3D;
 
 		requestDraw();
 
@@ -2366,17 +2512,14 @@ function getFitScale() {
 
 function updateZoomSliderReadout() {
 	var slider = document.getElementById('gvZoomSlider');
-	var readout = document.getElementById('gvZoomVal');
-	if (!slider || !readout) return;
-
-	var coeff = zoomScaleToCoeff(zoomScale);
-	var text = '';
-	if (coeff >= 10) {
-		text = Math.round(coeff) + 'x';
-	} else {
-		text = coeff.toFixed(1) + 'x';
+	var readout = document.getElementById('gvZoomNum');
+	if (slider) {
+		var coeff = zoomScaleToCoeff(zoomScale);
+		var valStr = (coeff >= 10) ? String(Math.round(coeff)) : coeff.toFixed(1);
+		if (readout && document.activeElement !== readout) {
+			readout.value = valStr;
+		}
 	}
-	readout.textContent = text;
 
 	var minCoeff = 0.01;
 	var maxCoeff = 100.0;
@@ -2718,10 +2861,10 @@ function stepTime(type, dir) {
 
 function onMaxVisibleImagesChange() {
 	var maxInput = document.getElementById('gvMaxVisibleImages');
-	var maxValSpan = document.getElementById('gvMaxVisibleVal');
+	var maxNum = document.getElementById('gvMaxVisibleNum');
 	if (!maxInput) return;
 	maxVisibleImages = Math.max(10, Math.min(400, parseInt(maxInput.value, 10)));
-	if (maxValSpan) maxValSpan.textContent = maxVisibleImages;
+	if (maxNum && document.activeElement !== maxNum) maxNum.value = maxVisibleImages;
 
 	saveSpatialViewState();
 	onTimeSliderChange();
@@ -2752,22 +2895,12 @@ function onTimeSliderChange() {
 		}
 	}
 
-	var minValSpan = document.getElementById('gvTimeMinVal');
-	var maxValSpan = document.getElementById('gvTimeMaxVal');
-	if (minValSpan) minValSpan.textContent = (fileMin + 1);
-	if (maxValSpan) maxValSpan.textContent = (fileMax + 1);
+	var minNum = document.getElementById('gvTimeMinNum');
+	var maxNum = document.getElementById('gvTimeMaxNum');
+	if (minNum && document.activeElement !== minNum) minNum.value = (fileMin + 1);
+	if (maxNum && document.activeElement !== maxNum) maxNum.value = (fileMax + 1);
 
-	var minPct = maxFileIdx > 0 ? (fileMin / maxFileIdx) * 100 : 0;
-	var maxPct = maxFileIdx > 0 ? (fileMax / maxFileIdx) * 100 : 100;
-
-	if (timeMinInput) {
-		timeMinInput.style.background = 'linear-gradient(to right, #b42 0%, #b42 ' + minPct.toFixed(2) + '%, #222 ' + minPct.toFixed(2) + '%, #222 100%)';
-	}
-	if (timeMaxInput) {
-		timeMaxInput.style.background = 'linear-gradient(to right, #222 0%, #222 ' + maxPct.toFixed(2) + '%, #b42 ' + maxPct.toFixed(2) + '%, #b42 100%)';
-	}
-
-	updateFocusSliderTrack();
+	updateAllSliderTracks();
 
 	// Clamp focusedIndex to visible items matching active channel filter and time range
 	var visItems = getVisibleItems();
@@ -2817,8 +2950,8 @@ function onRotChange() {
 	if (!rotInput) return;
 	var newAngle = parseInt(rotInput.value, 10);
 	update3DOrientation(newAngle, pitch3D);
-	var rotValSpan = document.getElementById('gvRotVal');
-	if (rotValSpan) rotValSpan.textContent = viewAngle + '°';
+	var rotNum = document.getElementById('gvRotNum');
+	if (rotNum && document.activeElement !== rotNum) rotNum.value = viewAngle;
 	saveSpatialViewState(true);
 	requestDraw();
 }
@@ -2856,8 +2989,8 @@ function onAlphaChange() {
 	var alphaEl = document.getElementById('gvAlpha');
 	if (!alphaEl) return;
 	var alphaVal = parseInt(alphaEl.value, 10);
-	var alphaValSpan = document.getElementById('gvAlphaVal');
-	if (alphaValSpan) alphaValSpan.textContent = alphaVal + '%';
+	var alphaNum = document.getElementById('gvAlphaNum');
+	if (alphaNum && document.activeElement !== alphaNum) alphaNum.value = alphaVal;
 	saveSpatialViewState(true);
 	requestDraw();
 }
@@ -2886,11 +3019,11 @@ function updateHazeSliderReadout() {
 	var chk = document.getElementById('gvShowHaze');
 	var row = document.getElementById('gvHazeControlRow');
 	var slider = document.getElementById('gvHazeDensity');
-	var readout = document.getElementById('gvHazeVal');
+	var readout = document.getElementById('gvHazeNum');
 	if (!chk || !row || !slider || !readout) return;
 	row.style.display = chk.checked ? 'block' : 'none';
 	var mult = parseFloat(slider.value) / 100.0;
-	readout.textContent = mult.toFixed(1) + 'x';
+	if (document.activeElement !== readout) readout.value = mult.toFixed(1);
 }
 
 function onHazeCheckboxToggle() {
@@ -3813,14 +3946,14 @@ window.addEventListener('mousemove', function(e) {
 				update3DOrientation(targetAngle, targetPitch);
 
 				var pInput = document.getElementById('gv3DPitch');
-				var pVal = document.getElementById('gv3DPitchVal');
+				var pNum = document.getElementById('gv3DPitchNum');
 				if (pInput) pInput.value = Math.round(pitch3D);
-				if (pVal) pVal.textContent = Math.round(pitch3D) + '°';
+				if (pNum && document.activeElement !== pNum) pNum.value = Math.round(pitch3D);
 
 				var rotInput = document.getElementById('gvRot');
-				var rotVal = document.getElementById('gvRotVal');
+				var rotNum = document.getElementById('gvRotNum');
 				if (rotInput) rotInput.value = viewAngle;
-				if (rotVal) rotVal.textContent = viewAngle + '°';
+				if (rotNum && document.activeElement !== rotNum) rotNum.value = viewAngle;
 
 				requestDraw();
 			} else {
