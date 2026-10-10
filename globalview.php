@@ -3045,6 +3045,10 @@ function drawScene() {
 			ctx.save();
 			ctx.scale(1, -1);
 
+			ctx.beginPath();
+			ctx.rect(0, -hPx, wPx, hPx);
+			ctx.clip();
+
 			ctx.imageSmoothingEnabled = false;
 			ctx.mozImageSmoothingEnabled = false;
 			ctx.webkitImageSmoothingEnabled = false;
@@ -3067,10 +3071,10 @@ function drawScene() {
 			}
 
 			if (showHaze && fogFactor > 0.02) {
-				ctx.globalCompositeOperation = 'source-atop';
+				ctx.globalCompositeOperation = 'source-over';
 				ctx.fillStyle = hazeColor;
 				ctx.globalAlpha = 0.98 * fogFactor;
-				ctx.fillRect(-4, -hPx - 4, wPx + 8, hPx + 8);
+				ctx.fillRect(0, -hPx, wPx, hPx);
 			}
 
 			ctx.restore();
