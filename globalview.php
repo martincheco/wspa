@@ -716,11 +716,20 @@ function updateFocusSliderTrack() {
 	var focusItem = rawData.find(function(it) { return it.c === focusedIndex; });
 	var focusedFileIdx = focusItem ? focusItem.file_idx : fileMax;
 
-	var halfBelow = Math.floor((maxVisibleImages - 1) / 2);
-	var halfAbove = Math.ceil((maxVisibleImages - 1) / 2);
+	var totalAvailable = fileMax - fileMin + 1;
+	var targetSpan = Math.min(totalAvailable, maxVisibleImages);
 
-	var visibleMin = Math.max(fileMin, focusedFileIdx - halfBelow);
-	var visibleMax = Math.min(fileMax, focusedFileIdx + halfAbove);
+	var winMinCandidate = focusedFileIdx - Math.floor((targetSpan - 1) / 2);
+
+	if (winMinCandidate < fileMin) {
+		winMinCandidate = fileMin;
+	}
+	if (winMinCandidate + targetSpan - 1 > fileMax) {
+		winMinCandidate = fileMax - targetSpan + 1;
+	}
+
+	var visibleMin = winMinCandidate;
+	var visibleMax = winMinCandidate + targetSpan - 1;
 
 	var minPct = maxFileIdx > 0 ? (fileMin / maxFileIdx) * 100 : 0;
 	var maxPct = maxFileIdx > 0 ? (fileMax / maxFileIdx) * 100 : 100;
@@ -2144,14 +2153,20 @@ function getVisibleItems() {
 	var focusItem = rawData.find(function(it) { return it.c === focusedIndex; });
 	var focusedFileIdx = focusItem ? focusItem.file_idx : fileMax;
 
-	var halfBelow = Math.floor((maxVisibleImages - 1) / 2);
-	var halfAbove = Math.ceil((maxVisibleImages - 1) / 2);
+	var totalAvailable = fileMax - fileMin + 1;
+	var targetSpan = Math.min(totalAvailable, maxVisibleImages);
 
-	var winMin = focusedFileIdx - halfBelow;
-	var winMax = focusedFileIdx + halfAbove;
+	var winMinCandidate = focusedFileIdx - Math.floor((targetSpan - 1) / 2);
 
-	var effMin = Math.max(fileMin, winMin);
-	var effMax = Math.min(fileMax, winMax);
+	if (winMinCandidate < fileMin) {
+		winMinCandidate = fileMin;
+	}
+	if (winMinCandidate + targetSpan - 1 > fileMax) {
+		winMinCandidate = fileMax - targetSpan + 1;
+	}
+
+	var effMin = winMinCandidate;
+	var effMax = winMinCandidate + targetSpan - 1;
 
 	var itemsMap = {};
 	var secMap = {};
