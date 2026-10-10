@@ -3045,10 +3045,6 @@ function drawScene() {
 			ctx.save();
 			ctx.scale(1, -1);
 
-			ctx.beginPath();
-			ctx.rect(0, -hPx, wPx, hPx);
-			ctx.clip();
-
 			ctx.imageSmoothingEnabled = false;
 			ctx.mozImageSmoothingEnabled = false;
 			ctx.webkitImageSmoothingEnabled = false;
@@ -3074,7 +3070,7 @@ function drawScene() {
 				ctx.globalCompositeOperation = 'source-over';
 				ctx.fillStyle = hazeColor;
 				ctx.globalAlpha = 0.98 * fogFactor;
-				ctx.fillRect(0, -hPx, wPx, hPx);
+				ctx.fillRect(-1, -hPx - 1, wPx + 2, hPx + 2);
 			}
 
 			ctx.restore();
