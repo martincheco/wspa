@@ -716,13 +716,11 @@ function updateFocusSliderTrack() {
 	var focusItem = rawData.find(function(it) { return it.c === focusedIndex; });
 	var focusedFileIdx = focusItem ? focusItem.file_idx : fileMax;
 
-	var maxHalf = Math.floor((maxVisibleImages - 1) / 2);
-	var availableBelow = Math.max(0, focusedFileIdx - fileMin);
-	var availableAbove = Math.max(0, fileMax - focusedFileIdx);
-	var radius = Math.min(maxHalf, availableBelow, availableAbove);
+	var halfBelow = Math.floor((maxVisibleImages - 1) / 2);
+	var halfAbove = Math.ceil((maxVisibleImages - 1) / 2);
 
-	var visibleMin = focusedFileIdx - radius;
-	var visibleMax = focusedFileIdx + radius;
+	var visibleMin = Math.max(fileMin, focusedFileIdx - halfBelow);
+	var visibleMax = Math.min(fileMax, focusedFileIdx + halfAbove);
 
 	var minPct = maxFileIdx > 0 ? (fileMin / maxFileIdx) * 100 : 0;
 	var maxPct = maxFileIdx > 0 ? (fileMax / maxFileIdx) * 100 : 100;
@@ -1595,29 +1593,47 @@ function getVisibleZHeights(visibleItems) {
 			zHeights[i] = zHeights[i - 1] + effZStep;
 		}
 	} else {
-		var cornersList = visibleItems.map(function(item) {
-			return get2DPhysicalCorners(item);
+		var indexedItems = visibleItems.map(function(item, index) {
+			var area = item.xs * item.ys;
+			return { item: item, index: index, area: area, corners: get2DPhysicalCorners(item) };
 		});
 
-		for (var i = 0; i < visibleItems.length; i++) {
-			var itemCurr = visibleItems[i];
-			var cornersCurr = cornersList[i];
-			var diagCurr = Math.sqrt(itemCurr.xs * itemCurr.xs + itemCurr.ys * itemCurr.ys);
+		var priorityItems = indexedItems.slice().sort(function(a, b) {
+			if (Math.abs(b.area - a.area) > 1e-12) {
+				return b.area - a.area;
+			}
+			return a.index - b.index;
+		});
+
+		var assignedZ = new Array(visibleItems.length);
+		var processed = [];
+
+		priorityItems.forEach(function(pItem) {
+			var diagCurr = Math.sqrt(pItem.item.xs * pItem.item.xs + pItem.item.ys * pItem.item.ys);
 			var scaleMultiplier = isFactorEnabled ? Math.pow(diagCurr / avgDiag, factorPower) : 1.0;
 			var effZStep = baseZStep * scaleMultiplier;
 
-			var maxOverlapZ = -1;
-			for (var j = 0; j < i; j++) {
-				if (do2DQuadsIntersect(cornersCurr, cornersList[j])) {
-					var candidateZ = zHeights[j] + effZStep;
-					if (candidateZ > maxOverlapZ) {
-						maxOverlapZ = candidateZ;
+			var maxOverlappingZ = -1;
+
+			processed.forEach(function(prev) {
+				if (do2DQuadsIntersect(pItem.corners, prev.corners)) {
+					if (assignedZ[prev.index] > maxOverlappingZ) {
+						maxOverlappingZ = assignedZ[prev.index];
 					}
 				}
+			});
+
+			if (maxOverlappingZ >= 0) {
+				assignedZ[pItem.index] = maxOverlappingZ + effZStep;
+			} else {
+				assignedZ[pItem.index] = 0;
 			}
 
-			var chronoFloor = (i > 0) ? zHeights[i - 1] : 0;
-			zHeights[i] = Math.max(0, maxOverlapZ, chronoFloor);
+			processed.push(pItem);
+		});
+
+		for (var k = 0; k < visibleItems.length; k++) {
+			zHeights[k] = assignedZ[k] || 0;
 		}
 	}
 	cachedZHeights = zHeights;
@@ -2128,13 +2144,14 @@ function getVisibleItems() {
 	var focusItem = rawData.find(function(it) { return it.c === focusedIndex; });
 	var focusedFileIdx = focusItem ? focusItem.file_idx : fileMax;
 
-	var maxHalf = Math.floor((maxVisibleImages - 1) / 2);
-	var availableBelow = Math.max(0, focusedFileIdx - fileMin);
-	var availableAbove = Math.max(0, fileMax - focusedFileIdx);
-	var radius = Math.min(maxHalf, availableBelow, availableAbove);
+	var halfBelow = Math.floor((maxVisibleImages - 1) / 2);
+	var halfAbove = Math.ceil((maxVisibleImages - 1) / 2);
 
-	var effMin = focusedFileIdx - radius;
-	var effMax = focusedFileIdx + radius;
+	var winMin = focusedFileIdx - halfBelow;
+	var winMax = focusedFileIdx + halfAbove;
+
+	var effMin = Math.max(fileMin, winMin);
+	var effMax = Math.min(fileMax, winMax);
 
 	var itemsMap = {};
 	var secMap = {};
