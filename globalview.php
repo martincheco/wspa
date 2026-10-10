@@ -498,14 +498,14 @@ html, body {
 
 	<div id="gv-sidebar">
 		
-		<!-- 0. Active & Focused File Name Header -->
-		<div style="padding:4px 6px; background:#111; border-bottom:1px solid #444; font-family:monospace; font-size:11pt; font-weight:normal; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-			<div id="gvQVUDName" style="color:#ff0; font-weight:normal; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="<?php echo htmlspecialchars($active_file_name); ?>">
-				<?php echo htmlspecialchars($active_file_name); ?>
-			</div>
-			<div id="gvFocusName" style="color:#0f0; font-weight:normal; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:2px;" title="<?php echo htmlspecialchars($active_file_name); ?>">
-				<?php echo htmlspecialchars($active_file_name); ?>
-			</div>
+		<!-- 0. Active & Focused File Name Header Buttons -->
+		<div style="padding:4px; background:#111; border-bottom:1px solid #444; font-family:monospace; font-size:11pt; font-weight:normal; display:flex; flex-direction:column; gap:4px;">
+			<button onclick="centerOnActiveImage()" title="Center view on active image" style="background:#111; border:1px solid #444; color:#ff0; font-family:monospace; font-size:11pt; font-weight:normal; text-align:left; cursor:pointer; padding:2px 4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; outline:none; height:auto;">
+				<span id="gvQVUDName"><?php echo htmlspecialchars($active_file_name); ?></span>
+			</button>
+			<button onclick="centerFocusedImage()" title="Center view on focused image" style="background:#111; border:1px solid #444; color:#0ff; font-family:monospace; font-size:11pt; font-weight:normal; text-align:left; cursor:pointer; padding:2px 4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; outline:none; height:auto;">
+				<span id="gvFocusName"><?php echo htmlspecialchars($active_file_name); ?></span>
+			</button>
 		</div>
 
 		<!-- 1. Channels Selectors (Main & Secondary) -->
@@ -529,12 +529,6 @@ html, body {
 					</option>
 				<?php endforeach; ?>
 			</select>
-		</div>
-
-		<!-- 2. FIT Buttons (Fit active & Autoscale in 1 row) -->
-		<div style="display:flex; gap:8px;">
-			<input type="submit" onclick="centerOnActiveImage()" value="Fit active" title="Center view on active image" style="flex:1; font-weight:normal;">
-			<input type="submit" onclick="fitView()" value="Autoscale" title="Autoscale view to fit visible images (f key)" style="flex:1; font-weight:normal;">
 		</div>
 
 		<!-- 3. Range Controls -->
@@ -561,9 +555,10 @@ html, body {
 				<span id="gvMaxVisibleVal" style="width:42px; text-align:right; color:#ff0; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">100</span>
 			</div>
 			<div style="display:flex; gap:4px; margin-top:4px;">
-				<input type="submit" onclick="setFocusAsMinRange()" value="Focus -&gt; From" title="Set lower range bound to current focus (PageDown)" style="flex:1; font-weight:normal;">
-				<input type="submit" onclick="setFocusAsMaxRange()" value="Focus -&gt; To" title="Set upper range bound to current focus (PageUp)" style="flex:1; font-weight:normal;">
-				<input type="submit" onclick="showAllImages()" value="Full range" title="Set range to include all images" style="flex:1; font-weight:normal;">
+				<input type="submit" onclick="setFocusAsMinRange()" value="SetFrom" title="Set lower range bound to current focus (PageDown)" style="flex:1; font-weight:normal;">
+				<input type="submit" onclick="setFocusAsMaxRange()" value="SetTo" title="Set upper range bound to current focus (PageUp)" style="flex:1; font-weight:normal;">
+				<input type="submit" onclick="showAllImages()" value="FullRange" title="Set range to include all images" style="flex:1; font-weight:normal;">
+				<input type="submit" onclick="fitView()" value="AutoScl" title="Autoscale view to fit visible images (f key)" style="flex:1; font-weight:normal;">
 			</div>
 		</div>
 
@@ -597,8 +592,8 @@ html, body {
 			</div>
 			<div style="display:flex; gap:4px; margin-top:4px;">
 				<input type="submit" onclick="setPitch2D()" value="2D" title="Pitch view to 2D top-down" style="flex:1; font-weight:normal;">
-				<input type="submit" onclick="alignFocusToAnalysis()" value="Align Focus" title="Align view angle to focus scan angle" style="flex:1; font-weight:normal;">
-				<input type="submit" onclick="resetAngleZero()" value="Angle 0°" title="Reset view angle to 0°" style="flex:1; font-weight:normal;">
+				<input type="submit" onclick="alignFocusToAnalysis()" value="Align" title="Align view angle to focus scan angle" style="flex:1; font-weight:normal;">
+				<input type="submit" onclick="resetAngleZero()" value="0°" title="Reset view angle to 0°" style="flex:1; font-weight:normal;">
 			</div>
 		</div>
 
@@ -627,21 +622,21 @@ html, body {
 				<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
 					<input type="checkbox" id="gvZFactorEnabled" <?php echo (!isset($user_cfg['gv_zfactor_enabled']) || $user_cfg['gv_zfactor_enabled'] === 'true') ? 'checked' : ''; ?> onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Proportional &Delta;Z
 				</label>
-				<div id="gvZFactorRow" style="margin-left:22px; margin-top:2px; display:<?php echo (!isset($user_cfg['gv_zfactor_enabled']) || $user_cfg['gv_zfactor_enabled'] === 'true') ? 'block' : 'none'; ?>;">
+				<div id="gvZFactorRow" style="margin-left:18px; margin-top:4px; margin-bottom:4px; display:<?php echo (!isset($user_cfg['gv_zfactor_enabled']) || $user_cfg['gv_zfactor_enabled'] === 'true') ? 'block' : 'none'; ?>;">
 					<div style="display:flex; align-items:center; gap:4px;">
-						<span style="width:40px; white-space:nowrap; color:#aaa; font-size:9.5pt; font-weight:normal; flex-shrink:0;">Factor</span>
+						<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Factor</span>
 						<input type="range" id="gvZFactor" min="0.1" max="10.0" value="1.0" step="0.1" oninput="on3DParamChange()" title="Z size scaling factor (0.1 to 10.0)" style="flex:1; min-width:0;">
-						<span id="gvZFactorVal" style="width:36px; text-align:right; color:#0ff; font-size:9.5pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">1.0</span>
+						<span id="gvZFactorVal" style="width:42px; text-align:right; color:#0ff; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">1.0</span>
 					</div>
 				</div>
 				<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
 					<input type="checkbox" id="gvShowHaze" <?php echo (!isset($user_cfg['gv_show_haze']) || $user_cfg['gv_show_haze'] === 'true') ? 'checked' : ''; ?> onchange="onHazeCheckboxToggle()" style="vertical-align:middle; margin-right:6px;"> Haze
 				</label>
-				<div id="gvHazeControlRow" style="margin-left:22px; margin-top:2px; display:<?php echo (!isset($user_cfg['gv_show_haze']) || $user_cfg['gv_show_haze'] === 'true') ? 'block' : 'none'; ?>;">
+				<div id="gvHazeControlRow" style="margin-left:18px; margin-top:4px; margin-bottom:4px; display:<?php echo (!isset($user_cfg['gv_show_haze']) || $user_cfg['gv_show_haze'] === 'true') ? 'block' : 'none'; ?>;">
 					<div style="display:flex; align-items:center; gap:4px;">
-						<span style="width:40px; white-space:nowrap; color:#aaa; font-size:9.5pt; font-weight:normal; flex-shrink:0;">Fade</span>
+						<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Fade</span>
 						<input type="range" id="gvHazeDensity" min="20" max="300" value="<?php echo isset($user_cfg['gv_haze_density']) ? intval($user_cfg['gv_haze_density']) : 100; ?>" step="10" oninput="onHazeSliderChange()" title="Haze fog thickness multiplier (20% to 300%)" style="flex:1; min-width:0;">
-						<span id="gvHazeVal" style="width:36px; text-align:right; color:#ff0; font-size:9.5pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo isset($user_cfg['gv_haze_density']) ? sprintf('%.1fx', floatval($user_cfg['gv_haze_density']) / 100.0) : '1.0x'; ?></span>
+						<span id="gvHazeVal" style="width:42px; text-align:right; color:#ff0; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo isset($user_cfg['gv_haze_density']) ? sprintf('%.1fx', floatval($user_cfg['gv_haze_density']) / 100.0) : '1.0x'; ?></span>
 					</div>
 				</div>
 			</div>
@@ -2743,16 +2738,28 @@ function onTimeSliderChange() {
 	if (minValSpan) minValSpan.textContent = (fileMin + 1);
 	if (maxValSpan) maxValSpan.textContent = (fileMax + 1);
 
-	// Exclusion area coloring on range slider tracks
+	// Brighter exclusion and range area coloring on range slider tracks
 	var minPct = maxFileIdx > 0 ? (fileMin / maxFileIdx) * 100 : 0;
 	var maxPct = maxFileIdx > 0 ? (fileMax / maxFileIdx) * 100 : 100;
 
-	timeMinInput.style.background = 'linear-gradient(to right, #622 0%, #622 ' + minPct + '%, #333 ' + minPct + '%, #333 100%)';
-	timeMaxInput.style.background = 'linear-gradient(to right, #333 0%, #333 ' + maxPct + '%, #622 ' + maxPct + '%, #622 100%)';
+	timeMinInput.style.background = 'linear-gradient(to right, #b42 0%, #b42 ' + minPct + '%, #00a6ff ' + minPct + '%, #00a6ff 100%)';
+	timeMaxInput.style.background = 'linear-gradient(to right, #00a6ff 0%, #00a6ff ' + maxPct + '%, #b42 ' + maxPct + '%, #b42 100%)';
+
+	var visibleMin = fileMin;
+	var visibleMax = Math.min(fileMax, fileMin + maxVisibleImages - 1);
+	var visMinPct = maxFileIdx > 0 ? (visibleMin / maxFileIdx) * 100 : 0;
+	var visMaxPct = maxFileIdx > 0 ? (visibleMax / maxFileIdx) * 100 : 100;
 
 	var focusInput = document.getElementById('gvTimeFocus');
 	if (focusInput) {
-		focusInput.style.background = 'linear-gradient(to right, #333 0%, #333 ' + minPct + '%, #153 ' + minPct + '%, #153 ' + maxPct + '%, #333 ' + maxPct + '%, #333 100%)';
+		focusInput.style.background = 'linear-gradient(to right, ' +
+			'#222 0%, #222 ' + minPct.toFixed(2) + '%, ' +
+			'#084 ' + minPct.toFixed(2) + '%, #084 ' + visMinPct.toFixed(2) + '%, ' +
+			'#0f0 ' + visMinPct.toFixed(2) + '%, #0f0 ' + (visMinPct + 0.8).toFixed(2) + '%, ' +
+			'#142 ' + (visMinPct + 0.8).toFixed(2) + '%, #142 ' + Math.max(visMinPct + 0.8, visMaxPct - 0.8).toFixed(2) + '%, ' +
+			'#0f0 ' + Math.max(visMinPct + 0.8, visMaxPct - 0.8).toFixed(2) + '%, #0f0 ' + visMaxPct.toFixed(2) + '%, ' +
+			'#084 ' + visMaxPct.toFixed(2) + '%, #084 ' + maxPct.toFixed(2) + '%, ' +
+			'#222 ' + maxPct.toFixed(2) + '%, #222 100%)';
 	}
 
 	// Clamp focusedIndex to visible items matching active channel filter and time range
