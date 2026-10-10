@@ -642,7 +642,7 @@ html, body {
 				<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
 					<input type="checkbox" id="gvZFactorEnabled" <?php echo (!isset($user_cfg['gv_zfactor_enabled']) || $user_cfg['gv_zfactor_enabled'] === 'true') ? 'checked' : ''; ?> onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Proportional &Delta;Z
 				</label>
-				<div id="gvZFactorRow" style="margin-left:18px; margin-top:4px; margin-bottom:4px; display:<?php echo (!isset($user_cfg['gv_zfactor_enabled']) || $user_cfg['gv_zfactor_enabled'] === 'true') ? 'block' : 'none'; ?>;">
+				<div id="gvZFactorRow" style="margin-top:4px; margin-bottom:4px; display:<?php echo (!isset($user_cfg['gv_zfactor_enabled']) || $user_cfg['gv_zfactor_enabled'] === 'true') ? 'block' : 'none'; ?>;">
 					<div style="display:flex; align-items:center; gap:4px;">
 						<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Factor</span>
 						<input type="range" id="gvZFactor" min="0.1" max="10.0" value="1.0" step="0.1" oninput="on3DParamChange()" title="Z size scaling factor (0.1 to 10.0)" style="flex:1; min-width:0;">
@@ -652,7 +652,7 @@ html, body {
 				<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
 					<input type="checkbox" id="gvShowHaze" <?php echo (!isset($user_cfg['gv_show_haze']) || $user_cfg['gv_show_haze'] === 'true') ? 'checked' : ''; ?> onchange="onHazeCheckboxToggle()" style="vertical-align:middle; margin-right:6px;"> Haze
 				</label>
-				<div id="gvHazeControlRow" style="margin-left:18px; margin-top:4px; margin-bottom:4px; display:<?php echo (!isset($user_cfg['gv_show_haze']) || $user_cfg['gv_show_haze'] === 'true') ? 'block' : 'none'; ?>;">
+				<div id="gvHazeControlRow" style="margin-top:4px; margin-bottom:4px; display:<?php echo (!isset($user_cfg['gv_show_haze']) || $user_cfg['gv_show_haze'] === 'true') ? 'block' : 'none'; ?>;">
 					<div style="display:flex; align-items:center; gap:4px;">
 						<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Fade</span>
 						<input type="range" id="gvHazeDensity" min="20" max="300" value="<?php echo isset($user_cfg['gv_haze_density']) ? intval($user_cfg['gv_haze_density']) : 100; ?>" step="10" oninput="onHazeSliderChange()" title="Haze fog thickness multiplier (20% to 300%)" style="flex:1; min-width:0;">
@@ -2801,8 +2801,15 @@ function onTimeSliderChange() {
 	if (minValSpan) minValSpan.textContent = (fileMin + 1);
 	if (maxValSpan) maxValSpan.textContent = (fileMax + 1);
 
-	if (timeMinInput) timeMinInput.style.background = '';
-	if (timeMaxInput) timeMaxInput.style.background = '';
+	var minPct = maxFileIdx > 0 ? (fileMin / maxFileIdx) * 100 : 0;
+	var maxPct = maxFileIdx > 0 ? (fileMax / maxFileIdx) * 100 : 100;
+
+	if (timeMinInput) {
+		timeMinInput.style.background = 'linear-gradient(to right, #b42 0%, #b42 ' + minPct.toFixed(2) + '%, #222 ' + minPct.toFixed(2) + '%, #222 100%)';
+	}
+	if (timeMaxInput) {
+		timeMaxInput.style.background = 'linear-gradient(to right, #222 0%, #222 ' + maxPct.toFixed(2) + '%, #b42 ' + maxPct.toFixed(2) + '%, #b42 100%)';
+	}
 
 	updateFocusSliderTrack();
 
