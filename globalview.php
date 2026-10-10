@@ -3070,7 +3070,7 @@ function drawScene() {
 				ctx.globalCompositeOperation = 'source-atop';
 				ctx.fillStyle = hazeColor;
 				ctx.globalAlpha = 0.98 * fogFactor;
-				ctx.fillRect(0, -hPx, wPx, hPx);
+				ctx.fillRect(-4, -hPx - 4, wPx + 8, hPx + 8);
 			}
 
 			ctx.restore();
