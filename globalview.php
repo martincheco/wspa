@@ -2745,8 +2745,14 @@ function onTimeSliderChange() {
 	timeMinInput.style.background = 'linear-gradient(to right, #b42 0%, #b42 ' + minPct + '%, #00a6ff ' + minPct + '%, #00a6ff 100%)';
 	timeMaxInput.style.background = 'linear-gradient(to right, #00a6ff 0%, #00a6ff ' + maxPct + '%, #b42 ' + maxPct + '%, #b42 100%)';
 
-	var visibleMin = fileMin;
-	var visibleMax = Math.min(fileMax, fileMin + maxVisibleImages - 1);
+	var focusItem = rawData.find(function(it) { return it.c === focusedIndex; });
+	var focusedFileIdx = focusItem ? focusItem.file_idx : fileMax;
+
+	var halfBelow = Math.floor((maxVisibleImages - 1) / 2);
+	var halfAbove = Math.ceil((maxVisibleImages - 1) / 2);
+
+	var visibleMin = Math.max(fileMin, focusedFileIdx - halfBelow);
+	var visibleMax = Math.min(fileMax, focusedFileIdx + halfAbove);
 	var visMinPct = maxFileIdx > 0 ? (visibleMin / maxFileIdx) * 100 : 0;
 	var visMaxPct = maxFileIdx > 0 ? (visibleMax / maxFileIdx) * 100 : 100;
 
@@ -2754,11 +2760,9 @@ function onTimeSliderChange() {
 	if (focusInput) {
 		focusInput.style.background = 'linear-gradient(to right, ' +
 			'#222 0%, #222 ' + minPct.toFixed(2) + '%, ' +
-			'#084 ' + minPct.toFixed(2) + '%, #084 ' + visMinPct.toFixed(2) + '%, ' +
-			'#0f0 ' + visMinPct.toFixed(2) + '%, #0f0 ' + (visMinPct + 0.8).toFixed(2) + '%, ' +
-			'#142 ' + (visMinPct + 0.8).toFixed(2) + '%, #142 ' + Math.max(visMinPct + 0.8, visMaxPct - 0.8).toFixed(2) + '%, ' +
-			'#0f0 ' + Math.max(visMinPct + 0.8, visMaxPct - 0.8).toFixed(2) + '%, #0f0 ' + visMaxPct.toFixed(2) + '%, ' +
-			'#084 ' + visMaxPct.toFixed(2) + '%, #084 ' + maxPct.toFixed(2) + '%, ' +
+			'#006622 ' + minPct.toFixed(2) + '%, #006622 ' + visMinPct.toFixed(2) + '%, ' +
+			'#00ff41 ' + visMinPct.toFixed(2) + '%, #00ff41 ' + visMaxPct.toFixed(2) + '%, ' +
+			'#006622 ' + visMaxPct.toFixed(2) + '%, #006622 ' + maxPct.toFixed(2) + '%, ' +
 			'#222 ' + maxPct.toFixed(2) + '%, #222 100%)';
 	}
 
