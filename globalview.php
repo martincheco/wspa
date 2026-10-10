@@ -2434,72 +2434,13 @@ function resizeCanvas() {
 	requestDraw();
 }
 
-function centerOnActiveImage(animate, preserveZoom) {
+function centerOnActiveImage(animate) {
 	if (typeof animate === 'undefined') animate = true;
-	if (typeof preserveZoom === 'undefined') preserveZoom = false;
 	if (rawData.length === 0) return;
 
 	var activeItem = rawData.find(function(item) { return item.c === qvudIndex; }) || rawData[0];
 	if (activeItem) {
-		if (activeItem.file_idx < fileMin) {
-			timeMinInput.value = activeItem.file_idx;
-			onTimeSliderChange();
-		} else if (activeItem.file_idx > fileMax) {
-			timeMaxInput.value = activeItem.file_idx;
-			onTimeSliderChange();
-		}
-	}
-
-	updateMinZoomScale();
-
-	var cw = viewport.clientWidth;
-	var ch = viewport.clientHeight;
-	if (cw <= 0 || ch <= 0) return;
-
-	var maxScale = getMaxZoomScale();
-	var targetZoom = zoomScale;
-
-	if (!preserveZoom) {
-		var pitchRad = pitch3D * Math.PI / 180.0;
-		var activeW = activeItem.xs;
-		var activeH = activeItem.ys * Math.sin(pitchRad);
-		if (activeW <= 0) activeW = 1e-7;
-		if (activeH <= 0) activeH = 1e-7;
-
-		var scaleX = (0.5 * cw) / activeW;
-		var scaleY = (0.5 * ch) / activeH;
-		var fitActiveScale = Math.min(scaleX, scaleY);
-		targetZoom = Math.max(minZoomScale, Math.min(maxScale, fitActiveScale));
-	} else {
-		targetZoom = Math.max(minZoomScale, Math.min(maxScale, zoomScale));
-	}
-
-	var foc = getFocusedItemAndZ();
-	var visibleItems = getVisibleItems();
-	var visIdx = visibleItems.findIndex(function(v) { return v.c === activeItem.c; });
-	var activeZ = getItemZMeters(visIdx >= 0 ? visIdx : 0, visibleItems);
-
-	var dx = activeItem.xo - foc.x;
-	var dy = activeItem.yo - foc.y;
-	var dz = activeZ - foc.z;
-
-	var totalYawRad = -viewAngle * Math.PI / 180.0;
-	var pitchRad = pitch3D * Math.PI / 180.0;
-	var rotX = dx * Math.cos(totalYawRad) - dy * Math.sin(totalYawRad);
-	var rotY = dx * Math.sin(totalYawRad) + dy * Math.cos(totalYawRad);
-
-	var targetPanX = cw / 2 - rotX * targetZoom;
-	var targetPanY = ch / 2 + (rotY * Math.sin(pitchRad) + dz * Math.cos(pitchRad)) * targetZoom;
-
-	if (animate) {
-		animateViewTo(targetPanX, targetPanY, targetZoom, viewAngle);
-	} else {
-		stopAnimation();
-		zoomScale = targetZoom;
-		panX = targetPanX;
-		panY = targetPanY;
-		saveSpatialViewState();
-		requestDraw();
+		centerImage(activeItem, animate);
 	}
 }
 
