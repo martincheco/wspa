@@ -2373,8 +2373,9 @@ function centerOnActiveImage(animate, preserveZoom) {
 	}
 }
 
-function fitView(animate) {
+function fitView(animate, forceAutoscale) {
 	if (typeof animate === 'undefined') animate = false;
+	if (typeof forceAutoscale === 'undefined') forceAutoscale = true;
 	var cw = viewport.clientWidth;
 	var ch = viewport.clientHeight;
 	if (cw <= 0 || ch <= 0) return;
@@ -2386,7 +2387,7 @@ function fitView(animate) {
 	var maxScale = getMaxZoomScale();
 
 	var targetZoom = zoomScale;
-	if (!isZoomLoaded) {
+	if (forceAutoscale || !isZoomLoaded) {
 		var foc = getFocusedItemAndZ();
 		var visibleItems = getVisibleItems();
 		var count = visibleItems.length;
