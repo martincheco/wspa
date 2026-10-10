@@ -882,6 +882,94 @@ function drawObscurableEdge(ptA, ptB, targetVisIdx, higherItems, solidColor, fai
 	drawSampleIndexRun(ptA, ptB, runStartIdx, numSamples, numSamples, currentObs, solidColor, faintColor, dashUnobs, defaultLineWidth);
 }
 
+function drawObscurableEdge3D(ptA, ptB, zA, zB, targetVisIdx, itemsWith3D, solidColor, faintColor, numSamples, dashUnobs, customLineWidth) {
+	if (!numSamples) numSamples = 24;
+	if (numSamples > 64) numSamples = 64;
+
+	var defaultLineWidth = (typeof customLineWidth !== 'undefined' && customLineWidth !== null) ? customLineWidth : 1.0;
+
+	if (!itemsWith3D || itemsWith3D.length <= 1) {
+		ctx.save();
+		ctx.lineWidth = defaultLineWidth;
+		ctx.strokeStyle = solidColor;
+		ctx.setLineDash(dashUnobs ? [4, 4] : []);
+		ctx.beginPath();
+		ctx.moveTo(ptA.x, ptA.y);
+		ctx.lineTo(ptB.x, ptB.y);
+		ctx.stroke();
+		ctx.restore();
+		return;
+	}
+
+	var edgeMinX = Math.min(ptA.x, ptB.x);
+	var edgeMaxX = Math.max(ptA.x, ptB.x);
+	var edgeMinY = Math.min(ptA.y, ptB.y);
+	var edgeMaxY = Math.max(ptA.y, ptB.y);
+
+	var minZ = Math.min(zA, zB);
+
+	var activeCandidates = [];
+	for (var h = 0; h < itemsWith3D.length; h++) {
+		var cand = itemsWith3D[h];
+		if (cand.visIdx === targetVisIdx) continue;
+		if (cand.zMeters < minZ - 1e-9) continue;
+		if (typeof cand.minX !== 'undefined') {
+			if (!(edgeMaxX < cand.minX || edgeMinX > cand.maxX || edgeMaxY < cand.minY || edgeMinY > cand.maxY)) {
+				activeCandidates.push(cand);
+			}
+		} else {
+			activeCandidates.push(cand);
+		}
+	}
+
+	if (activeCandidates.length === 0) {
+		ctx.save();
+		ctx.lineWidth = defaultLineWidth;
+		ctx.strokeStyle = solidColor;
+		ctx.setLineDash(dashUnobs ? [4, 4] : []);
+		ctx.beginPath();
+		ctx.moveTo(ptA.x, ptA.y);
+		ctx.lineTo(ptB.x, ptB.y);
+		ctx.stroke();
+		ctx.restore();
+		return;
+	}
+
+	for (var i = 0; i < numSamples; i++) {
+		var tMid = (i + 0.5) / numSamples;
+		var sx = ptA.x + tMid * (ptB.x - ptA.x);
+		var sy = ptA.y + tMid * (ptB.y - ptA.y);
+		var zSample = zA + tMid * (zB - zA);
+
+		var obs = 0;
+		for (var k = 0; k < activeCandidates.length; k++) {
+			var cand = activeCandidates[k];
+			if (cand.zMeters >= zSample - 1e-9) {
+				if (sx >= cand.minX && sx <= cand.maxX && sy >= cand.minY && sy <= cand.maxY) {
+					if (isPointInQuad(sx, sy, cand.quad)) {
+						obs = 1;
+						break;
+					}
+				}
+			}
+		}
+		gvSampleObs[i] = obs;
+	}
+
+	var currentObs = (gvSampleObs[0] === 1);
+	var runStartIdx = 0;
+
+	for (var i = 0; i < numSamples; i++) {
+		var isObs = (gvSampleObs[i] === 1);
+		if (isObs !== currentObs) {
+			drawSampleIndexRun(ptA, ptB, runStartIdx, i, numSamples, currentObs, solidColor, faintColor, dashUnobs, defaultLineWidth);
+			currentObs = isObs;
+			runStartIdx = i;
+		}
+	}
+	drawSampleIndexRun(ptA, ptB, runStartIdx, numSamples, numSamples, currentObs, solidColor, faintColor, dashUnobs, defaultLineWidth);
+}
+
 function drawObscurableFrame(entry, itemsWith3D, solidColor, faintColor, insetPx) {
 	if (!entry || !itemsWith3D) return;
 	var entryRenderIdx = itemsWith3D.indexOf(entry);
@@ -3301,9 +3389,12 @@ function drawScene() {
 
 			// Depth Haze Opacity Fading for projected frames
 			var topFogFactor = 0, underFogFactor = 0;
+			var topEntry = itemsWith3D.find(function(e) { return e.visIdx === visIdxTop; });
+			var underEntry = itemsWith3D.find(function(e) { return e.visIdx === visIdxUnder; });
+			var zTop = topEntry ? topEntry.zMeters : 0;
+			var zUnder = underEntry ? underEntry.zMeters : 0;
+
 			if (showHaze && maxZSpan > 0) {
-				var topEntry = itemsWith3D.find(function(e) { return e.visIdx === visIdxTop; });
-				var underEntry = itemsWith3D.find(function(e) { return e.visIdx === visIdxUnder; });
 				if (topEntry) {
 					var dzT = focZ - topEntry.zMeters;
 					if (dzT > 0) topFogFactor = 1.0 - Math.exp(-2.5 * hazeDensityMult * (dzT / maxZSpan));
@@ -3321,9 +3412,9 @@ function drawScene() {
 			var dashDropColor  = 'rgba(170, 170, 170, ' + (0.75 * alphaTop).toFixed(3) + ')';
 			var projLineWidth  = 1.0; // Thinner 1.0px line width for projected frames
 
-			// 1. Connecting vertical corner drop lines (dashed gray, thinner, haze faded)
+			// 1. Connecting vertical corner drop lines (3D Z-aware obscuration, dashed gray, thinner, haze faded)
 			for (var k = 0; k < 4; k++) {
-				drawObscurableEdge(qTop[k], qUnder[k], visIdxTop, higherThanTop, dashDropColor, faintProjColor, 6, true, projLineWidth);
+				drawObscurableEdge3D(qTop[k], qUnder[k], zTop, zUnder, visIdxTop, itemsWith3D, dashDropColor, faintProjColor, 24, true, projLineWidth);
 			}
 
 			// 2. Projected 4-corner bounding frame on underlying image plane (solid gray, thinner, haze faded)
