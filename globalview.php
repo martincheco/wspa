@@ -1595,47 +1595,29 @@ function getVisibleZHeights(visibleItems) {
 			zHeights[i] = zHeights[i - 1] + effZStep;
 		}
 	} else {
-		var indexedItems = visibleItems.map(function(item, index) {
-			var area = item.xs * item.ys;
-			return { item: item, index: index, area: area, corners: get2DPhysicalCorners(item) };
+		var cornersList = visibleItems.map(function(item) {
+			return get2DPhysicalCorners(item);
 		});
 
-		var priorityItems = indexedItems.slice().sort(function(a, b) {
-			if (Math.abs(b.area - a.area) > 1e-12) {
-				return b.area - a.area;
-			}
-			return a.index - b.index;
-		});
-
-		var assignedZ = new Array(visibleItems.length);
-		var processed = [];
-
-		priorityItems.forEach(function(pItem) {
-			var diagCurr = Math.sqrt(pItem.item.xs * pItem.item.xs + pItem.item.ys * pItem.item.ys);
+		for (var i = 0; i < visibleItems.length; i++) {
+			var itemCurr = visibleItems[i];
+			var cornersCurr = cornersList[i];
+			var diagCurr = Math.sqrt(itemCurr.xs * itemCurr.xs + itemCurr.ys * itemCurr.ys);
 			var scaleMultiplier = isFactorEnabled ? Math.pow(diagCurr / avgDiag, factorPower) : 1.0;
 			var effZStep = baseZStep * scaleMultiplier;
 
-			var maxOverlappingZ = -1;
-
-			processed.forEach(function(prev) {
-				if (do2DQuadsIntersect(pItem.corners, prev.corners)) {
-					if (assignedZ[prev.index] > maxOverlappingZ) {
-						maxOverlappingZ = assignedZ[prev.index];
+			var maxOverlapZ = -1;
+			for (var j = 0; j < i; j++) {
+				if (do2DQuadsIntersect(cornersCurr, cornersList[j])) {
+					var candidateZ = zHeights[j] + effZStep;
+					if (candidateZ > maxOverlapZ) {
+						maxOverlapZ = candidateZ;
 					}
 				}
-			});
-
-			if (maxOverlappingZ >= 0) {
-				assignedZ[pItem.index] = maxOverlappingZ + effZStep;
-			} else {
-				assignedZ[pItem.index] = 0;
 			}
 
-			processed.push(pItem);
-		});
-
-		for (var k = 0; k < visibleItems.length; k++) {
-			zHeights[k] = assignedZ[k] || 0;
+			var chronoFloor = (i > 0) ? zHeights[i - 1] : 0;
+			zHeights[i] = Math.max(0, maxOverlapZ, chronoFloor);
 		}
 	}
 	cachedZHeights = zHeights;
