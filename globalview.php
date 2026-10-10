@@ -537,130 +537,107 @@ html, body {
 			<input type="submit" onclick="fitView()" value="Autoscale" title="Autoscale view to fit visible images (f key)" style="flex:1; font-weight:normal;">
 		</div>
 
-		<!-- 2b. Range Preset Buttons (Focus -> From, Focus -> To, Full range) -->
-		<div style="display:flex; gap:4px;">
-			<input type="submit" onclick="setFocusAsMinRange()" value="Focus -&gt; From" title="Set lower range bound to current focus (PageDown)" style="flex:1; font-weight:normal;">
-			<input type="submit" onclick="setFocusAsMaxRange()" value="Focus -&gt; To" title="Set upper range bound to current focus (PageUp)" style="flex:1; font-weight:normal;">
-			<input type="submit" onclick="showAllImages()" value="Full range" title="Set range to include all images" style="flex:1; font-weight:normal;">
-		</div>
-
-		<!-- 3. Range Thresholds & Focus Slider -->
-		<!-- 3. Range Thresholds & Focus Slider -->
+		<!-- 3. Range Controls -->
 		<div>
 			<div style="margin-bottom:4px; color:#fff; font-weight:bold;">Range</div>
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
+				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Focus</span>
+				<input type="range" id="gvTimeFocus" min="0" max="<?php echo $max_file_idx; ?>" value="<?php echo $active_file_idx; ?>" step="1" oninput="onFocusSliderChange()" title="Focus slider (Up/Down arrow)" style="flex:1; min-width:0;">
+				<span id="gvTimeFocusVal" style="width:42px; text-align:right; color:#0f0; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo ($active_file_idx + 1); ?></span>
+			</div>
+			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
 				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">From</span>
-				<input type="submit" onclick="stepTime('min', -1)" value="&lt;" style="font-weight:normal; flex-shrink:0;">
 				<input type="range" id="gvTimeMin" min="0" max="<?php echo $max_file_idx; ?>" value="0" step="1" oninput="onTimeSliderChange()" style="flex:1; min-width:0;">
-				<input type="submit" onclick="stepTime('min', 1)" value="&gt;" style="font-weight:normal; flex-shrink:0;">
 				<span id="gvTimeMinVal" style="width:42px; text-align:right; color:#6cf; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">1</span>
 			</div>
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
 				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">To</span>
-				<input type="submit" onclick="stepTime('max', -1)" value="&lt;" style="font-weight:normal; flex-shrink:0;">
 				<input type="range" id="gvTimeMax" min="0" max="<?php echo $max_file_idx; ?>" value="<?php echo $max_file_idx; ?>" step="1" oninput="onTimeSliderChange()" style="flex:1; min-width:0;">
-				<input type="submit" onclick="stepTime('max', 1)" value="&gt;" style="font-weight:normal; flex-shrink:0;">
 				<span id="gvTimeMaxVal" style="width:42px; text-align:right; color:#6cf; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo ($max_file_idx + 1); ?></span>
 			</div>
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
-				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Max file</span>
-				<input type="submit" onclick="stepMaxVis(-1)" value="&lt;" style="font-weight:normal; flex-shrink:0;">
-				<input type="range" id="gvMaxVisibleImages" min="10" max="200" value="100" step="10" oninput="onMaxVisibleImagesChange()" title="Max visible files limit" style="flex:1; min-width:0;">
-				<input type="submit" onclick="stepMaxVis(1)" value="&gt;" style="font-weight:normal; flex-shrink:0;">
+				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Max img</span>
+				<input type="range" id="gvMaxVisibleImages" min="10" max="400" value="100" step="10" oninput="onMaxVisibleImagesChange()" title="Max visible files limit" style="flex:1; min-width:0;">
 				<span id="gvMaxVisibleVal" style="width:42px; text-align:right; color:#ff0; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">100</span>
 			</div>
-			<div style="display:flex; align-items:center; gap:4px;">
-				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Focus</span>
-				<input type="submit" onclick="stepFocus(-1)" value="&lt;" title="Focus lower image (Down arrow)" style="font-weight:normal; flex-shrink:0;">
-				<input type="range" id="gvTimeFocus" min="0" max="<?php echo $max_file_idx; ?>" value="<?php echo $active_file_idx; ?>" step="1" oninput="onFocusSliderChange()" title="Focus slider (Up/Down arrow)" style="flex:1; min-width:0;">
-				<input type="submit" onclick="stepFocus(1)" value="&gt;" title="Focus higher image (Up arrow)" style="font-weight:normal; flex-shrink:0;">
-				<span id="gvTimeFocusVal" style="width:42px; text-align:right; color:#0f0; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo ($active_file_idx + 1); ?></span>
+			<div style="display:flex; gap:4px; margin-top:4px;">
+				<input type="submit" onclick="setFocusAsMinRange()" value="Focus -&gt; From" title="Set lower range bound to current focus (PageDown)" style="flex:1; font-weight:normal;">
+				<input type="submit" onclick="setFocusAsMaxRange()" value="Focus -&gt; To" title="Set upper range bound to current focus (PageUp)" style="flex:1; font-weight:normal;">
+				<input type="submit" onclick="showAllImages()" value="Full range" title="Set range to include all images" style="flex:1; font-weight:normal;">
 			</div>
 		</div>
 
-		<!-- 4. 3D Controls (Pitch, ΔZ, Factor, Yaw, Zoom, Alpha & action buttons) -->
-		<div>
+		<!-- 4. 3D Controls -->
+		<div style="margin-top:8px;">
 			<div style="margin-bottom:4px; color:#fff; font-weight:bold;">3D view</div>
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
-				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Pitch</span>
-				<input type="submit" onclick="stepPitch(-1)" value="&lt;" style="font-weight:normal; flex-shrink:0;">
-				<input type="range" id="gv3DPitch" min="10" max="90" value="<?php echo isset($user_cfg['gv_pitch']) ? intval($user_cfg['gv_pitch']) : 45; ?>" step="1" oninput="on3DParamChange()" title="Pitch slider (W / S keys)" style="flex:1; min-width:0;">
-				<input type="submit" onclick="stepPitch(1)" value="&gt;" style="font-weight:normal; flex-shrink:0;">
-				<span id="gv3DPitchVal" style="width:42px; text-align:right; color:#0ff; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo isset($user_cfg['gv_pitch']) ? intval($user_cfg['gv_pitch']) : 45; ?>°</span>
-			</div>
-			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
-				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">&Delta;Z</span>
-				<input type="submit" onclick="stepZSep(-1)" value="&lt;" style="font-weight:normal; flex-shrink:0;">
-				<input type="range" id="gv3DTimeZ" min="0" max="1000" value="459" step="1" oninput="on3DParamChange()" title="Z separation slider (Z / X keys)" style="flex:1; min-width:0;">
-				<input type="submit" onclick="stepZSep(1)" value="&gt;" style="font-weight:normal; flex-shrink:0;">
-				<span id="gv3DTimeZVal" style="width:42px; text-align:right; color:#0ff; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">5.0nm</span>
-			</div>
-			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
-				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Factor</span>
-				<input type="submit" onclick="stepZFactor(-1)" value="&lt;" style="font-weight:normal; flex-shrink:0;">
-				<input type="range" id="gvZFactor" min="0.1" max="10.0" value="1.0" step="0.1" oninput="on3DParamChange()" title="Z size scaling factor (0.1 to 10.0)" style="flex:1; min-width:0;">
-				<input type="submit" onclick="stepZFactor(1)" value="&gt;" style="font-weight:normal; flex-shrink:0;">
-				<span id="gvZFactorVal" style="width:42px; text-align:right; color:#0ff; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">1.0</span>
-			</div>
-			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
 				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Yaw</span>
-				<input type="submit" onclick="stepRot(-1)" value="&lt;" style="font-weight:normal; flex-shrink:0;">
 				<input type="range" id="gvRot" min="-180" max="180" value="<?php echo isset($user_cfg['gv_yaw']) ? intval($user_cfg['gv_yaw']) : 0; ?>" step="1" oninput="onRotChange()" title="Yaw slider (A / D or Q / E keys)" style="flex:1; min-width:0;">
-				<input type="submit" onclick="stepRot(1)" value="&gt;" style="font-weight:normal; flex-shrink:0;">
 				<span id="gvRotVal" style="width:42px; text-align:right; color:#0f0; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo isset($user_cfg['gv_yaw']) ? intval($user_cfg['gv_yaw']) : 0; ?>°</span>
 			</div>
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
+				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Pitch</span>
+				<input type="range" id="gv3DPitch" min="0" max="90" value="<?php echo isset($user_cfg['gv_pitch']) ? intval($user_cfg['gv_pitch']) : 45; ?>" step="1" oninput="on3DParamChange()" title="Pitch slider (W / S keys)" style="flex:1; min-width:0;">
+				<span id="gv3DPitchVal" style="width:42px; text-align:right; color:#0ff; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo isset($user_cfg['gv_pitch']) ? intval($user_cfg['gv_pitch']) : 45; ?>°</span>
+			</div>
+			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
 				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Zoom</span>
-				<input type="submit" onclick="stepZoom(-1)" value="&lt;" style="font-weight:normal; flex-shrink:0;">
 				<input type="range" id="gvZoomSlider" min="1" max="100" value="50" step="1" oninput="onZoomSliderChange()" title="Zoom slider (= / - keys)" style="flex:1; min-width:0;">
-				<input type="submit" onclick="stepZoom(1)" value="&gt;" style="font-weight:normal; flex-shrink:0;">
 				<span id="gvZoomVal" style="width:42px; text-align:right; color:#6cf; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">100x</span>
 			</div>
 			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
-				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Alpha</span>
-				<input type="submit" onclick="stepAlpha(-1)" value="&lt;" style="font-weight:normal; flex-shrink:0;">
-				<input type="range" id="gvAlpha" min="10" max="100" step="5" value="<?php echo isset($user_cfg['gv_alpha']) ? intval($user_cfg['gv_alpha']) : 100; ?>" oninput="onAlphaChange()" title="Alpha slider ([ / ] keys)" style="flex:1; min-width:0;">
-				<input type="submit" onclick="stepAlpha(1)" value="&gt;" style="font-weight:normal; flex-shrink:0;">
-				<span id="gvAlphaVal" style="width:42px; text-align:right; color:#ff0; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo isset($user_cfg['gv_alpha']) ? intval($user_cfg['gv_alpha']) : 100; ?>%</span>
+				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">dZ</span>
+				<input type="range" id="gv3DTimeZ" min="0" max="1000" value="459" step="1" oninput="on3DParamChange()" title="Z separation slider (Z / X keys)" style="flex:1; min-width:0;">
+				<span id="gv3DTimeZVal" style="width:42px; text-align:right; color:#0ff; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">5.0nm</span>
 			</div>
-			<div style="display:flex; gap:4px;">
+			<div style="display:flex; gap:4px; margin-top:4px;">
 				<input type="submit" onclick="setPitch2D()" value="2D" title="Pitch view to 2D top-down" style="flex:1; font-weight:normal;">
 				<input type="submit" onclick="alignFocusToAnalysis()" value="Align Focus" title="Align view angle to focus scan angle" style="flex:1; font-weight:normal;">
 				<input type="submit" onclick="resetAngleZero()" value="Angle 0°" title="Reset view angle to 0°" style="flex:1; font-weight:normal;">
 			</div>
 		</div>
 
-		<!-- 5. Checkboxes -->
-		<div style="display:flex; flex-direction:column; gap:4px; margin-top:2px; font-weight:normal;">
-			<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
-				<input type="checkbox" id="gvLabels" <?php echo (!isset($user_cfg['gv_show_labels']) || $user_cfg['gv_show_labels'] === 'true') ? 'checked' : ''; ?> onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Show Labels
-			</label>
-			<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
-				<input type="checkbox" id="gvShowSTS" <?php echo (!isset($user_cfg['gv_show_sts']) || $user_cfg['gv_show_sts'] === 'true') ? 'checked' : ''; ?> onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Show STS
-			</label>
-			<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
-				<input type="checkbox" id="gvShowTooltip" <?php echo (!isset($user_cfg['gv_show_tooltip']) || $user_cfg['gv_show_tooltip'] === 'true') ? 'checked' : ''; ?> onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Show tooltip
-			</label>
-			<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
-				<input type="checkbox" id="gvShowCenterLine" <?php echo (isset($user_cfg['gv_show_center_line']) && $user_cfg['gv_show_center_line'] === 'true') ? 'checked' : ''; ?> onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Connect centers
-			</label>
-			<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
-				<input type="checkbox" id="gvAutoZSpacing" <?php echo (!isset($user_cfg['gv_auto_zspacing']) || $user_cfg['gv_auto_zspacing'] === 'true') ? 'checked' : ''; ?> onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Auto Z
-			</label>
-			<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
-				<input type="checkbox" id="gvShowProjFrame" <?php echo (!isset($user_cfg['gv_show_proj_frame']) || $user_cfg['gv_show_proj_frame'] === 'true') ? 'checked' : ''; ?> onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Proj frame
-			</label>
-			<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
-				<input type="checkbox" id="gvZFactorEnabled" <?php echo (!isset($user_cfg['gv_zfactor_enabled']) || $user_cfg['gv_zfactor_enabled'] === 'true') ? 'checked' : ''; ?> onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Size-proportional &Delta;Z
-			</label>
-			<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
-				<input type="checkbox" id="gvShowHaze" <?php echo (!isset($user_cfg['gv_show_haze']) || $user_cfg['gv_show_haze'] === 'true') ? 'checked' : ''; ?> onchange="onHazeCheckboxToggle()" style="vertical-align:middle; margin-right:6px;"> Depth haze
-			</label>
-			<div id="gvHazeControlRow" style="margin-left:22px; margin-top:2px; display:<?php echo (!isset($user_cfg['gv_show_haze']) || $user_cfg['gv_show_haze'] === 'true') ? 'block' : 'none'; ?>;">
-				<div style="display:flex; align-items:center; gap:4px;">
-					<span style="width:40px; white-space:nowrap; color:#aaa; font-size:9.5pt; font-weight:normal; flex-shrink:0;">Fade</span>
-					<input type="range" id="gvHazeDensity" min="20" max="300" value="<?php echo isset($user_cfg['gv_haze_density']) ? intval($user_cfg['gv_haze_density']) : 100; ?>" step="10" oninput="onHazeSliderChange()" title="Haze fog thickness multiplier (20% to 300%)" style="flex:1; min-width:0;">
-					<span id="gvHazeVal" style="width:36px; text-align:right; color:#ff0; font-size:9.5pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo isset($user_cfg['gv_haze_density']) ? sprintf('%.1fx', floatval($user_cfg['gv_haze_density']) / 100.0) : '1.0x'; ?></span>
+		<!-- 5. Effects Controls -->
+		<div style="margin-top:8px;">
+			<div style="margin-bottom:4px; color:#fff; font-weight:bold;">Effects</div>
+			<div style="display:flex; flex-direction:column; gap:4px; font-weight:normal;">
+				<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
+					<input type="checkbox" id="gvLabels" <?php echo (!isset($user_cfg['gv_show_labels']) || $user_cfg['gv_show_labels'] === 'true') ? 'checked' : ''; ?> onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Labels
+				</label>
+				<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
+					<input type="checkbox" id="gvShowSTS" <?php echo (!isset($user_cfg['gv_show_sts']) || $user_cfg['gv_show_sts'] === 'true') ? 'checked' : ''; ?> onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> STS
+				</label>
+				<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
+					<input type="checkbox" id="gvShowTooltip" <?php echo (!isset($user_cfg['gv_show_tooltip']) || $user_cfg['gv_show_tooltip'] === 'true') ? 'checked' : ''; ?> onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Tooltips
+				</label>
+				<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
+					<input type="checkbox" id="gvShowProjFrame" <?php echo (!isset($user_cfg['gv_show_proj_frame']) || $user_cfg['gv_show_proj_frame'] === 'true') ? 'checked' : ''; ?> onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Project frames
+				</label>
+				<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
+					<input type="checkbox" id="gvShowCenterLine" <?php echo (isset($user_cfg['gv_show_center_line']) && $user_cfg['gv_show_center_line'] === 'true') ? 'checked' : ''; ?> onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Connect images
+				</label>
+				<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
+					<input type="checkbox" id="gvAutoZSpacing" <?php echo (!isset($user_cfg['gv_auto_zspacing']) || $user_cfg['gv_auto_zspacing'] === 'true') ? 'checked' : ''; ?> onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Auto Z
+				</label>
+				<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
+					<input type="checkbox" id="gvZFactorEnabled" <?php echo (!isset($user_cfg['gv_zfactor_enabled']) || $user_cfg['gv_zfactor_enabled'] === 'true') ? 'checked' : ''; ?> onchange="onCheckboxChange()" style="vertical-align:middle; margin-right:6px;"> Proportional &Delta;Z
+				</label>
+				<div id="gvZFactorRow" style="margin-left:22px; margin-top:2px; display:<?php echo (!isset($user_cfg['gv_zfactor_enabled']) || $user_cfg['gv_zfactor_enabled'] === 'true') ? 'block' : 'none'; ?>;">
+					<div style="display:flex; align-items:center; gap:4px;">
+						<span style="width:40px; white-space:nowrap; color:#aaa; font-size:9.5pt; font-weight:normal; flex-shrink:0;">Factor</span>
+						<input type="range" id="gvZFactor" min="0.1" max="10.0" value="1.0" step="0.1" oninput="on3DParamChange()" title="Z size scaling factor (0.1 to 10.0)" style="flex:1; min-width:0;">
+						<span id="gvZFactorVal" style="width:36px; text-align:right; color:#0ff; font-size:9.5pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">1.0</span>
+					</div>
+				</div>
+				<label style="color:#fff; cursor:pointer; font-size:11pt; font-weight:normal;">
+					<input type="checkbox" id="gvShowHaze" <?php echo (!isset($user_cfg['gv_show_haze']) || $user_cfg['gv_show_haze'] === 'true') ? 'checked' : ''; ?> onchange="onHazeCheckboxToggle()" style="vertical-align:middle; margin-right:6px;"> Haze
+				</label>
+				<div id="gvHazeControlRow" style="margin-left:22px; margin-top:2px; display:<?php echo (!isset($user_cfg['gv_show_haze']) || $user_cfg['gv_show_haze'] === 'true') ? 'block' : 'none'; ?>;">
+					<div style="display:flex; align-items:center; gap:4px;">
+						<span style="width:40px; white-space:nowrap; color:#aaa; font-size:9.5pt; font-weight:normal; flex-shrink:0;">Fade</span>
+						<input type="range" id="gvHazeDensity" min="20" max="300" value="<?php echo isset($user_cfg['gv_haze_density']) ? intval($user_cfg['gv_haze_density']) : 100; ?>" step="10" oninput="onHazeSliderChange()" title="Haze fog thickness multiplier (20% to 300%)" style="flex:1; min-width:0;">
+						<span id="gvHazeVal" style="width:36px; text-align:right; color:#ff0; font-size:9.5pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo isset($user_cfg['gv_haze_density']) ? sprintf('%.1fx', floatval($user_cfg['gv_haze_density']) / 100.0) : '1.0x'; ?></span>
+					</div>
 				</div>
 			</div>
 		</div>
@@ -2634,7 +2611,7 @@ function onMaxVisibleImagesChange() {
 	var maxInput = document.getElementById('gvMaxVisibleImages');
 	var maxValSpan = document.getElementById('gvMaxVisibleVal');
 	if (!maxInput) return;
-	maxVisibleImages = Math.max(10, Math.min(200, parseInt(maxInput.value, 10)));
+	maxVisibleImages = Math.max(10, Math.min(400, parseInt(maxInput.value, 10)));
 	if (maxValSpan) maxValSpan.textContent = maxVisibleImages;
 
 	saveSpatialViewState();
@@ -2677,6 +2654,11 @@ function onTimeSliderChange() {
 
 	timeMinInput.style.background = 'linear-gradient(to right, #622 0%, #622 ' + minPct + '%, #333 ' + minPct + '%, #333 100%)';
 	timeMaxInput.style.background = 'linear-gradient(to right, #333 0%, #333 ' + maxPct + '%, #622 ' + maxPct + '%, #622 100%)';
+
+	var focusInput = document.getElementById('gvTimeFocus');
+	if (focusInput) {
+		focusInput.style.background = 'linear-gradient(to right, #333 0%, #333 ' + minPct + '%, #153 ' + minPct + '%, #153 ' + maxPct + '%, #333 ' + maxPct + '%, #333 100%)';
+	}
 
 	// Clamp focusedIndex to visible items matching active channel filter and time range
 	var visItems = getVisibleItems();
@@ -2808,6 +2790,11 @@ function onHazeSliderChange() {
 }
 
 function onCheckboxChange() {
+	var zFactorCheck = document.getElementById('gvZFactorEnabled');
+	var zFactorRow = document.getElementById('gvZFactorRow');
+	if (zFactorCheck && zFactorRow) {
+		zFactorRow.style.display = zFactorCheck.checked ? 'block' : 'none';
+	}
 	updateHazeSliderReadout();
 	saveSpatialViewState(true);
 	requestDraw();
@@ -3049,7 +3036,7 @@ function drawScene() {
 			ctx.webkitImageSmoothingEnabled = false;
 			ctx.msImageSmoothingEnabled = false;
 
-			var baseAlpha = showHaze ? alpha * Math.max(0.0, 1.0 - fogFactor) : alpha;
+			var baseAlpha = alpha;
 			ctx.globalAlpha = baseAlpha;
 			ctx.drawImage(imgObj, 0, -hPx, wPx, hPx);
 
@@ -3957,6 +3944,33 @@ function centerFocusedImage() {
 	}
 }
 
+function stepFocusWithShiftTo(dir) {
+	var focusInput = document.getElementById('gvTimeFocus');
+	if (!focusInput) return;
+	var channelItems = getAllChannelItems();
+	if (channelItems.length === 0) return;
+
+	var currItemIdx = channelItems.findIndex(function(it) { return it.c === focusedIndex; });
+	if (currItemIdx < 0) {
+		var focusItem = rawData.find(function(it) { return it.c === focusedIndex; });
+		var targetFileIdx = focusItem ? focusItem.file_idx : parseInt(focusInput.value, 10);
+		var minDiff = Infinity;
+		currItemIdx = 0;
+		channelItems.forEach(function(item, idx) {
+			var diff = Math.abs(item.file_idx - targetFileIdx);
+			if (diff < minDiff) { minDiff = diff; currItemIdx = idx; }
+		});
+	}
+
+	var nextItemIdx = Math.max(0, Math.min(channelItems.length - 1, currItemIdx + dir));
+	var targetItem = channelItems[nextItemIdx];
+	if (targetItem) {
+		if (timeMaxInput) timeMaxInput.value = targetItem.file_idx;
+		centerImage(targetItem, false);
+		onTimeSliderChange();
+	}
+}
+
 // Auto-blur buttons, range sliders, and select controls on mouseup so shortcuts remain active
 document.addEventListener('mouseup', function(e) {
 	if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON')) {
@@ -3990,24 +4004,36 @@ window.addEventListener('keydown', function(e) {
 	}
 
 	if (e.key === 'ArrowUp') {
-		if (isCtrl) {
+		if (e.shiftKey) {
+			stepFocusWithShiftTo(1);
+		} else if (isCtrl) {
 			stepFocusImage(1);
 		} else {
 			stepFocus(1);
 		}
 		e.preventDefault();
 	} else if (e.key === 'ArrowDown') {
-		if (isCtrl) {
+		if (e.shiftKey) {
+			stepFocusWithShiftTo(-1);
+		} else if (isCtrl) {
 			stepFocusImage(-1);
 		} else {
 			stepFocus(-1);
 		}
 		e.preventDefault();
 	} else if (e.key === 'ArrowLeft') {
-		stepSelectDropdown(isCtrl ? 'gvSecChanFilter' : 'gvChanFilter', -1);
+		if (e.shiftKey) {
+			stepFocusWithShiftTo(-1);
+		} else {
+			stepSelectDropdown(isCtrl ? 'gvSecChanFilter' : 'gvChanFilter', -1);
+		}
 		e.preventDefault();
 	} else if (e.key === 'ArrowRight') {
-		stepSelectDropdown(isCtrl ? 'gvSecChanFilter' : 'gvChanFilter', 1);
+		if (e.shiftKey) {
+			stepFocusWithShiftTo(1);
+		} else {
+			stepSelectDropdown(isCtrl ? 'gvSecChanFilter' : 'gvChanFilter', 1);
+		}
 		e.preventDefault();
 	} else if (e.key === '=' || e.key === '+' || e.key === 'Add') {
 		stepZoom(1);
