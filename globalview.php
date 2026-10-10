@@ -488,6 +488,26 @@ html, body {
 	z-index: 100;
 	white-space: nowrap;
 }
+.gv-hdr-btn {
+	background: #111;
+	border: 1px solid #444;
+	font-family: monospace;
+	font-size: 11pt;
+	font-weight: normal;
+	text-align: left;
+	cursor: pointer;
+	padding: 2px 4px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	outline: none;
+	height: auto;
+	transition: background 0.15s ease, border-color 0.15s ease;
+}
+.gv-hdr-btn:hover {
+	background: #333 !important;
+	border-color: #666 !important;
+}
 </style>
 
 <div class="fill" style="display:flex; width:100vw; height:calc(100vh - 20px); overflow:hidden;">
@@ -500,10 +520,10 @@ html, body {
 		
 		<!-- 0. Active & Focused File Name Header Buttons -->
 		<div style="padding:4px; background:#111; border-bottom:1px solid #444; font-family:monospace; font-size:11pt; font-weight:normal; display:flex; flex-direction:column; gap:4px;">
-			<button onclick="centerOnActiveImage()" title="Center view on active image" style="background:#111; border:1px solid #444; color:#ff0; font-family:monospace; font-size:11pt; font-weight:normal; text-align:left; cursor:pointer; padding:2px 4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; outline:none; height:auto;">
+			<button class="gv-hdr-btn" onclick="centerOnActiveImage()" title="Center view on active image" style="color:#ff0;">
 				<span id="gvQVUDName"><?php echo htmlspecialchars($active_file_name); ?></span>
 			</button>
-			<button onclick="centerFocusedImage()" title="Center view on focused image" style="background:#111; border:1px solid #444; color:#0ff; font-family:monospace; font-size:11pt; font-weight:normal; text-align:left; cursor:pointer; padding:2px 4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; outline:none; height:auto;">
+			<button class="gv-hdr-btn" onclick="centerFocusedImage()" title="Center view on focused image" style="color:#0ff;">
 				<span id="gvFocusName"><?php echo htmlspecialchars($active_file_name); ?></span>
 			</button>
 		</div>
@@ -2421,11 +2441,13 @@ function centerOnActiveImage(animate, preserveZoom) {
 
 	var activeItem = rawData.find(function(item) { return item.c === qvudIndex; }) || rawData[0];
 	if (activeItem) {
-		timeMaxInput.value = activeItem.file_idx;
-		onTimeSliderChange();
-		focusedIndex = activeItem.c;
-		activeIndex = activeItem.c;
-		updateHeaderReadout();
+		if (activeItem.file_idx < fileMin) {
+			timeMinInput.value = activeItem.file_idx;
+			onTimeSliderChange();
+		} else if (activeItem.file_idx > fileMax) {
+			timeMaxInput.value = activeItem.file_idx;
+			onTimeSliderChange();
+		}
 	}
 
 	updateMinZoomScale();
@@ -2452,8 +2474,22 @@ function centerOnActiveImage(animate, preserveZoom) {
 		targetZoom = Math.max(minZoomScale, Math.min(maxScale, zoomScale));
 	}
 
-	var targetPanX = cw / 2;
-	var targetPanY = ch / 2;
+	var foc = getFocusedItemAndZ();
+	var visibleItems = getVisibleItems();
+	var visIdx = visibleItems.findIndex(function(v) { return v.c === activeItem.c; });
+	var activeZ = getItemZMeters(visIdx >= 0 ? visIdx : 0, visibleItems);
+
+	var dx = activeItem.xo - foc.x;
+	var dy = activeItem.yo - foc.y;
+	var dz = activeZ - foc.z;
+
+	var totalYawRad = -viewAngle * Math.PI / 180.0;
+	var pitchRad = pitch3D * Math.PI / 180.0;
+	var rotX = dx * Math.cos(totalYawRad) - dy * Math.sin(totalYawRad);
+	var rotY = dx * Math.sin(totalYawRad) + dy * Math.cos(totalYawRad);
+
+	var targetPanX = cw / 2 - rotX * targetZoom;
+	var targetPanY = ch / 2 + (rotY * Math.sin(pitchRad) + dz * Math.cos(pitchRad)) * targetZoom;
 
 	if (animate) {
 		animateViewTo(targetPanX, targetPanY, targetZoom, viewAngle);
@@ -2765,12 +2801,8 @@ function onTimeSliderChange() {
 	if (minValSpan) minValSpan.textContent = (fileMin + 1);
 	if (maxValSpan) maxValSpan.textContent = (fileMax + 1);
 
-	// Brighter exclusion and range area coloring on range slider tracks
-	var minPct = maxFileIdx > 0 ? (fileMin / maxFileIdx) * 100 : 0;
-	var maxPct = maxFileIdx > 0 ? (fileMax / maxFileIdx) * 100 : 100;
-
-	timeMinInput.style.background = 'linear-gradient(to right, #b42 0%, #b42 ' + minPct + '%, #00a6ff ' + minPct + '%, #00a6ff 100%)';
-	timeMaxInput.style.background = 'linear-gradient(to right, #00a6ff 0%, #00a6ff ' + maxPct + '%, #b42 ' + maxPct + '%, #b42 100%)';
+	if (timeMinInput) timeMinInput.style.background = '';
+	if (timeMaxInput) timeMaxInput.style.background = '';
 
 	updateFocusSliderTrack();
 
