@@ -777,7 +777,7 @@ var gvSampleX = new Float64Array(65);
 var gvSampleY = new Float64Array(65);
 var gvSampleObs = new Uint8Array(65);
 
-function drawSampleIndexRun(ptA, ptB, startSample, endSample, totalSamples, isObs, solidColor, faintColor, dashUnobs) {
+function drawSampleIndexRun(ptA, ptB, startSample, endSample, totalSamples, isObs, solidColor, faintColor, dashUnobs, customLineWidth) {
 	if (startSample >= endSample) return;
 	var t0 = startSample / totalSamples;
 	var t1 = endSample / totalSamples;
@@ -787,7 +787,7 @@ function drawSampleIndexRun(ptA, ptB, startSample, endSample, totalSamples, isOb
 	var y1 = ptA.y + t1 * (ptB.y - ptA.y);
 
 	ctx.save();
-	ctx.lineWidth = (solidColor === '#00ffff' || solidColor === '#ff0') ? 2.5 : 2.0;
+	ctx.lineWidth = (typeof customLineWidth !== 'undefined' && customLineWidth !== null) ? customLineWidth : ((solidColor === '#00ffff' || solidColor === '#ff0' || solidColor === '#0f0') ? 2.5 : 2.0);
 	if (isObs) {
 		ctx.strokeStyle = faintColor;
 		ctx.setLineDash([4, 4]);
@@ -802,13 +802,15 @@ function drawSampleIndexRun(ptA, ptB, startSample, endSample, totalSamples, isOb
 	ctx.restore();
 }
 
-function drawObscurableEdge(ptA, ptB, targetVisIdx, higherItems, solidColor, faintColor, numSamples, dashUnobs) {
+function drawObscurableEdge(ptA, ptB, targetVisIdx, higherItems, solidColor, faintColor, numSamples, dashUnobs, customLineWidth) {
 	if (!numSamples) numSamples = 32;
 	if (numSamples > 64) numSamples = 64;
 
+	var defaultLineWidth = (typeof customLineWidth !== 'undefined' && customLineWidth !== null) ? customLineWidth : ((solidColor === '#00ffff' || solidColor === '#ff0' || solidColor === '#0f0') ? 2.5 : 2.0);
+
 	if (!higherItems || higherItems.length === 0) {
 		ctx.save();
-		ctx.lineWidth = (solidColor === '#00ffff' || solidColor === '#ff0') ? 2.5 : 2.0;
+		ctx.lineWidth = defaultLineWidth;
 		ctx.strokeStyle = solidColor;
 		ctx.setLineDash(dashUnobs ? [4, 4] : []);
 		ctx.beginPath();
@@ -838,7 +840,7 @@ function drawObscurableEdge(ptA, ptB, targetVisIdx, higherItems, solidColor, fai
 
 	if (activeCandidates.length === 0) {
 		ctx.save();
-		ctx.lineWidth = (solidColor === '#00ffff' || solidColor === '#ff0') ? 2.5 : 2.0;
+		ctx.lineWidth = defaultLineWidth;
 		ctx.strokeStyle = solidColor;
 		ctx.setLineDash(dashUnobs ? [4, 4] : []);
 		ctx.beginPath();
@@ -872,12 +874,12 @@ function drawObscurableEdge(ptA, ptB, targetVisIdx, higherItems, solidColor, fai
 	for (var i = 0; i < numSamples; i++) {
 		var isObs = (gvSampleObs[i] === 1);
 		if (isObs !== currentObs) {
-			drawSampleIndexRun(ptA, ptB, runStartIdx, i, numSamples, currentObs, solidColor, faintColor, dashUnobs);
+			drawSampleIndexRun(ptA, ptB, runStartIdx, i, numSamples, currentObs, solidColor, faintColor, dashUnobs, defaultLineWidth);
 			currentObs = isObs;
 			runStartIdx = i;
 		}
 	}
-	drawSampleIndexRun(ptA, ptB, runStartIdx, numSamples, numSamples, currentObs, solidColor, faintColor, dashUnobs);
+	drawSampleIndexRun(ptA, ptB, runStartIdx, numSamples, numSamples, currentObs, solidColor, faintColor, dashUnobs, defaultLineWidth);
 }
 
 function drawObscurableFrame(entry, itemsWith3D, solidColor, faintColor, insetPx) {
@@ -3289,23 +3291,46 @@ function drawScene() {
 			var qTop = get3DQuadCornersAtZ(itemTop, visIdxTop, visIdxTop);
 			var qUnder = get3DQuadCornersAtZ(itemTop, visIdxTop, visIdxUnder);
 
+			// Performance Optimization: Skip offscreen tiles
+			if (isTileFullyOffscreen(qTop, cssW, cssH, 300) && isTileFullyOffscreen(qUnder, cssW, cssH, 300)) {
+				continue;
+			}
+
 			var higherThanTop = itemsWith3D.filter(function(e) { return e.visIdx > visIdxTop; });
 			var higherThanUnder = itemsWith3D.filter(function(e) { return e.visIdx > visIdxUnder; });
 
-			var solidProjColor = 'rgba(180, 180, 180, 0.9)';
-			var faintProjColor = 'rgba(100, 100, 100, 0.25)';
-			var dashDropColor  = 'rgba(170, 170, 170, 0.75)';
+			// Depth Haze Opacity Fading for projected frames
+			var topFogFactor = 0, underFogFactor = 0;
+			if (showHaze && maxZSpan > 0) {
+				var topEntry = itemsWith3D.find(function(e) { return e.visIdx === visIdxTop; });
+				var underEntry = itemsWith3D.find(function(e) { return e.visIdx === visIdxUnder; });
+				if (topEntry) {
+					var dzT = focZ - topEntry.zMeters;
+					if (dzT > 0) topFogFactor = 1.0 - Math.exp(-2.5 * hazeDensityMult * (dzT / maxZSpan));
+				}
+				if (underEntry) {
+					var dzU = focZ - underEntry.zMeters;
+					if (dzU > 0) underFogFactor = 1.0 - Math.exp(-2.5 * hazeDensityMult * (dzU / maxZSpan));
+				}
+			}
+			var alphaTop = showHaze ? Math.max(0.05, 1.0 - 0.98 * topFogFactor) : 1.0;
+			var alphaUnder = showHaze ? Math.max(0.05, 1.0 - 0.98 * underFogFactor) : 1.0;
 
-			// 1. Connecting vertical corner drop lines (dashed gray when unobscured, faint dashed gray when obscured)
+			var solidProjColor = 'rgba(180, 180, 180, ' + (0.9 * alphaUnder).toFixed(3) + ')';
+			var faintProjColor = 'rgba(100, 100, 100, ' + (0.25 * alphaUnder).toFixed(3) + ')';
+			var dashDropColor  = 'rgba(170, 170, 170, ' + (0.75 * alphaTop).toFixed(3) + ')';
+			var projLineWidth  = 1.0; // Thinner 1.0px line width for projected frames
+
+			// 1. Connecting vertical corner drop lines (dashed gray, thinner, haze faded)
 			for (var k = 0; k < 4; k++) {
-				drawObscurableEdge(qTop[k], qUnder[k], visIdxTop, higherThanTop, dashDropColor, faintProjColor, 12, true);
+				drawObscurableEdge(qTop[k], qUnder[k], visIdxTop, higherThanTop, dashDropColor, faintProjColor, 6, true, projLineWidth);
 			}
 
-			// 2. Projected 4-corner bounding frame on underlying image plane (solid gray when unobscured, faint dashed gray when obscured)
-			drawObscurableEdge(qUnder[0], qUnder[1], visIdxUnder, higherThanUnder, solidProjColor, faintProjColor, 12, false);
-			drawObscurableEdge(qUnder[1], qUnder[2], visIdxUnder, higherThanUnder, solidProjColor, faintProjColor, 12, false);
-			drawObscurableEdge(qUnder[2], qUnder[3], visIdxUnder, higherThanUnder, solidProjColor, faintProjColor, 12, false);
-			drawObscurableEdge(qUnder[3], qUnder[0], visIdxUnder, higherThanUnder, solidProjColor, faintProjColor, 12, false);
+			// 2. Projected 4-corner bounding frame on underlying image plane (solid gray, thinner, haze faded)
+			drawObscurableEdge(qUnder[0], qUnder[1], visIdxUnder, higherThanUnder, solidProjColor, faintProjColor, 6, false, projLineWidth);
+			drawObscurableEdge(qUnder[1], qUnder[2], visIdxUnder, higherThanUnder, solidProjColor, faintProjColor, 6, false, projLineWidth);
+			drawObscurableEdge(qUnder[2], qUnder[3], visIdxUnder, higherThanUnder, solidProjColor, faintProjColor, 6, false, projLineWidth);
+			drawObscurableEdge(qUnder[3], qUnder[0], visIdxUnder, higherThanUnder, solidProjColor, faintProjColor, 6, false, projLineWidth);
 		}
 	}
 
