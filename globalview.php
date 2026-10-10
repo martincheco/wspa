@@ -590,6 +590,11 @@ html, body {
 				<input type="range" id="gv3DTimeZ" min="0" max="1000" value="459" step="1" oninput="on3DParamChange()" title="Z separation slider (Z / X keys)" style="flex:1; min-width:0;">
 				<span id="gv3DTimeZVal" style="width:42px; text-align:right; color:#0ff; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;">5.0nm</span>
 			</div>
+			<div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
+				<span style="width:52px; white-space:nowrap; color:#aaa; font-size:10pt; font-weight:normal; flex-shrink:0;">Alpha</span>
+				<input type="range" id="gvAlpha" min="10" max="100" value="<?php echo isset($user_cfg['gv_alpha']) ? intval($user_cfg['gv_alpha']) : 100; ?>" step="5" oninput="onAlphaChange()" title="Image opacity / alpha slider" style="flex:1; min-width:0;">
+				<span id="gvAlphaVal" style="width:42px; text-align:right; color:#0f0; font-size:10pt; font-weight:normal; flex-shrink:0; white-space:nowrap;"><?php echo isset($user_cfg['gv_alpha']) ? intval($user_cfg['gv_alpha']) : 100; ?>%</span>
+			</div>
 			<div style="display:flex; gap:4px; margin-top:4px;">
 				<input type="submit" onclick="setPitch2D()" value="2D" title="Pitch view to 2D top-down" style="flex:1; font-weight:normal;">
 				<input type="submit" onclick="alignFocusToAnalysis()" value="Align Focus" title="Align view angle to focus scan angle" style="flex:1; font-weight:normal;">
@@ -2704,15 +2709,19 @@ function onTimeSliderChange() {
 
 function onRotChange() {
 	stopAnimation();
-	var newAngle = parseInt(document.getElementById('gvRot').value, 10);
+	var rotInput = document.getElementById('gvRot');
+	if (!rotInput) return;
+	var newAngle = parseInt(rotInput.value, 10);
 	update3DOrientation(newAngle, pitch3D);
-	document.getElementById('gvRotVal').textContent = viewAngle + '°';
+	var rotValSpan = document.getElementById('gvRotVal');
+	if (rotValSpan) rotValSpan.textContent = viewAngle + '°';
 	saveSpatialViewState(true);
 	requestDraw();
 }
 
 function stepRot(dir) {
 	var rotInput = document.getElementById('gvRot');
+	if (!rotInput) return;
 	var val = parseInt(rotInput.value, 10) + dir;
 	val = Math.max(-180, Math.min(180, val));
 	rotInput.value = val;
@@ -2740,8 +2749,11 @@ function resetAngleZero() {
 }
 
 function onAlphaChange() {
-	var alphaVal = parseInt(document.getElementById('gvAlpha').value, 10);
-	document.getElementById('gvAlphaVal').textContent = alphaVal + '%';
+	var alphaEl = document.getElementById('gvAlpha');
+	if (!alphaEl) return;
+	var alphaVal = parseInt(alphaEl.value, 10);
+	var alphaValSpan = document.getElementById('gvAlphaVal');
+	if (alphaValSpan) alphaValSpan.textContent = alphaVal + '%';
 	saveSpatialViewState(true);
 	requestDraw();
 }
@@ -2910,9 +2922,11 @@ function drawScene() {
 	ctx.save();
 	ctx.scale(dpr, dpr);
 
-	var alphaVal = parseInt(document.getElementById('gvAlpha').value, 10);
+	var alphaEl = document.getElementById('gvAlpha');
+	var alphaVal = alphaEl ? parseInt(alphaEl.value, 10) : 100;
 	var alpha = alphaVal / 100.0;
-	var showLabels = document.getElementById('gvLabels').checked;
+	var labelsEl = document.getElementById('gvLabels');
+	var showLabels = labelsEl ? labelsEl.checked : true;
 	var showSTS = document.getElementById('gvShowSTS') ? document.getElementById('gvShowSTS').checked : false;
 
 	var cw = cssW;
@@ -3423,7 +3437,8 @@ function getNiceScaleM(m) {
 
 function isPointOccludedByNewerImage(screenX, screenY, itemIdx, itemsWith3D) {
 	if (!itemsWith3D) return false;
-	var alphaVal = parseInt(document.getElementById('gvAlpha').value, 10);
+	var alphaEl = document.getElementById('gvAlpha');
+	var alphaVal = alphaEl ? parseInt(alphaEl.value, 10) : 100;
 	if (alphaVal < 95) return false;
 
 	var targetEntry = itemsWith3D.find(function(e) { return e.visIdx === itemIdx; });
