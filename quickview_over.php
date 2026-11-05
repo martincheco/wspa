@@ -3,10 +3,51 @@
 require('globals.php');
 require('auth.php');
 
+function get_base_channel_name($ch) {
+	$s = trim(preg_replace('/\b(down|up|forward|backward|forw|backw|fwd|bwd|trace|retrace)\b|\[[fb]\]|\([fb]\)|\s+[fb]\b/i', '', trim($ch)));
+	$s = trim(preg_replace('/\s+/', ' ', $s));
+	return $s !== '' ? $s : $ch;
+}
+
+$raw_chans = file_exists($userdir . $user . '/chan.dat') ? file($userdir . $user . '/chan.dat') : array();
+$chans = $raw_chans;
+$acqchans = file_exists($userdir . $user . '/acqchan.dat') ? preg_replace("/[\r\n]+/", "", file($userdir . $user . '/acqchan.dat')) : array();
+
+$tmp_file = $userdir . $user . "/tmp.dat";
+$msg = (file_exists($tmp_file) && filesize($tmp_file) > 0) ? file($tmp_file) : array();
+$index = (!empty($msg) && isset($msg[1])) ? max(0, (int)(preg_split('/\s+/', $msg[1])[1]) - 1) : 0;
+$target_bi = isset($chans[$index]) ? stripslashes(pathinfo(pathinfo(basename(trim($chans[$index])), PATHINFO_FILENAME), PATHINFO_FILENAME)) : "";
+$cur_dataset = (!empty($msg) && isset($msg[0])) ? dirname(trim(stripslashes($msg[0]))) : (isset($_SESSION['path']) ? $_SESSION['path'] : '');
+
+// Compute unique acquisition base channels for active dataset
+$unique_acqchans = array();
+if (!empty($acqchans)) {
+	foreach ($acqchans as $acname) {
+		$base = get_base_channel_name($acname);
+		if ($base !== '' && !in_array($base, $unique_acqchans)) {
+			$unique_acqchans[] = $base;
+		}
+	}
+}
+
 // Handle channel preselection form submit
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	$selected_chans = isset($_POST['chans']) && is_array($_POST['chans']) ? $_POST['chans'] : array();
-	save_user_config(array('overview_channels' => implode(',', $selected_chans)), $user);
+	if (empty($selected_chans)) {
+		$_SESSION['overview_explicit_zero_dataset'] = $cur_dataset;
+	} else {
+		unset($_SESSION['overview_explicit_zero_dataset']);
+	}
+
+	$user_cfg = read_user_config($user);
+	$prev_saved = array_key_exists('overview_channels', $user_cfg) ?
+		(trim($user_cfg['overview_channels']) === '' ? array() : array_map('trim', explode(',', trim($user_cfg['overview_channels'])))) : array();
+
+	// Retain previously saved channels from other datasets that are not present in this dataset
+	$retained_other = array_diff($prev_saved, $unique_acqchans);
+	$new_saved = array_values(array_unique(array_merge($retained_other, $selected_chans)));
+
+	save_user_config(array('overview_channels' => implode(',', $new_saved)), $user);
 	header('Location: quickview_over.php');
 	exit;
 }
@@ -16,18 +57,38 @@ $user_cfg = read_user_config($user);
 $saved_overview_channels = array_key_exists('overview_channels', $user_cfg) ?
 	(trim($user_cfg['overview_channels']) === '' ? array() : array_map('trim', explode(',', trim($user_cfg['overview_channels'])))) : null;
 
-function get_base_channel_name($ch) {
-	$s = trim(preg_replace('/\b(down|up|forward|backward|forw|backw|fwd|bwd|trace|retrace)\b|\[[fb]\]|\([fb]\)|\s+[fb]\b/i', '', trim($ch)));
-	$s = trim(preg_replace('/\s+/', ' ', $s));
-	return $s !== '' ? $s : $ch;
+$matching_saved = ($saved_overview_channels !== null) ? array_intersect($unique_acqchans, $saved_overview_channels) : array();
+$is_explicit_zero = (isset($_SESSION['overview_explicit_zero_dataset']) && $_SESSION['overview_explicit_zero_dataset'] === $cur_dataset);
+
+if ($is_explicit_zero) {
+	$active_overview_channels = array();
+} elseif (!empty($matching_saved)) {
+	$active_overview_channels = $matching_saved;
+} else {
+	// Sensible defaults when no saved channels match this dataset
+	if (count($unique_acqchans) > 4) {
+		$target_ac = isset($acqchans[$index]) ? get_base_channel_name($acqchans[$index]) : '';
+		if ($target_ac !== '' && in_array($target_ac, $unique_acqchans)) {
+			$active_overview_channels = array($target_ac);
+		} else {
+			$found_z = false;
+			foreach ($unique_acqchans as $uac) {
+				if (stripos($uac, 'z') !== false || stripos($uac, 'topo') !== false || stripos($uac, 'height') !== false) {
+					$active_overview_channels = array($uac);
+					$found_z = true;
+					break;
+				}
+			}
+			if (!$found_z && !empty($unique_acqchans)) {
+				$active_overview_channels = array($unique_acqchans[0]);
+			} else {
+				$active_overview_channels = array();
+			}
+		}
+	} else {
+		$active_overview_channels = $unique_acqchans;
+	}
 }
-
-$chans = file_exists($userdir . $user . '/chan.dat') ? file($userdir . $user . '/chan.dat') : array();
-$acqchans = file_exists($userdir . $user . '/acqchan.dat') ? preg_replace("/[\r\n]+/", "", file($userdir . $user . '/acqchan.dat')) : array();
-
-$msg = file($userdir . $user . "/tmp.dat");
-$index = (int)(preg_split('/\s+/', $msg[1])[1]) - 1;
-$target_bi = isset($chans[$index]) ? pathinfo(pathinfo(basename(trim($chans[$index])), PATHINFO_FILENAME), PATHINFO_FILENAME) : "";
 
 require('over.php');
 require('head.php');
@@ -39,7 +100,7 @@ $scan_dim_cache = array();
 function get_channel_dimensions($c, $bi, $img_file, $raw_file, $chans, $userlnk, $user) {
 	global $scan_dim_cache;
 	$sz = @filesize($img_file);
-	if ($sz !== false && $sz < 500) return array('w' => 8, 'h' => 8, 'css_w' => 8, 'css_h' => 8);
+	if ($sz !== false && $sz > 0 && $sz < 500) return array('w' => 8, 'h' => 8, 'css_w' => 8, 'css_h' => 8);
 
 	$scale_fn = function($w, $h) {
 		$scale = min(100 / $w, 100 / $h, 1.0);
@@ -70,36 +131,41 @@ function get_channel_dimensions($c, $bi, $img_file, $raw_file, $chans, $userlnk,
 }
 
 $scan_groups = array();
-$unique_acqchans = array();
 $c = 0;
 
 foreach ($chans as $i) {
-	$bi = pathinfo(pathinfo(basename(trim($i)), PATHINFO_FILENAME), PATHINFO_FILENAME);
+	$clean_i = stripslashes(trim($i));
+	$bi = pathinfo(pathinfo(basename($clean_i), PATHINFO_FILENAME), PATHINFO_FILENAME);
 	$chan_name = isset($acqchans[$c]) ? trim($acqchans[$c]) : '';
 	$base_chan_name = get_base_channel_name($chan_name);
-	if ($base_chan_name !== '' && !in_array($base_chan_name, $unique_acqchans)) {
-		$unique_acqchans[] = $base_chan_name;
-	}
 
-	if ($saved_overview_channels === null || in_array($base_chan_name, $saved_overview_channels)) {
-		$raw_file = isset($chans[$c]) ? trim(stripslashes($chans[$c])) : "";
+	if (in_array($base_chan_name, $active_overview_channels)) {
+		$raw_file = isset($raw_chans[$c]) ? trim(stripslashes($raw_chans[$c])) : "";
 		$img_file = $userlnk . $user . '/tmp' . $c . '.png';
 		$dim = get_channel_dimensions($c, $bi, $img_file, $raw_file, $chans, $userlnk, $user);
 
 		if (!isset($scan_groups[$bi])) {
-			$mapdir = pathinfo($raw_file, PATHINFO_DIRNAME);
-			$mapfile = $mapdir . '/' . $bi . '.map';
-			if (!file_exists($mapfile)) {
-				$meta_map = get_meta_path_for_file($raw_file, 'map', $user);
-				if (file_exists($meta_map)) {
-					$mapfile = $meta_map;
-				} else {
-					$mapfile = "";
+			$clean_base_file = dirname($raw_file) . '/' . $bi;
+			$mapfile = get_meta_path_for_file($clean_base_file, 'map', $user);
+			$has_sts = ($mapfile !== "" && file_exists($mapfile));
+
+			if (!$has_sts) {
+				if (file_exists(dirname($raw_file) . '/' . $bi . '.map')) {
+					$has_sts = true;
+				} elseif (trim($bi) !== $bi) {
+					$trimmed_base = dirname($raw_file) . '/' . trim($bi);
+					$trimmed_map = get_meta_path_for_file($trimmed_base, 'map', $user);
+					if ($trimmed_map !== "" && file_exists($trimmed_map)) {
+						$has_sts = true;
+					} elseif (file_exists(dirname($raw_file) . '/' . trim($bi) . '.map')) {
+						$has_sts = true;
+					}
 				}
 			}
+
 			$scan_groups[$bi] = array(
 				'bi' => $bi,
-				'has_sts' => ($mapfile !== "" && file_exists($mapfile)),
+				'has_sts' => $has_sts,
 				'items' => array(),
 				'max_h' => 0,
 				'is_target_row' => ($target_bi !== '' && $bi === $target_bi)
@@ -136,7 +202,7 @@ foreach ($chans as $i) {
 <?php
 foreach ($unique_acqchans as $uchan) {
 	$escaped = htmlspecialchars($uchan);
-	$cb_checked = ($saved_overview_channels === null || in_array($uchan, $saved_overview_channels)) ? 'checked' : '';
+	$cb_checked = in_array($uchan, $active_overview_channels) ? 'checked' : '';
 	echo '<label style="cursor:pointer; display:flex; align-items:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' . $escaped . '">';
 	echo '<input type="checkbox" name="chans[]" value="' . $escaped . '" ' . $cb_checked . ' onchange="this.form.submit()" style="vertical-align:middle; margin-right:6px; flex-shrink:0;">';
 	echo '<span style="overflow:hidden; text-overflow:ellipsis;">' . $escaped . '</span></label>';
@@ -161,16 +227,24 @@ if (empty($scan_groups)) {
 		echo '<TR' . $tr_attr . '><TD style="padding:0; margin:0; white-space:nowrap;">';
 		foreach ($group['items'] as $item) {
 			$c = $item['c'];
-			$w = $item['dim']['w'];
-			$h = $item['dim']['h'];
-			$css_w = $item['dim']['css_w'];
-			$css_h = $item['dim']['css_h'];
-			$hash = @filemtime($item['img_file']);
-			$real_src = 'serve_image.php?file=' . urlencode($item['img_file']) . '&v=' . $hash;
+			$img_file = $item['img_file'];
+			$sz = @filesize($img_file);
+			$is_flat = ($sz !== false && $sz > 0 && $sz < 500);
+
+			if ($is_flat) {
+				$size_style = 'width:8px; height:8px; max-width:8px; max-height:8px;';
+				$w_h_attr = 'width="8" height="8"';
+			} else {
+				$size_style = 'max-width:100px; max-height:100px; width:auto; height:auto;';
+				$w_h_attr = '';
+			}
+
+			$v = get_dataset_token($user) . '-' . (@filemtime($img_file) ?: '0');
+			$img_src = $img_file . '?v=' . $v;
 			$tooltip = htmlspecialchars($bi . ($item['chan_name'] !== '' ? ' [' . $item['chan_name'] . ']' : ''));
 
 			echo '<a href="quickview.php?command=goto '.($c+1).'&over=over" title="'.$tooltip.'">';
-			echo '<img id="img'.$c.'" src="'.$real_src.'" width="'.$css_w.'" height="'.$css_h.'" loading="lazy" style="width:'.$css_w.'px;height:'.$css_h.'px;aspect-ratio:'.$w.' / '.$h.';max-width:100px;max-height:100px;padding:1px;background-color:#111;'.$item['border_css'].'" title="'.$tooltip.'" onerror="handleImgError(this)">';
+			echo '<img id="img'.$c.'" src="'.$img_src.'" '.$w_h_attr.' style="'.$size_style.' padding:1px; background-color:#111; '.$item['border_css'].'" title="'.$tooltip.'">';
 			echo '</a>';
 		}
 		echo '</TD></TR>';
@@ -203,17 +277,7 @@ function centerActiveRow() {
 centerActiveRow();
 window.addEventListener("DOMContentLoaded", centerActiveRow);
 
-function handleImgError(img) {
-	if (!img.getAttribute('data-retried')) {
-		img.setAttribute('data-retried', 'true');
-		setTimeout(function() {
-			var src = img.src;
-			if (src && src.indexOf('serve_image.php') !== -1) {
-				img.src = src.split('&retry=')[0] + '&retry=' + Date.now();
-			}
-		}, 400);
-	}
-}
+
 
 function toggleAllChans(enable) {
 	var cbs = document.querySelectorAll('#channel_checkboxes input[type="checkbox"]');

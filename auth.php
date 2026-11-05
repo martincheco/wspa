@@ -35,7 +35,6 @@ function normalize_wspa_path($raw_path) {
 }
 
 session_start();
-session_regenerate_id();
 
 if (!isset($_SESSION['user'])) {
     session_write_close();

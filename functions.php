@@ -1,0 +1,807 @@
+<?php
+
+/**
+ * WSPA Shared Functions Library
+ * 
+ * Contains all application helper, metadata resolution, caching, and daemon communication functions.
+ * System-wide configuration variables strictly reside in globals.php.
+ */
+
+function is_wspa_localdir($data_path) {
+    $clean_path = str_replace('\\', '/', $data_path);
+    $dir = is_dir($clean_path) ? $clean_path : dirname($clean_path);
+    
+    while ($dir !== '' && $dir !== '.' && $dir !== '/') {
+        if (file_exists($dir . '/.wspa_localdir')) {
+            return true;
+        }
+        $parent = dirname($dir);
+        if ($parent === $dir || $parent === 'data') break;
+        $dir = $parent;
+    }
+    return false;
+}
+
+function has_direct_wspa_localdir($data_path) {
+    $clean_path = str_replace('\\', '/', $data_path);
+    $dir = is_dir($clean_path) ? $clean_path : dirname($clean_path);
+    return file_exists(rtrim($dir, '/') . '/.wspa_localdir');
+}
+
+/**
+ * Dual-Mode Metadata Resolver
+ * Mode A (In-Situ): For local folders containing .wspa_localdir marker.
+ * Mode B (Shadow): For shared read-only instrument datasets (users/<user>/shadow/<data_path>/).
+ */
+function get_meta_dir($data_path, $user = null) {
+    if ($user === null && isset($_SESSION['user'])) {
+        $user = $_SESSION['user'];
+    }
+    if ($user === null) {
+        $user = 'admin';
+    }
+    
+    $clean_path = str_replace('\\', '/', $data_path);
+    
+    // Mode A: In-Situ for local data folders containing .wspa_localdir marker
+    if (is_wspa_localdir($clean_path)) {
+        return $clean_path;
+    }
+    
+    // Mode B: Shadow Storage for shared read-only datasets
+    $data_root = "data/";
+    $pos = strpos($clean_path, $data_root);
+    if ($pos !== false) {
+        $rel_path = substr($clean_path, $pos + strlen($data_root));
+    } else {
+        $rel_path = ltrim($clean_path, '/');
+    }
+    
+    return "users/" . $user . "/shadow/" . $rel_path;
+}
+
+/**
+ * Resolves metadata file path for a given data file
+ */
+function get_meta_path_for_file($data_file_path, $ext = '', $user = null) {
+    $dir = dirname($data_file_path);
+    $base = basename($data_file_path);
+    $meta_dir = get_meta_dir($dir, $user);
+    
+    if ($ext !== '') {
+        return $meta_dir . '/' . $base . '.' . $ext;
+    }
+    return $meta_dir . '/' . $base;
+}
+
+/**
+ * Sends a socket request to the GDL Session Manager Daemon
+ */
+function gdl_session_request($action, $params = array()) {
+    $params['action'] = $action;
+    $sock_paths = array("/run/wspa/gdl_manager.sock", "/tmp/gdl_manager.sock");
+    
+    $sock = null;
+    foreach ($sock_paths as $sp) {
+        if (file_exists($sp)) {
+            $sock = @fsockopen("unix://" . $sp, -1, $errno, $errstr, 2);
+            if ($sock) break;
+        }
+    }
+    
+    if (!$sock) {
+        return false; // Daemon socket not running, fallback to local exec
+    }
+    
+    fwrite($sock, json_encode($params));
+    $response = "";
+    while (!feof($sock)) {
+        $response .= fgets($sock, 1024);
+    }
+    fclose($sock);
+    
+    return json_decode($response, true);
+}
+
+/**
+ * Calculates directory depth relative to data root.
+ * depth 0: data/
+ * depth 1: data/somedata/, data/mydata/ (sacred containers, no project assignment allowed)
+ * depth 2: data/somedata/ZnPc-maps/, data/mydata/exp1/ (dataset folders, project assignment level!)
+ * depth 3+: subfolders (inherit project allegiance from depth 2 anchor)
+ */
+function get_path_depth($data_path) {
+    $clean = trim(str_replace('\\', '/', $data_path), '/');
+    if ($clean === '' || $clean === 'data') return 0;
+    if (strpos($clean, 'data/') === 0) {
+        $clean = substr($clean, 5);
+    }
+    $parts = array_filter(explode('/', $clean), 'strlen');
+    return count($parts);
+}
+
+/**
+ * Determines the project anchor directory for any data path.
+ * Both raw and local folders anchor strictly at Level 2 (e.g. data/somedata/ZnPc-maps/ or data/mydata/exp1/).
+ * Returns null for depth < 2.
+ */
+function get_project_anchor_dir($data_path) {
+    $clean = trim(str_replace('\\', '/', $data_path), '/');
+    if ($clean === '' || $clean === 'data') return null;
+    
+    if (strpos($clean, 'data/') === 0) {
+        $rel = substr($clean, 5);
+    } else {
+        $rel = $clean;
+    }
+    
+    $parts = array_values(array_filter(explode('/', $rel), 'strlen'));
+    $depth = count($parts);
+    
+    if ($depth >= 2) {
+        return 'data/' . $parts[0] . '/' . $parts[1] . '/';
+    }
+    return null;
+}
+
+/**
+ * Checks whether a directory is eligible to have .project set directly on it.
+ * Strictly depth 2 for all folders (raw and local).
+ */
+function is_project_assignable_dir($data_path) {
+    return (get_path_depth($data_path) === 2);
+}
+
+/**
+ * Resolves project name for a given data path via its Level 2 anchor directory.
+ * Checks local in-situ .project file first (for local data), then user shadow .project file.
+ */
+function get_project_for_dir($data_path, $user = null) {
+    $anchor = get_project_anchor_dir($data_path);
+    if ($anchor === null) {
+        return null;
+    }
+    
+    if ($user === null && isset($_SESSION['user'])) {
+        $user = $_SESSION['user'];
+    }
+    if ($user === null) {
+        $user = 'admin';
+    }
+    
+    $clean_anchor = rtrim(str_replace('\\', '/', $anchor), '/');
+    
+    // 1. Check direct local in-situ directory first
+    $local_proj = $clean_anchor . '/.project';
+    if (file_exists($local_proj)) {
+        $content = trim(@file_get_contents($local_proj));
+        if ($content !== '') {
+            return $content;
+        }
+    }
+    
+    // 2. Check shadow directory
+    $rel_path = ltrim(substr($clean_anchor, 4), '/');
+    $shadow_proj = "users/" . $user . "/shadow/" . $rel_path . '/.project';
+    if (file_exists($shadow_proj)) {
+        $content = trim(@file_get_contents($shadow_proj));
+        if ($content !== '') {
+            return $content;
+        }
+    }
+    
+    return null;
+}
+
+/**
+ * Assigns a data directory to a project by writing .project into its Level 2 anchor directory.
+ * Writes directly to local dataset folder if local (Mode A), falling back to shadow storage.
+ */
+function set_project_for_dir($data_path, $project_name, $user = null) {
+    if (!is_project_assignable_dir($data_path)) {
+        return false;
+    }
+    
+    if ($user === null && isset($_SESSION['user'])) {
+        $user = $_SESSION['user'];
+    }
+    if ($user === null) {
+        $user = 'admin';
+    }
+    
+    $project_name = trim($project_name);
+    $meta_dir = get_meta_dir($data_path, $user);
+    
+    if (!file_exists($meta_dir)) {
+        @mkdir($meta_dir, 0775, true);
+        @chown($meta_dir, 'martin');
+        @chgrp($meta_dir, 'www-data');
+        @chmod($meta_dir, 0775);
+    }
+    
+    $proj_file = rtrim($meta_dir, '/') . '/.project';
+    if ($project_name === '') {
+        if (file_exists($proj_file)) {
+            @unlink($proj_file);
+        }
+        $shadow_dir = "users/" . $user . "/shadow/" . ltrim(substr(rtrim($data_path, '/'), 4), '/');
+        $shadow_proj = $shadow_dir . '/.project';
+        if (file_exists($shadow_proj)) {
+            @unlink($shadow_proj);
+        }
+        return true;
+    }
+    
+    $res = @file_put_contents($proj_file, $project_name . "\n");
+    if ($res === false && is_wspa_localdir($data_path)) {
+        $shadow_dir = "users/" . $user . "/shadow/" . ltrim(substr(rtrim($data_path, '/'), 4), '/');
+        if (!file_exists($shadow_dir)) {
+            @mkdir($shadow_dir, 0775, true);
+            @chown($shadow_dir, 'martin');
+            @chgrp($shadow_dir, 'www-data');
+            @chmod($shadow_dir, 0775);
+        }
+        $shadow_proj = $shadow_dir . '/.project';
+        $res = @file_put_contents($shadow_proj, $project_name . "\n");
+        if ($res !== false) {
+            @chown($shadow_proj, 'martin');
+            @chgrp($shadow_proj, 'www-data');
+            @chmod($shadow_proj, 0775);
+            return true;
+        }
+    } else if ($res !== false) {
+        @chown($proj_file, 'martin');
+        @chgrp($proj_file, 'www-data');
+        @chmod($proj_file, 0775);
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Scans shadow and local directories for user and returns a list of unique named projects
+ * mapped to their Level 2 anchor data directories.
+ */
+function list_user_projects($user = null) {
+    if ($user === null && isset($_SESSION['user'])) {
+        $user = $_SESSION['user'];
+    }
+    if ($user === null) {
+        $user = 'admin';
+    }
+    
+    $projects = array();
+    $candidate_dirs = array();
+    
+    // 1. Scan shadow directories for Level 2 .project files
+    $shadow_root = "users/" . $user . "/shadow/";
+    $shadow_files = glob($shadow_root . "*/*/.project");
+    if ($shadow_files) {
+        foreach ($shadow_files as $sf) {
+            $dir_path = dirname($sf);
+            $rel = substr($dir_path, strlen($shadow_root));
+            $data_path = 'data/' . ltrim($rel, '/') . '/';
+            $anchor = get_project_anchor_dir($data_path);
+            if ($anchor !== null) {
+                $candidate_dirs[$anchor] = true;
+            }
+        }
+    }
+    
+    // 2. Scan local data directories for Level 2 in-situ .project files
+    $local_files = glob("data/*/*/.project");
+    if ($local_files) {
+        foreach ($local_files as $lf) {
+            $dir_path = dirname($lf);
+            $clean_dpath = rtrim(str_replace('\\', '/', $dir_path), '/') . '/';
+            $anchor = get_project_anchor_dir($clean_dpath);
+            if ($anchor !== null) {
+                $candidate_dirs[$anchor] = true;
+            }
+        }
+    }
+    
+    foreach (array_keys($candidate_dirs) as $dpath) {
+        $pname = get_project_for_dir($dpath, $user);
+        if (!empty($pname) && $pname !== 'DEFAULT') {
+            if (!isset($projects[$pname])) {
+                $projects[$pname] = array();
+            }
+            if (!in_array($dpath, $projects[$pname])) {
+                $projects[$pname][] = $dpath;
+            }
+        }
+    }
+    
+    ksort($projects);
+    return $projects;
+}
+
+/**
+ * Maps a project name deterministically to a distinct vibrant background color.
+ */
+function get_project_color($project_name, $idx = null) {
+    if (empty($project_name) || strtolower($project_name) === 'default') {
+        return '#666666';
+    }
+    $palette = array(
+        '#26a69a', '#ab47bc', '#ff7043', '#42a5f5', '#ec407a', '#5c6bc0',
+        '#ffb74d', '#7e57c2', '#26c6da', '#8d6e63', '#66bb6a', '#ef5350'
+    );
+    if ($idx !== null) {
+        return $palette[$idx % count($palette)];
+    }
+    $hash = abs(crc32($project_name));
+    return $palette[$hash % count($palette)];
+}
+
+/**
+ * Maps a project name deterministically to a lighter hover background color.
+ */
+function get_project_color_hover($project_name, $idx = null) {
+    if (empty($project_name) || strtolower($project_name) === 'default') {
+        return '#888888';
+    }
+    $palette_hover = array(
+        '#80cbc4', '#ce93d8', '#ffab91', '#90caf9', '#f48fb1', '#9fa8da',
+        '#ffe082', '#b39ddb', '#80deea', '#bcaaa4', '#a5d6a7', '#ef9a9a'
+    );
+    if ($idx !== null) {
+        return $palette_hover[$idx % count($palette_hover)];
+    }
+    $hash = abs(crc32($project_name));
+    return $palette_hover[$hash % count($palette_hover)];
+}
+
+/**
+ * Determines real folder writability by the web server / PHP process.
+ */
+function get_folder_rights($folder_path) {
+    $clean_path = str_replace('\\', '/', $folder_path);
+    $dir = is_dir($clean_path) ? $clean_path : dirname($clean_path);
+    if (file_exists($dir) && is_writable($dir)) {
+        return 'RW';
+    }
+    return 'RO';
+}
+
+/**
+ * Renders HTML badge for folder rights (RO or RW).
+ */
+function render_rights_badge($folder_path, $user = 'admin') {
+    $right = get_folder_rights($folder_path, $user);
+    if ($right === 'RW') {
+        return '<span class="badge-rw" title="Read-Write directory (writable)">RW</span>';
+    } else {
+        return '<span class="badge-ro" title="Read-Only directory">RO</span>';
+    }
+}
+
+/**
+ * Returns an array of file extensions that should be displayed as plain text in browser.
+ */
+function get_text_extensions() {
+    return array(
+        'sxm', 'def', 'par', 'dat', 'out', 'nc', 'top', 'ch0', 'ch1', 'ch2', 
+        '3ds', 'matrix', 'vp', 'fws', 'spm', 'upx', 'spec', 'cur', 'iv', 'flt', 'map', 'stp',
+        'txt', 'csv', 'tsv', 'log', 'ini', 'conf', 'cfg', 'json', 'xml', 
+        'yaml', 'yml', 'md', 'py', 'sh', 'bash', 'c', 'h', 'cpp', 'hpp', 
+        'php', 'js', 'html', 'css', 'sql', 'diff', 'patch', 'env', 'lst'
+    );
+}
+
+/**
+ * Checks whether a file extension should be displayed as plain text in browser.
+ */
+function is_text_extension($filename) {
+    $base = trim(basename($filename));
+    if (strpos($base, '.') === 0) {
+        return true;
+    }
+    $ext = strtolower(pathinfo($base, PATHINFO_EXTENSION));
+    if ($ext === 'project' || strpos($ext, 'wspa_') === 0) {
+        return true;
+    }
+    return in_array($ext, get_text_extensions());
+}
+
+/**
+ * Encodes a file or directory path for use in URL query parameters while preserving slashes.
+ */
+function urlencode_path($path) {
+    if (empty($path)) return '';
+    $segments = explode('/', $path);
+    $encoded = array();
+    foreach ($segments as $segment) {
+        $encoded[] = rawurlencode($segment);
+    }
+    return implode('/', $encoded);
+}
+
+/**
+ * Returns path to <username>.cfg file for user
+ */
+function get_user_config_file($user = null) {
+    if ($user === null && isset($_SESSION['user'])) {
+        $user = $_SESSION['user'];
+    }
+    if ($user === null) {
+        $user = 'admin';
+    }
+    return "users/" . $user . "/" . $user . ".cfg";
+}
+
+/**
+ * Reads user configuration from <username>.cfg into associative array
+ */
+function read_user_config($user = null) {
+    $cfg_file = get_user_config_file($user);
+    $config = array();
+    if (file_exists($cfg_file)) {
+        $lines = file($cfg_file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if ($lines !== false) {
+            foreach ($lines as $line) {
+                $line = trim($line);
+                if ($line === '' || strpos($line, '#') === 0 || strpos($line, ';') === 0) continue;
+                $parts = explode('=', $line, 2);
+                if (count($parts) === 2) {
+                    $config[trim($parts[0])] = trim($parts[1]);
+                }
+            }
+        }
+    }
+    return $config;
+}
+
+/**
+ * Merges and saves data into <username>.cfg file for user
+ */
+function save_user_config($data = array(), $user = null) {
+    $cfg_file = get_user_config_file($user);
+    $dir = dirname($cfg_file);
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0775, true);
+        @chgrp($dir, 'www-data');
+        @chmod($dir, 0775);
+    }
+    $current = read_user_config($user);
+    foreach ($data as $k => $v) {
+        $k_clean = trim((string)$k);
+        if ($k_clean !== '') {
+            $current[$k_clean] = trim((string)$v);
+        }
+    }
+    $lines = array();
+    foreach ($current as $k => $v) {
+        $lines[] = $k . "=" . $v;
+    }
+    $res = @file_put_contents($cfg_file, implode("\n", $lines) . "\n");
+    if ($res !== false) {
+        @chgrp($cfg_file, 'www-data');
+        @chmod($cfg_file, 0664);
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Returns dynamic WSPA installation root path
+ */
+function get_wspa_root() {
+    return str_replace('\\', '/', __DIR__);
+}
+
+/**
+ * Strips absolute server web root prefix to normalize paths into data/... relative paths
+ */
+function strip_web_root_prefix($path) {
+    $clean = str_replace('\\', '/', trim($path));
+    $root = rtrim(get_wspa_root(), '/') . '/';
+    if (strpos($clean, $root) === 0) {
+        $clean = substr($clean, strlen($root));
+    }
+    return $clean;
+}
+
+/**
+ * Resolves full raw file path by stripping preceding web root or dataset paths from raw_file
+ */
+function resolve_raw_file_path($raw_file, $data_path) {
+    $raw_clean = strip_web_root_prefix($raw_file);
+    $data_clean = strip_web_root_prefix($data_path);
+    $data_clean = rtrim($data_clean, '/');
+
+    if (!empty($data_clean) && strpos($raw_clean, $data_clean . '/') === 0) {
+        return $raw_clean;
+    }
+    if (strpos($raw_clean, 'data/') === 0) {
+        return $raw_clean;
+    }
+    if (strpos($raw_clean, '/') === 0) {
+        $raw_clean = ltrim($raw_clean, '/');
+    }
+
+    return $data_clean . '/' . ltrim($raw_clean, '/');
+}
+
+/**
+ * Resolves process cache directory for a data path.
+ */
+function get_process_dir($data_path, $has_custom_filter = false, $user = null) {
+    if ($user === null && isset($_SESSION['user'])) $user = $_SESSION['user'];
+    if ($user === null) $user = 'admin';
+
+    $clean_path = strip_web_root_prefix($data_path);
+    $clean_path = is_dir($clean_path) ? $clean_path : dirname($clean_path);
+
+    // 1. Custom filter on shared read-only dataset -> user shadow storage
+    if ($has_custom_filter && !is_wspa_localdir($clean_path)) {
+        return get_meta_dir($clean_path, $user) . '/process';
+    }
+
+    // 2. Local Mode A dataset folder -> in-situ process directory
+    if (is_wspa_localdir($clean_path)) {
+        return rtrim($clean_path, '/') . '/process';
+    }
+
+    // 3. Shared read-only dataset folder -> central shadow process directory in data/.shadow/
+    $data_root = "data/";
+    if (strpos($clean_path, $data_root) === 0) {
+        $rel_path = substr($clean_path, strlen($data_root));
+    } else {
+        $rel_path = ltrim($clean_path, '/');
+    }
+    return "data/.shadow/" . trim($rel_path, '/') . "/process";
+}
+
+/**
+ * Ensures directory exists with 0775 permissions and www-data group ownership
+ */
+function ensure_wspa_dir($dir) {
+    $clean = str_replace('\\', '/', trim($dir));
+    if (is_dir($clean)) return true;
+
+    $parts = explode('/', ltrim($clean, '/'));
+    $current = ($clean[0] === '/') ? '/' : '';
+    foreach ($parts as $part) {
+        if (empty($part)) continue;
+        $current .= ($current === '' || $current === '/' ? '' : '/') . $part;
+        if (!is_dir($current)) {
+            @mkdir($current, 0775, false);
+            @chgrp($current, 'www-data');
+            @chmod($current, 0775);
+        }
+    }
+    return is_dir($clean);
+}
+
+/**
+ * Cleanly wipes active session state files while strictly preserving mylist.lst
+ */
+function wipe_user_session_dir($userdir, $user) {
+    $user_ws = rtrim($userdir, '/') . '/' . $user . '/';
+    if (!is_dir($user_ws)) return;
+
+    // Reset dataset-specific range bounds and pan offsets in user config so new dataset launches start with Full Range & Autoscale
+    $cfg_file = get_user_config_file($user);
+    if (file_exists($cfg_file)) {
+        $cfg = read_user_config($user);
+        if (isset($cfg['gv_time_min']) || isset($cfg['gv_time_max']) || isset($cfg['gv_pan_dx']) || isset($cfg['gv_pan_dy']) || isset($cfg['gv_pan_center_dx']) || isset($cfg['gv_pan_center_dy']) || isset($cfg['gv_focus_idx'])) {
+            unset($cfg['gv_time_min']);
+            unset($cfg['gv_time_max']);
+            unset($cfg['gv_pan_dx']);
+            unset($cfg['gv_pan_dy']);
+            unset($cfg['gv_pan_center_dx']);
+            unset($cfg['gv_pan_center_dy']);
+            unset($cfg['gv_focus_idx']);
+            $lines = array();
+            foreach ($cfg as $k => $v) {
+                $lines[] = $k . "=" . $v;
+            }
+            @file_put_contents($cfg_file, implode("\n", $lines) . "\n");
+        }
+    }
+
+    $files_to_remove = [
+        'chan.dat', 'acqchan.dat', 'imgoffs.dat',
+        'tmp.dat', 'tmp.flt', 'tmp.plt', 'tmp.png', 'scl.png',
+        'gdl.log', 'main_launcher.log'
+    ];
+    foreach ($files_to_remove as $f) {
+        $file_path = $user_ws . $f;
+        if (file_exists($file_path) || is_link($file_path)) @unlink($file_path);
+    }
+
+    $glob_patterns = ['tmp*.png', 'scl*.png', 'hist*.png', 'p*.png', 'p*.dat'];
+    foreach ($glob_patterns as $pat) {
+        $matches = glob($user_ws . $pat);
+        if ($matches) {
+            foreach ($matches as $m) {
+                if (file_exists($m) || is_link($m)) @unlink($m);
+            }
+        }
+    }
+    bump_workspace_epoch($userdir, $user);
+}
+
+/**
+ * Updates the microsecond workspace epoch for sub-millisecond cache invalidation.
+ */
+function bump_workspace_epoch($userdir, $user) {
+    $u_dir = rtrim($userdir, '/') . '/' . $user . '/';
+    if (!is_dir($u_dir)) {
+        @mkdir($u_dir, 0775, true);
+    }
+    $epoch = sprintf('%.6f', microtime(true)) . '-' . mt_rand(1000, 9999);
+    $epoch_file = $u_dir . 'epoch.dat';
+    @file_put_contents($epoch_file, $epoch);
+    @chgrp($epoch_file, 'www-data');
+    @chmod($epoch_file, 0664);
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        $_SESSION['workspace_epoch'] = $epoch;
+    }
+    return $epoch;
+}
+
+/**
+ * Populates tmp<N>.png workspace symlinks from process/ cache using active workspace chan.dat
+ */
+function populate_workspace_tmp_links($data_path, $userdir, $user) {
+    $user_ws = rtrim($userdir, '/') . '/' . $user . '/';
+    $chan_path = $user_ws . 'chan.dat';
+    if (!file_exists($chan_path)) return;
+
+    $lines = file($chan_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    $dir_cache = array();
+
+    foreach ($lines as $idx => $line) {
+        $parts = explode(';', trim($line));
+        if (count($parts) >= 3 && is_numeric(trim($parts[0]))) {
+            $c_idx = intval(trim($parts[0]));
+            $raw_file = trim($parts[1]);
+        } else {
+            $c_idx = $idx;
+            $raw_file = trim($line);
+        }
+        if (empty($raw_file)) continue;
+
+        $png_name = basename($raw_file) . '.f' . $c_idx . '.png';
+        $full_raw = resolve_raw_file_path($raw_file, $data_path);
+        $flt_file = get_meta_path_for_file($full_raw, 'flt', $user);
+        $has_custom_filter = file_exists($flt_file) && filesize($flt_file) > 0;
+
+        $dir_key = dirname($full_raw) . '|' . ($has_custom_filter ? '1' : '0');
+        if (!isset($dir_cache[$dir_key])) {
+            $proc_dir = get_process_dir($full_raw, $has_custom_filter, $user);
+            $dir_cache[$dir_key] = $proc_dir;
+        } else {
+            $proc_dir = $dir_cache[$dir_key];
+        }
+
+        $cached_png = $proc_dir . '/' . $png_name;
+
+        if (file_exists($cached_png)) {
+            $is_stale = false;
+            if ($has_custom_filter) {
+                $flt_mtime = @filemtime($flt_file);
+                $cache_mtime = @filemtime($cached_png);
+                if ($flt_mtime !== false && $cache_mtime !== false && $flt_mtime > $cache_mtime) {
+                    $is_stale = true;
+                }
+            }
+
+            if (!$is_stale) {
+                $tmp_link = $user_ws . 'tmp' . $c_idx . '.png';
+                if (file_exists($tmp_link) || is_link($tmp_link)) @unlink($tmp_link);
+                @symlink(realpath($cached_png), $tmp_link);
+            }
+        }
+    }
+}
+
+/**
+ * Synchronizes qvud rendered physical PNGs to process/ directory
+ */
+function sync_process_preview_dir($data_path, $userdir, $user) {
+    $user_ws = rtrim($userdir, '/') . '/' . $user . '/';
+    $chan_path = file_exists($user_ws . 'chan.dat') ? ($user_ws . 'chan.dat') : (file_exists($user_ws . 'imgoffs.dat') ? ($user_ws . 'imgoffs.dat') : null);
+    if (!$chan_path) return;
+
+    $lines = file($chan_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    $dir_cache = array();
+
+    foreach ($lines as $idx => $line) {
+        $parts = explode(';', trim($line));
+        if (count($parts) >= 3 && is_numeric(trim($parts[0]))) {
+            $c_idx = intval(trim($parts[0]));
+            $raw_file = trim($parts[1]);
+        } else {
+            $c_idx = $idx;
+            $raw_file = trim($line);
+        }
+        if (empty($raw_file)) continue;
+
+        $tmp_png = $user_ws . 'tmp' . $c_idx . '.png';
+        if (!file_exists($tmp_png) || is_link($tmp_png)) continue;
+
+        $full_raw_file = resolve_raw_file_path($raw_file, $data_path);
+        $flt_file = get_meta_path_for_file($full_raw_file, 'flt', $user);
+        $has_custom_filter = file_exists($flt_file) && filesize($flt_file) > 0;
+
+        $dir_key = dirname($full_raw_file) . '|' . ($has_custom_filter ? '1' : '0');
+        if (!isset($dir_cache[$dir_key])) {
+            $target_dir = get_process_dir($full_raw_file, $has_custom_filter, $user);
+            ensure_wspa_dir($target_dir);
+            $dir_cache[$dir_key] = $target_dir;
+        } else {
+            $target_dir = $dir_cache[$dir_key];
+        }
+
+        $png_name = basename($raw_file) . '.f' . $c_idx . '.png';
+        $target_png = $target_dir . '/' . $png_name;
+
+        // Copy if target doesn't exist or size differs
+        if (!file_exists($target_png) || filesize($target_png) !== filesize($tmp_png) || $has_custom_filter) {
+            @unlink($target_png);
+            @copy($tmp_png, $target_png);
+            @chmod($target_png, 0664);
+        }
+    }
+}
+
+/**
+ * Retrieves the current dataset epoch token for cache isolation.
+ */
+function get_dataset_token($u = null) {
+    global $userdir, $shm, $origuserdir, $user;
+    $target_user = $u ?: (!empty($user) ? $user : (!empty($_SESSION['user']) ? $_SESSION['user'] : 'admin'));
+    $ud = !empty($userdir) ? $userdir : ((!empty($shm) ? $shm : '') . (!empty($origuserdir) ? $origuserdir : 'users/'));
+    
+    $epoch_file = rtrim($ud, '/') . '/' . $target_user . '/epoch.dat';
+    if (file_exists($epoch_file)) {
+        $tok = trim(@file_get_contents($epoch_file));
+        if ($tok !== '') return $tok;
+    }
+    $id_file = rtrim($ud, '/') . '/' . $target_user . '/dataset.id';
+    if (file_exists($id_file)) {
+        $tok = trim(@file_get_contents($id_file));
+        if ($tok !== '') return $tok;
+    }
+    if (isset($_SESSION['workspace_epoch']) && !empty($_SESSION['workspace_epoch'])) {
+        return $_SESSION['workspace_epoch'];
+    }
+    if (isset($_SESSION['dataset_id']) && !empty($_SESSION['dataset_id'])) {
+        return $_SESSION['dataset_id'];
+    }
+    $chan_file = rtrim($ud, '/') . '/' . $target_user . '/chan.dat';
+    if (file_exists($chan_file)) {
+        return dechex(@filemtime($chan_file));
+    }
+    return '0';
+}
+
+/**
+ * Computes a fast, collision-resistant cache-busting hash for an image file.
+ * Incorporates real file content CRC32 checksum for instant sub-millisecond detection.
+ */
+function get_image_cache_hash($img_file, $u = null) {
+    clearstatcache(true, $img_file);
+    if (!file_exists($img_file) || !is_readable($img_file)) {
+        return dechex((int)(microtime(true) * 1000000));
+    }
+
+    $real = @realpath($img_file) ?: $img_file;
+    $mtime = @filemtime($real);
+    $fsize = @filesize($real);
+
+    // Fast 32-bit CRC of the file content guarantees sub-millisecond change detection
+    $crc = @hash_file('crc32b', $real);
+    if ($crc === false) {
+        $crc = dechex($fsize);
+    }
+
+    $ds_token = get_dataset_token($u);
+    return substr(md5($ds_token . '|' . $real . '|' . $mtime . '|' . $fsize . '|' . $crc), 0, 12);
+}
+
+?>

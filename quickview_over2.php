@@ -55,11 +55,11 @@ foreach ($chans as $i) {
 
 		$raw_file = isset($raw_chans[$c]) ? trim(stripslashes($raw_chans[$c])) : "";
 		$mapdir = pathinfo($raw_file, PATHINFO_DIRNAME);
-		$mapfile = $mapdir . '/' . $bi . '.map';
+		$clean_base_file = $mapdir . '/' . $bi;
+		$mapfile = get_meta_path_for_file($clean_base_file, 'map', $user);
 		if (!file_exists($mapfile)) {
-			$meta_map = get_meta_path_for_file($raw_file, 'map', $user);
-			if (file_exists($meta_map) && is_file($meta_map)) {
-				$mapfile = $meta_map;
+			if (file_exists($mapdir . '/' . $bi . '.map')) {
+				$mapfile = $mapdir . '/' . $bi . '.map';
 			} else {
 				$mapfile = "";
 			}

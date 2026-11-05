@@ -10,30 +10,41 @@ if (!isset($_GET['file']) || trim($_GET['file']) === '') {
     exit;
 }
 
-$file_param = trim($_GET['file']);
-$clean_file = str_replace('\\', '/', $file_param);
+$file_param = trim($_GET['file'], "\r\n\t\0\x0B");
 
-// Resolve path and check security bounds
-$real_path = realpath($clean_file);
-$data_root = realpath(__DIR__ . '/data');
-$users_root = realpath(__DIR__ . '/users');
+$wspa_root = __DIR__;
+$data_root = realpath($wspa_root . '/data');
+$users_root = realpath($wspa_root . '/users');
 
-$allowed = false;
-if ($real_path !== false) {
-    if ($data_root !== false && strpos($real_path, $data_root) === 0) {
-        $allowed = true;
-    } else if ($users_root !== false && strpos($real_path, $users_root) === 0) {
-        $allowed = true;
-    }
+$candidate_paths = array($file_param);
+$normalized_file = str_replace('\\', '/', $file_param);
+if ($normalized_file !== $file_param) {
+    $candidate_paths[] = $normalized_file;
 }
 
-if (!$allowed) {
-    $rel = ltrim($clean_file, '/');
+$real_path = false;
+$allowed = false;
+
+foreach ($candidate_paths as $cand) {
+    // 1. Direct path relative to wspa root under data/ or users/
+    $rel = ltrim($cand, '/');
     if ((strpos($rel, 'data/') === 0 || strpos($rel, 'users/') === 0) && !preg_match('#\.\./#', $rel)) {
-        $full_candidate = __DIR__ . '/' . $rel;
-        if (file_exists($full_candidate)) {
+        $full_candidate = $wspa_root . '/' . $rel;
+        if (file_exists($full_candidate) && is_file($full_candidate)) {
             $allowed = true;
             $real_path = $full_candidate;
+            break;
+        }
+    }
+
+    // 2. Realpath check within data_root or users_root
+    $resolved = realpath($cand);
+    if ($resolved !== false && is_file($resolved)) {
+        if (($data_root !== false && strpos($resolved, $data_root) === 0) ||
+            ($users_root !== false && strpos($resolved, $users_root) === 0)) {
+            $allowed = true;
+            $real_path = $resolved;
+            break;
         }
     }
 }

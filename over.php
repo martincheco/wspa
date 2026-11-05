@@ -34,5 +34,5 @@ foreach ($chans as $key => $chan){
 
 $nch=count($chline);
 //print_r($nch);
-$mxh=min(floor(520/count($chline)-2),100);
+$mxh = ($nch > 0) ? min(floor(520 / $nch - 2), 100) : 100;
 ?>

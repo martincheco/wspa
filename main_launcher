@@ -11,7 +11,8 @@ rm  $1/hist*.png
 pkill -9 -f "sh -c echo none"
 pkill -9 -f "tail -f $1/comm"
 pkill -9 -f "gdl -arg $1"
-mkfifo $1/comm
+mkfifo -m 0666 $1/comm
+chmod 0666 $1/comm 2>/dev/null || true
 #rm "$1/gdl.log"
-tail -f $1/comm | (cd $1 && exec gdl -arg "$1" -arg "$2" "$2/qvud_launcher") > $1/gdl.log 2>&1
+stdbuf -oL tail -f $1/comm | (cd $1 && exec gdl -arg "$1" -arg "$2" "$2/qvud_launcher") > $1/gdl.log 2>&1
 #tail -f $1/comm | gdl -arg "$1" ../../qvud_launcher > $1/gdl.log 2>&1

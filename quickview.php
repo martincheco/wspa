@@ -1,4 +1,7 @@
-<?
+<?php
+if (!in_array('ob_gzhandler', ob_list_handlers()) && extension_loaded('zlib')) {
+	@ob_start('ob_gzhandler');
+}
 
 require('globals.php');
 require('auth.php');
@@ -32,16 +35,12 @@ if ((IsSet($_POST['prevs'])) || (IsSet($_POST['nexts']))){if (IsSet($_POST['nch'
 if (IsSet($_POST['prevs'])) {if (html_entity_decode($_POST['prevs'])!=''){$command="prevs";}}
 if (IsSet($_POST['nexts'])) {if (html_entity_decode($_POST['nexts'])!=''){$command="nexts";}}
 if (IsSet($_POST['filt'])) {if (($_POST['filt'])=='APPLY FILTER'){$command="filter";}}
-if (IsSet($_POST['pro'])) {if (($_POST['pro'])=='PROCESS'){$command="process";}}
 if (IsSet($_POST['next'])) {if (html_entity_decode($_POST['next'])!=''){$command="next";}}
 if (IsSet($_POST['mark'])) {if (($_POST['mark']=='Mark')){$command="mark";}}
 if (IsSet($_POST['dump'])) {if (($_POST['dump']=='Dump')){$command="dump";}}
 if (IsSet($_POST['stsmap'])) {if (($_POST['stsmap']=='STS map')){$command="sts";}}
 if (IsSet($_POST['pngsave'])) {if (($_POST['pngsave']=='PNG')){$command="pngsave";}}
 if (IsSet($_POST['wsxmsave'])) {if (($_POST['wsxmsave']=='WSXM')){$command="wsxmsave";}}
-
-//decide when the temporary processor files have to be deleted
-if (($command=="none")||($command=="")||($command=="mark")||($command=="dump")||($command=="pngsave")||($command=="wsxmsave")){$procchanged=FALSE;}else{$procchanged=TRUE;}
 
 if ($rights!="w" && $rights!="o"){
 //eliminate some commands if we have only read properties
@@ -60,24 +59,10 @@ if (isset($_POST['filter'])) {
 	if ($filter === 'empty') { @file_put_contents($userdir . $user . '/tmp.flt', ''); }
 }
 
-// Save processor if posted
-if (isset($_POST['proc'])) {
-	$proc = $_POST['proc'];
-	if (file_exists($userdir . $user . '/tmp.plt')) { @unlink($userdir . $user . '/tmp.plt'); }
-	if ($proc !== '') { @file_put_contents($userdir . $user . '/tmp.plt', $proc); }
-}
-
 // Clear temporary image cache
 @unlink($userdir . $user . '/tmp.png');
 @unlink($userdir . $user . '/scl.png');
 @unlink($userdir . $user . '/tmp.dat');
-
-if ($procchanged) {
-    for ($j = 0; $j <= 9; $j++) {
-	if (file_exists($userdir . $user . '/p' . trim($j) . '.png')) { @unlink($userdir . $user . '/p' . trim($j) . '.png'); }
-	if (file_exists($userdir . $user . '/p' . trim($j) . '.dat')) { @unlink($userdir . $user . '/p' . trim($j) . '.dat'); }
-    }
-}
 
 // Write command to GDL FIFO pipe natively without exec()
 @file_put_contents($userdir . $user . '/comm', $command . "\n");
@@ -101,15 +86,6 @@ if ($c > (100 * $qtout - 1)) {
 	while (($Size = filesize($tmpdat)) != $PrevSize) { $PrevSize = $Size; usleep(10000); }
 }
 
-// Read processed images and data
-for ($j = 0; $j < 7; $j++) {
-    if (file_exists($userdir . $user . '/p' . trim($j) . '.dat')) {
-	$procd[] = 'p' . trim($j) . '.dat';
-    } else { $procd[] = ""; }
-    if (file_exists($userdir . $user . '/p' . trim($j) . '.png')) {
-	$proci[] = 'p' . trim($j) . '.png';
-    } else { $proci[] = ""; }
-}
 $msg = file($tmpdat);
 
 // Read image index from file
@@ -128,24 +104,18 @@ $xscandir = trim($parts3[1]);
 
 $raw_file = trim(stripslashes($msg[0]));
 
-if (!empty($raw_file) && ($command === "filter" || $command === "process")) {
+if (!empty($raw_file) && ($command === "filter")) {
 	$data_dir = dirname($raw_file);
 	sync_process_preview_dir($data_dir, $userdir, $user);
+	bump_workspace_epoch($userdir, $user);
 }
 
-// Dual-mode resolver for .flt and .plt files
+// Dual-mode resolver for .flt files
 $filtfile = get_meta_path_for_file($raw_file, 'flt', $user);
 if (file_exists($filtfile)) {
 	$filtorig = file_get_contents($filtfile);
 } else {
 	$filtorig = "";
-}
-
-$procfile = get_meta_path_for_file($raw_file, 'plt', $user);
-if (file_exists($procfile)) {
-	$procorig = file_get_contents($procfile);
-} else {
-	$procorig = "";
 }
 
 if (file_exists($userdir . $user . '/gdl.log')) {
@@ -155,11 +125,13 @@ if (file_exists($userdir . $user . '/gdl.log')) {
 }
 
 $mapdir = pathinfo($raw_file, PATHINFO_DIRNAME);
-$mapfile = $mapdir . '/' . pathinfo(pathinfo($raw_file, PATHINFO_FILENAME), PATHINFO_FILENAME) . '.map';
+$bi = pathinfo(pathinfo($raw_file, PATHINFO_FILENAME), PATHINFO_FILENAME);
+$clean_base_file = $mapdir . '/' . $bi;
+
+$mapfile = get_meta_path_for_file($clean_base_file, 'map', $user);
 if (!file_exists($mapfile)) {
-	$meta_map = get_meta_path_for_file($raw_file, 'map', $user);
-	if (file_exists($meta_map)) {
-		$mapfile = $meta_map;
+	if (file_exists($mapdir . '/' . $bi . '.map')) {
+		$mapfile = $mapdir . '/' . $bi . '.map';
 	} else {
 		$mapfile = "";
 	}
@@ -191,6 +163,7 @@ require('head.php');
 if ($help=='help'){require('help.php');}else{require('nohelp.php');}
 //is a part of image retrieval, depends on use of shared memory
 if ($shm!=''){$userlnk=$userlink;}else{$userlnk=$userdir;}
+$qv_zoom = isset($_COOKIE['wspa_qv_zoom']) ? max(1, min(16, intval($_COOKIE['wspa_qv_zoom']))) : 1;
 //print_r($mapl);
 
 ?>
@@ -258,33 +231,6 @@ function AddFilter(event) {
     insertTextAtCursor(document.getElementById("filter"),res);
 }
 
-function AddProc() {
-    var x1 = document.getElementById("x1").value;
-    var x2 = document.getElementById("x2").value;
-    var x3 = document.getElementById("x3").value;
-    var y1 = document.getElementById("y1").value;
-    var y2 = document.getElementById("y2").value;
-    var y3 = document.getElementById("y3").value;
-//  var h  = document.getElementById("pointer").clientHeight;
-    var ys = document.getElementById("pointer").height;
-
-    
-    var sup = document.getElementById("procs");
-    res = sup.options[sup.selectedIndex].value;
-
-    res=res.replace("%x1",x1);
-    res=res.replace("%x2",x2);
-    res=res.replace("%x3",x3);
-    res=res.replace("%y1",y1);
-    res=res.replace("%y2",y2);
-    res=res.replace("%y3",y3);
-    res=res.replace("%dx",x1-x2);
-    res=res.replace("%dy",y1-y2);
-
-    res=res.replace("#","\n");
-    insertTextAtCursor(document.getElementById("proc"),res);
-}
-
 function drawLine(elid, Ax, Ay, Bx, By)
 {
 bla = "";
@@ -312,6 +258,152 @@ function drawPoint(elid, Ax, Ay)
 }
 
 
+var currentZoom = <?echo $qv_zoom;?>;
+
+function redrawAllPoints() {
+    var x1El = document.getElementById("x1");
+    var y1El = document.getElementById("y1");
+    var x2El = document.getElementById("x2");
+    var y2El = document.getElementById("y2");
+    var x3El = document.getElementById("x3");
+    var y3El = document.getElementById("y3");
+    if (!x1El || !y1El) return;
+    var x1 = parseFloat(x1El.value);
+    var y1 = parseFloat(y1El.value);
+    var x2 = parseFloat(x2El.value);
+    var y2 = parseFloat(y2El.value);
+    var x3 = parseFloat(x3El.value);
+    var y3 = parseFloat(y3El.value);
+    var img = document.getElementById("pointer");
+    if (!img) return;
+    var ys = parseFloat(img.getAttribute("data-orig-h")) || img.naturalHeight || img.height || 400;
+
+    var z = currentZoom;
+    var halfZ = Math.floor(z / 2);
+
+    var l1 = document.getElementById("line1");
+    var l2 = document.getElementById("line2");
+    var pts = document.getElementById("pnts");
+    if (l1) l1.innerHTML = "";
+    if (l2) l2.innerHTML = "";
+    if (pts) pts.innerHTML = "";
+
+    if (!isNaN(x1) && !isNaN(y1)) {
+        var sx1 = x1 * z + halfZ;
+        var sy1 = (ys - y1) * z + halfZ;
+        drawPoint(pts, sx1, sy1);
+        var c1 = document.getElementById("cross1");
+        if (c1) {
+            c1.style.left = (sx1 - 6) + "px";
+            c1.style.top  = (sy1 - 6) + "px";
+            c1.style.visibility = (clic >= 1) ? "visible" : "hidden";
+        }
+    }
+    if (!isNaN(x2) && !isNaN(y2)) {
+        var sx2 = x2 * z + halfZ;
+        var sy2 = (ys - y2) * z + halfZ;
+        var sx1 = x1 * z + halfZ;
+        var sy1 = (ys - y1) * z + halfZ;
+        drawLine(l1, sx1, sy1, sx2, sy2);
+        var c2 = document.getElementById("cross2");
+        if (c2) {
+            c2.style.left = (sx2 - 6) + "px";
+            c2.style.top  = (sy2 - 6) + "px";
+            c2.style.visibility = (clic >= 2) ? "visible" : "hidden";
+        }
+    }
+    if (!isNaN(x3) && !isNaN(y3)) {
+        var sx3 = x3 * z + halfZ;
+        var sy3 = (ys - y3) * z + halfZ;
+        var sx2 = x2 * z + halfZ;
+        var sy2 = (ys - y2) * z + halfZ;
+        drawLine(l2, sx2, sy2, sx3, sy3);
+        var c3 = document.getElementById("cross3");
+        if (c3) {
+            c3.style.left = (sx3 - 6) + "px";
+            c3.style.top  = (sy3 - 6) + "px";
+            c3.style.visibility = (clic >= 3) ? "visible" : "hidden";
+        }
+    }
+}
+
+function applyZoom(z) {
+    z = parseInt(z, 10);
+    if (isNaN(z) || z < 1) z = 1;
+    if (z > 16) z = 16;
+    currentZoom = z;
+
+    var input = document.getElementById("zoom_input");
+    if (input && input.value != z) input.value = z;
+
+    var img = document.getElementById("pointer");
+    if (img) {
+        var natW = parseFloat(img.getAttribute("data-orig-w")) || img.naturalWidth || img.width || 400;
+        var natH = parseFloat(img.getAttribute("data-orig-h")) || img.naturalHeight || img.height || 400;
+        img.style.width = (natW * z) + "px";
+        img.style.height = (natH * z) + "px";
+        img.style.imageRendering = "pixelated";
+        img.style.setProperty("-moz-crisp-edges", "pixelated");
+        img.style.setProperty("image-rendering", "crisp-edges");
+    }
+
+    var markers = document.querySelectorAll(".sts_marker");
+    markers.forEach(function(m) {
+        var ptX = parseFloat(m.getAttribute("data-pt-x"));
+        var ptY = parseFloat(m.getAttribute("data-pt-y"));
+        var newLeft = Math.round(ptX * z - 4);
+        var newTop = Math.round(ptY * z - 4);
+        var imgEl = m.querySelector("img");
+        if (imgEl) {
+            imgEl.style.left = newLeft + "px";
+            imgEl.style.top = newTop + "px";
+        }
+    });
+
+    var arr = document.getElementById("scandir_arrow");
+    if (arr && img) {
+        var natH = parseFloat(img.getAttribute("data-orig-h")) || img.naturalHeight || 400;
+        var arrY = parseFloat(arr.getAttribute("data-orig-y"));
+        if (arrY > 0) {
+            arr.style.top = Math.round(natH * z - 17) + "px";
+        }
+    }
+
+    redrawAllPoints();
+
+    try {
+        localStorage.setItem("wspa_qv_zoom", z);
+        document.cookie = "wspa_qv_zoom=" + z + "; path=/; max-age=31536000; SameSite=Lax";
+    } catch(e) {}
+}
+
+function stepZoom(delta) {
+    applyZoom(currentZoom + delta);
+}
+
+function onZoomChange(val) {
+    applyZoom(val);
+}
+
+window.addEventListener("DOMContentLoaded", function() {
+    var savedZoom = currentZoom;
+    try {
+        var sz = localStorage.getItem("wspa_qv_zoom");
+        if (sz) {
+            var parsed = parseInt(sz, 10);
+            if (parsed && parsed >= 1 && parsed <= 16) {
+                savedZoom = parsed;
+            }
+        }
+    } catch(e) {}
+
+    if (savedZoom !== currentZoom) {
+        applyZoom(savedZoom);
+    } else {
+        redrawAllPoints();
+    }
+});
+
 function point_it(event){
     var x1 = document.getElementById("x1");
     var x2 = document.getElementById("x2");
@@ -319,8 +411,9 @@ function point_it(event){
     var y1 = document.getElementById("y1");
     var y2 = document.getElementById("y2");
     var y3 = document.getElementById("y3");
-    var ys = document.getElementById("pointer").height;
-    var xs = document.getElementById("pointer").width;
+    var img = document.getElementById("pointer");
+    var ys = parseFloat(img.getAttribute("data-orig-h")) || img.naturalHeight || img.height || 400;
+    var xs = parseFloat(img.getAttribute("data-orig-w")) || img.naturalWidth || img.width || 400;
     var butt = event.which;
     var xscl=<?echo $xscale;?>;
     var runit="<?echo $runit;?>";
@@ -332,10 +425,12 @@ function point_it(event){
     var a3 = document.getElementById("a3");
     var store = document.getElementById("store");
 
+    var click_x = (event.offsetX !== undefined) ? event.offsetX : event.layerX;
+    var click_y = (event.offsetY !== undefined) ? event.offsetY : event.layerY;
 
-    
-    pos_x = event.offsetX?(event.offsetX):event.layerX;//-document.getElementById("pointer").offsetLeft;
-    pos_y = event.offsetY?(event.offsetY):event.layerY;//-document.getElementById("pointer").offsetTop;
+    var pos_x = Math.max(0, Math.min(xs - 1, Math.floor(click_x / currentZoom)));
+    var pos_y = Math.max(0, Math.min(ys - 1, Math.floor(click_y / currentZoom)));
+
     x3.value=x2.value;
     y3.value=y2.value;
     x2.value=x1.value;
@@ -345,7 +440,6 @@ function point_it(event){
     y1.value = ys-pos_y;
     
     store.value=store.value+' '+x1.value+' '+y1.value+' '+butt+'\n';
-
 
     r12.value=(Math.pow(x2.value-x1.value,2)+Math.pow(y2.value-y1.value,2));
     r23.value=(Math.pow(x3.value-x2.value,2)+Math.pow(y3.value-y2.value,2));
@@ -372,37 +466,11 @@ function point_it(event){
     a2.value=(a2.value-0).toFixed(2);
     a3.value=(a3.value-0).toFixed(2);
 
-    if ( ((x1.value-0) != 0) || ((ys-y1.value-0) != 0) ){drawLine(document.getElementById("line1"), x1.value-0, ys-y1.value, x2.value-0, ys-y2.value);}
-    drawLine(document.getElementById("line2"), x2.value-0, ys-y2.value, x3.value-0, ys-y3.value);
-    drawPoint(document.getElementById("pnts"), x1.value-0, ys-y1.value);
-
-//    drawLine(document.getElementById("line3"), x3.value-0, ys-y3.value, x1.value-0, ys-y1.value);
-
-
-    document.getElementById("cross1").style.left = x1.value-6;
-    document.getElementById("cross1").style.top = ys-y1.value-6;
-    document.getElementById("cross1").style.visibility = "visible" ;
-
-
-    document.getElementById("cross2").style.left = x2.value-6;
-    document.getElementById("cross2").style.top = ys-y2.value-6;
-    if (clic == 2) {document.getElementById("cross2").style.visibility = "visible" ;}
-
-    document.getElementById("cross3").style.left = x3.value-6;
-    document.getElementById("cross3").style.top = ys-y3.value-6;
-    if (clic == 3) {document.getElementById("cross3").style.visibility = "visible" ;}
+    redrawAllPoints();
 
     clic++;
 
     document.getElementById("cmd").focus();
-
-//    if (document.pointform.addcheck.checked) {
-//   if (last=="filter") {
-//    last="";
-//    document.getElementById("filter").focus();
-//    insertTextAtCursor(document.getElementById("filter"),' '+pos_x+pad(document.getElementById("pointer").clientHeight-pos_y,4));
-//    }else{document.getElementById("command").focus();}
-//	}
 }
 
 function keypressaction(keycode,e) {
@@ -493,54 +561,90 @@ function keypressaction2(keycode,ctrl) {
 
 		<TR>
 			<TD>
+			<?
+			$img_scan_file = $userlnk . $user . '/tmp' . $index . '.png';
+			$scan_hh = file_exists($img_scan_file) ? @getimagesize($img_scan_file) : array(400, 400);
+			$orig_scan_w = (!empty($scan_hh[0])) ? $scan_hh[0] : 400;
+			$orig_scan_h = (!empty($scan_hh[1])) ? $scan_hh[1] : 400;
+			$disp_w = $orig_scan_w * $qv_zoom;
+			$disp_h = $orig_scan_h * $qv_zoom;
+			$scan_v = (function_exists('get_dataset_token') ? get_dataset_token($user) : '0') . '-' . (@filemtime($img_scan_file) ?: '0');
+			$pointer_src = $img_scan_file . '?v=' . $scan_v;
+			?>
 			<div style="position:relative;cursor:crosshair;">
-<?
-/*			<img id="pointer" src="./showimage.php?image=<?echo 'tmp'.$index.'.png';?>" title="<?echo help_tooltip('pointer')?>" style="position:absolute;overflow:hidden;white-space:nowrap;" onmouseup="point_it(event)" oncontextmenu="return false;">
- */
-?>
-			<img id="pointer" src="<?echo $userlnk.$user.'/tmp'.$index.'.png?v='.filemtime($userlnk.$user.'/tmp'.$index.'.png');?>" title="<?echo help_tooltip('pointer')?>" style="position:relative;overflow:hidden;white-space:nowrap;display:block;" onmouseup="point_it(event)" oncontextmenu="return false;">
-			<div id="line1"></div>
-			<div id="line2"></div>
-			<div id="line3"></div>
-			<div id="pnts"></div>
+			<img id="pointer" data-orig-w="<?echo $orig_scan_w;?>" data-orig-h="<?echo $orig_scan_h;?>" src="<?echo $pointer_src;?>" title="<?echo help_tooltip('pointer')?>" style="position:relative;overflow:hidden;white-space:nowrap;display:block;width:<?echo $disp_w;?>px;height:<?echo $disp_h;?>px;image-rendering:pixelated;image-rendering:-moz-crisp-edges;image-rendering:crisp-edges;" onmouseup="point_it(event)" oncontextmenu="return false;">
+			<script>
+			(function() {
+				try {
+					var sz = parseInt(localStorage.getItem("wspa_qv_zoom"), 10);
+					if (sz && sz >= 1 && sz <= 16 && sz !== <?echo $qv_zoom;?>) {
+						var img = document.getElementById("pointer");
+						if (img) {
+							var nw = <?echo $orig_scan_w;?>;
+							var nh = <?echo $orig_scan_h;?>;
+							img.style.width = (nw * sz) + "px";
+							img.style.height = (nh * sz) + "px";
+						}
+						currentZoom = sz;
+						document.cookie = "wspa_qv_zoom=" + sz + "; path=/; max-age=31536000; SameSite=Lax";
+					}
+				} catch(e) {}
+			})();
+			</script>
+			<div id="line1" style="pointer-events:none;"></div>
+			<div id="line2" style="pointer-events:none;"></div>
+			<div id="line3" style="pointer-events:none;"></div>
+			<div id="pnts" style="pointer-events:none;"></div>
 
-			<img id="cross1" src='mark1.png' style="position:absolute;visibility:hidden;">
-			<img id="cross2" src='mark2.png' style="position:absolute;visibility:hidden;">
-			<img id="cross3" src='mark3.png' style="position:absolute;visibility:hidden;">
+			<img id="cross1" src='mark1.png' style="position:absolute;visibility:hidden;pointer-events:none;">
+			<img id="cross2" src='mark2.png' style="position:absolute;visibility:hidden;pointer-events:none;">
+			<img id="cross3" src='mark3.png' style="position:absolute;visibility:hidden;pointer-events:none;">
 <?
 		if ($sts=='sts'){
-			$hh=getimagesize($userlnk.$user.'/tmp'.$index.'.png');
-			if (!empty($mapf) ){foreach($mapf as $key => $mapfl){
-				$mapfl=trim($mapfl);
-				$dotpos=strpos(basename($mapfl),'.');
-				$mtag=substr(basename($mapfl),$dotpos-4,4);
-				$nul=0;
-				//decide which point is related to the actual image and which to the previous
-			//	stl2='background-color:#000;position:absolute;left: '.($mapx[$key]+4).'px; top: '.($hh[1]-$mapy[$key]).'px;';
+			if (!empty($mapf)){
+				$rendered_pts = array();
+				foreach($mapf as $key => $mapfl){
+					if (!isset($mapx[$key]) || !isset($mapy[$key]) || !is_numeric($mapx[$key]) || !is_numeric($mapy[$key])) {
+						continue;
+					}
+					$mx = floatval($mapx[$key]);
+					$my = floatval($mapy[$key]);
+					$msy = (isset($mapsy[$key]) && is_numeric($mapsy[$key])) ? floatval($mapsy[$key]) : 1.0;
+					if (!is_finite($mx) || !is_finite($my) || !is_finite($msy) || $msy <= 0) {
+						continue;
+					}
 
+					$denom = $msy;
+					$sts_pt_x = ($mx * (float)$orig_scan_h / $denom);
+					$sts_pt_y = ((float)$orig_scan_h - ($my * (float)$orig_scan_h / $denom));
 
-			//	if($yscandir=='up'){
-			//		if(($mapy[$key] <= $mapl[$key])){$stsim='sts.png';$mtagc='color:#0f0;';}else{$stsim='sts_b.png';$mtagc='color:#0af;';}
-			//		if($mapl[$key] <= $nul){$stsim='sts_r.png';$mtagc='color:#f0f;';}else{
-			//		    $stl='position:absolute;left: 0px; top: '.($hh[1]-$mapl[$key]-1).'px;';
-			//		    echo '<div style="'.$mtagc.$stl.'">'.$mtag.'</div>';
-			//		    echo '<a target=sts href="sts.php?s=df,It,exc&graph='.urlencode(dirname($msg[0]).'/graphs/'.basename($mapfl)).'" title="'.basename($mapfl).'"><img src="stsl.png" style="'.$stl.'"></a>';
-			//		}
-			//	}else{
-			//		if((($hh[1]-$mapy[$key]) <= ($mapl[$key]))){$stsim='sts.png';$mtagc='color:#0f0;';}else{$stsim='sts_b.png';$mtagc='color:#0af;';}
-			//		if(($mapl[$key]) <= $nul){$stsim='sts_r.png';$mtagc='color:#f0f;';}else{
-			//		    $stl='position:absolute;left: 0px; top: '.($mapl[$key]-1).'px;';
-			//		    echo '<div style="'.$mtagc.$stl.'">'.$mtag.'</div>';
-			//		    echo '<a target=sts href="sts.php?s=df,It,exc&graph='.urlencode(dirname($msg[0]).'/graphs/'.basename($mapfl)).'" title="'.basename($mapfl).'"><img src="stsl.png" style="'.$stl.'"></a>';
-			//		}
-			//	}
-				$stsim='sts.png';$mtagc='color:#0f0;';
-//			    echo '<div style="'.$mtagc.$stl2.'">'.$mtag.'</div>';
-			    echo '<a target=_self href="sts.php?s=&graph='.urlencode(basename($mapfl)).'" title="'.basename($mapfl).'"><img src="'.$stsim.'" style="position:absolute;left: '.(($mapx[$key]*$hh[1]/$mapsy[$key])-4).'px; top: '.($hh[1]-($mapy[$key]*$hh[1]/$mapsy[$key])-4).'px;"></a>';
-			}}
+					$pix_left = round($sts_pt_x * $qv_zoom - 4);
+					$pix_top  = round($sts_pt_y * $qv_zoom - 4);
+					$pos_key  = $pix_left . '_' . $pix_top;
 
-			if(strtolower($yscandir)=='up'){echo '<img src="up.png" style="position:absolute;left: 0px; top: '.($hh[1]-17).'px;">';}
-			if(strtolower($yscandir)=='down'){echo '<img src="down.png" style="position:absolute;left: 0px; top: 0px;">';}
+					if (!isset($rendered_pts[$pos_key])) {
+						$rendered_pts[$pos_key] = array(
+							'pt_x' => $sts_pt_x,
+							'pt_y' => $sts_pt_y,
+							'left' => $pix_left,
+							'top'  => $pix_top,
+							'fn'   => basename($mapfl),
+							'cnt'  => 1
+						);
+					} else {
+						$rendered_pts[$pos_key]['cnt']++;
+					}
+				}
+
+				$stsim = 'sts.png';
+				foreach ($rendered_pts as $rpt) {
+					$title = ($rpt['cnt'] > 1) ? ($rpt['fn'] . ' (+' . ($rpt['cnt'] - 1) . ' curves)') : $rpt['fn'];
+					echo '<a target=_self class="sts_marker" data-pt-x="'.$rpt['pt_x'].'" data-pt-y="'.$rpt['pt_y'].'" href="sts.php?s=&graph='.urlencode($rpt['fn']).'" title="'.htmlspecialchars($title).'"><img src="'.$stsim.'" style="position:absolute;left: '.$rpt['left'].'px; top: '.$rpt['top'].'px;"></a>';
+				}
+			}
+
+			if(strtolower($yscandir)=='up'){echo '<img id="scandir_arrow" data-orig-y="'.($orig_scan_h-17).'" src="up.png" style="position:absolute;left: 0px; top: '.($orig_scan_h*$qv_zoom-17).'px;pointer-events:none;">';}
+			if(strtolower($yscandir)=='down'){echo '<img id="scandir_arrow" data-orig-y="0" src="down.png" style="position:absolute;left: 0px; top: 0px;pointer-events:none;">';}
 		}
 ?>
 
@@ -578,6 +682,10 @@ function keypressaction2(keycode,ctrl) {
 			}else{
 			    echo ' <INPUT style="background:#aaa" type=submit name="stsoff" value="Sts" title="Enables STS">';
 			}
+			echo ' <span style="font-family:Arial,sans-serif;font-size:11pt;margin-left:4px;margin-right:2px;vertical-align:middle;">Zoom</span>';
+			echo '<input type="button" id="zoom_down" value="<" onclick="stepZoom(-1); return false;" title="Zoom out" style="padding:2px;border:1px solid #444;cursor:pointer;font-family:Arial,sans-serif;font-size:11pt;height:21.6px;vertical-align:middle;box-sizing:border-box;">';
+			echo '<input type="text" id="zoom_input" name="zoom" value="'.$qv_zoom.'" style="font-family:monospace;font-size:11pt;width:1.2em;text-align:center;height:21.6px;padding:2px 1px;border:1px solid #444;vertical-align:middle;box-sizing:border-box;background:#000;color:#eee;" onchange="onZoomChange(this.value);" onkeydown="if(event.keyCode===13){this.blur();return false;}">';
+			echo '<input type="button" id="zoom_up" value=">" onclick="stepZoom(1); return false;" title="Zoom in" style="padding:2px;border:1px solid #444;cursor:pointer;font-family:Arial,sans-serif;font-size:11pt;height:21.6px;vertical-align:middle;box-sizing:border-box;">';
 			if($help=='help'){
 			    echo ' <INPUT style="background:#ffa" type=submit name="helpon" value="Help" title="Tooltips now enabled">';
 			}else{
@@ -651,28 +759,6 @@ function keypressaction2(keycode,ctrl) {
 			</SELECT><INPUT tabindex=-1 type=submit name="filt" value="APPLY FILTER" style="background-color:#cf0;" title="<?echo help_plain('filter_apply')?>">
 
 		</TR>
-
-		<TR><TD colspan=2>
-			<TABLE><TR>
-			    <TD><TEXTAREA tabindex=1 id="proc" alt="Processors" title="<?echo help_plain('filters');?>"  NAME=proc placeholder="Add processors here" rows=4 cols=45 onFocus="last='proc'"><? if($procorig != ""){echo $procorig;} ?></TEXTAREA>
-			    
-			    <?if(is_array($procd) || is_array($proci)){
-			    echo '<TD id="proctd"><TABLE>';
-			    foreach ($procd as $j=>$entry){
-				echo "<TR><TD>";
-				if($procd[$j]!=''){echo '<a id="proca" target=process href=process.php?graph='.$procd[$j];}
-				if($proci[$j]!=''){echo '&img='.$proci[$j];}
-				if( $procd[$j]!='' || $proci[$j]!='') echo ">view</a></TD></TR>";}
-			    echo "</TABLE>";
-			    }?>
-			</TR></TABLE>
-			<SELECT name="procs" id="procs" onchange="AddProc(event);this.options[0].selected=true;" title="<?echo help_plain('proc_sel')?>" style="background-color:#6cf">
-				<OPTION value="">+++</OPTION>
-				<OPTION value="profile %x2 %x1 %y2 %y1 #">&nbsp;&nbsp;Profile(2)</OPTION>
-			</SELECT><INPUT tabindex=-1 type=submit name="pro" value="PROCESS" title="<?echo help_plain('proc_apply')?>" style="background-color:#6ef">
-		</TR>
-		<TR>
-		</TR>
 		
 		</FORM>
 
@@ -706,8 +792,15 @@ function keypressaction2(keycode,ctrl) {
 			</table>
 		    </TD>
 		    
-		    <TD style="text-align:right;width:260px"><img src="<? if (file_exists($userlnk.$user.'/hist'.$index.'.png')){echo $userlnk.$user.'/hist'.$index.'.png?v='.filemtime($userlnk.$user.'/hist'.$index.'.png');}else{echo 'unihist.png';} ?>" title="<?echo help_plain('histogram');?>"><BR>
-		    <img title="<?echo help_plain('scl');?>" src="<? if (file_exists($userlnk.$user.'/scl'.$index.'.png')){echo $userlnk.$user.'/scl'.$index.'.png?v='.filemtime($userlnk.$user.'/hist'.$index.'.png');}else{echo 'uniscl.png';}?>"></TD>
+		    <TD style="text-align:right;width:260px"><?
+		    $hist_file = $userlnk . $user . '/hist' . $index . '.png';
+		    $hist_v = (function_exists('get_dataset_token') ? get_dataset_token($user) : '0') . '-' . (@filemtime($hist_file) ?: '0');
+		    $hist_src = file_exists($hist_file) ? ($hist_file . '?v=' . $hist_v) : 'unihist.png';
+		    $scl_file = $userlnk . $user . '/scl' . $index . '.png';
+		    $scl_v = (function_exists('get_dataset_token') ? get_dataset_token($user) : '0') . '-' . (@filemtime($scl_file) ?: '0');
+		    $scl_src = file_exists($scl_file) ? ($scl_file . '?v=' . $scl_v) : 'uniscl.png';
+		    ?><img src="<?echo $hist_src;?>" title="<?echo help_plain('histogram');?>"><BR>
+		    <img title="<?echo help_plain('scl');?>" src="<?echo $scl_src;?>"></TD>
 		</TR>
 		<TR><TD colspan=2><TEXTAREA style="background-color:#333;color:#999;font-size:5px;width:100%" id="store" tabindex=-1></TEXTAREA></TD>
 
@@ -725,11 +818,6 @@ function keypressaction2(keycode,ctrl) {
 		filtarea.focus();
 		filtarea.value+=' ';
 		filtarea.value=filtarea.value.substring(0,filtarea.value.length-1);
-
-		var procarea = document.getElementById("proc");
-		procarea.focus();
-		procarea.value+=' ';
-		procarea.value=procarea.value.substring(0,procarea.value.length-1);
 
 		//var textArea = document.getElementById("debug");
 		//textArea.scrollTop = textArea.scrollHeight;

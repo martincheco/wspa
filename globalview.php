@@ -233,11 +233,11 @@ foreach ($chans as $i) {
 		$file_idx++;
 		$full_raw_file = !empty($clean_raw_path) ? $clean_raw_path : (isset($mylist_paths[$file_idx]) ? $mylist_paths[$file_idx] : $target_raw);
 		$mapdir = pathinfo($full_raw_file, PATHINFO_DIRNAME);
-		$mapfile = $mapdir . '/' . $bi . '.map';
+		$clean_base_file = $mapdir . '/' . $bi;
+		$mapfile = get_meta_path_for_file($clean_base_file, 'map', $user);
 		if (!file_exists($mapfile)) {
-			$meta_map = get_meta_path_for_file($full_raw_file, 'map', $user);
-			if (file_exists($meta_map) && is_file($meta_map)) {
-				$mapfile = $meta_map;
+			if (file_exists($mapdir . '/' . $bi . '.map')) {
+				$mapfile = $mapdir . '/' . $bi . '.map';
 			} else {
 				$mapfile = "";
 			}
@@ -249,32 +249,46 @@ foreach ($chans as $i) {
 			$maplines = file($mapfile);
 			$mc = 1; // 1 = coords line, 0 = graph file line
 			$px_x = 0; $px_y = 0; $px_dim = 0;
+			$grouped_pts = array();
 			foreach ($maplines as $mapln) {
 				$mapln = trim($mapln);
 				if (empty($mapln)) continue;
 				if ($mc == 1) {
 					$mapc = preg_split('/\s+/', $mapln);
-					if (count($mapc) >= 3) {
+					if (count($mapc) >= 3 && is_numeric($mapc[0]) && is_numeric($mapc[1])) {
 						$px_x = floatval($mapc[0]);
 						$px_y = floatval($mapc[1]);
-						$px_dim = floatval($mapc[2]);
+						$px_dim = is_numeric($mapc[2]) ? floatval($mapc[2]) : 0;
+					} else {
+						$px_x = NAN;
+						$px_y = NAN;
+						$px_dim = 0;
 					}
 					$mc = 0;
 				} else {
 					$curr_graph = basename($mapln);
 					if ($px_dim > 0 && is_finite($px_x) && is_finite($px_y) && is_finite($px_dim)) {
-						$sts_points[] = array(
-							'graph' => $curr_graph,
-							'px_x' => $px_x,
-							'px_y' => $px_y,
-							'dim' => $px_dim,
-							'rel_x' => ($px_x / $px_dim) - 0.5,
-							'rel_y' => ($px_y / $px_dim) - 0.5
-						);
+						$spat_key = round($px_x, 1) . '_' . round($px_y, 1);
+						if (!isset($grouped_pts[$spat_key])) {
+							$grouped_pts[$spat_key] = array(
+								'graph' => $curr_graph,
+								'px_x' => $px_x,
+								'px_y' => $px_y,
+								'dim' => $px_dim,
+								'rel_x' => ($px_x / $px_dim) - 0.5,
+								'rel_y' => ($px_y / $px_dim) - 0.5,
+								'count' => 1,
+								'graphs' => array($curr_graph)
+							);
+						} else {
+							$grouped_pts[$spat_key]['count']++;
+							$grouped_pts[$spat_key]['graphs'][] = $curr_graph;
+						}
 					}
 					$mc = 1;
 				}
 			}
+			$sts_points = array_values($grouped_pts);
 		} else {
 			$bordercol = "#567";
 		}
@@ -285,7 +299,7 @@ foreach ($chans as $i) {
 	}
 
 	$img_file = $userlnk . $user . '/tmp' . $c . '.png';
-	$hash = @filemtime($img_file);
+	$hash = get_image_cache_hash($img_file);
 	$real_src = 'serve_image.php?file=' . urlencode($img_file) . '&v=' . $hash;
 
 	if (isset($qvud_meta[$c])) {
@@ -2055,11 +2069,12 @@ function aggregateSTSNames(names, returnArray) {
 			items.sort(function(a, b) { return a.num - b.num; });
 
 			var uniqueItems = [];
-			items.forEach(function(it) {
-				if (!uniqueItems.some(function(u) { return u.num === it.num; })) {
-					uniqueItems.push(it);
+			for (var ui = 0; ui < items.length; ui++) {
+				if (ui === 0 || items[ui].num !== items[ui - 1].num) {
+					uniqueItems.push(items[ui]);
 				}
-			});
+			}
+
 
 			var ranges = [];
 			var curStart = uniqueItems[0];
@@ -2751,6 +2766,8 @@ function resetZoom() {
 
 var preloadQueue = [];
 var preloadTimer = null;
+var preloadDrawDebounce = null;
+var PRELOAD_BATCH_SIZE = 8;
 
 // Lazy load thumbnail images into memory centered on the focused image in queued batches
 function preloadImages() {
@@ -2764,7 +2781,10 @@ function preloadImages() {
 	var focusItem = rawData.find(function(it) { return it.c === focusedIndex; }) || rawData[0];
 	var targetFileIdx = focusItem ? focusItem.file_idx : 0;
 
-	preloadQueue = rawData.slice().sort(function(a, b) {
+	// Only preload items belonging to the currently active channel filter, avoiding loading all 1,326 channels at once
+	var channelItems = (typeof getAllChannelItems === 'function') ? getAllChannelItems() : rawData;
+
+	preloadQueue = channelItems.slice().sort(function(a, b) {
 		var distA = Math.abs(a.file_idx - targetFileIdx);
 		var distB = Math.abs(b.file_idx - targetFileIdx);
 		return distA - distB;
@@ -2776,19 +2796,31 @@ function preloadImages() {
 function processPreloadQueueBatch() {
 	if (!preloadQueue || preloadQueue.length === 0) return;
 
-	var batch = preloadQueue.splice(0, 20);
+	var batch = preloadQueue.splice(0, PRELOAD_BATCH_SIZE);
+	var loadedAny = false;
 	batch.forEach(function(item) {
 		if (!loadedImages[item.c]) {
 			var img = new Image();
-			img.onload = function() { requestDraw(); };
-			img.onerror = function() { requestDraw(); };
+			var onDone = function() {
+				if (!preloadDrawDebounce) {
+					preloadDrawDebounce = setTimeout(function() {
+						preloadDrawDebounce = null;
+						requestDraw();
+					}, 100);
+				}
+			};
+			img.onload = onDone;
+			img.onerror = onDone;
 			img.src = item.src;
 			loadedImages[item.c] = img;
+			loadedAny = true;
 		}
 	});
 
 	if (preloadQueue.length > 0) {
-		preloadTimer = setTimeout(processPreloadQueueBatch, 0);
+		preloadTimer = setTimeout(processPreloadQueueBatch, 50);
+	} else {
+		requestDraw();
 	}
 }
 
@@ -2844,6 +2876,7 @@ function onFilterChange() {
 	updateHeaderReadout();
 	clampPan();
 	requestDraw();
+	preloadImages();
 }
 
 function stepTime(type, dir) {
@@ -3886,7 +3919,14 @@ function updateHoverState(mouseX, mouseY, clientX, clientY, rectLeft, rectTop) {
 		tooltip.style.left = (clientX - rectLeft + 15) + 'px';
 		tooltip.style.top = (clientY - rectTop + 15) + 'px';
 
-		var stsNames = hoveredSTSPts.map(function(p) { return p.graph; });
+		var stsNames = [];
+		hoveredSTSPts.forEach(function(p) {
+			if (p.graphs && Array.isArray(p.graphs)) {
+				for (var gi = 0; gi < p.graphs.length; gi++) stsNames.push(p.graphs[gi]);
+			} else if (p.graph) {
+				stsNames.push(p.graph);
+			}
+		});
 		var aggregatedParts = aggregateSTSNames(stsNames, true);
 
 		var imgNames = [];

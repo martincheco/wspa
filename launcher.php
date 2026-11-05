@@ -21,6 +21,14 @@ if (isset($_GET['log'])) {
     // Cleanly wipe active session state files (strictly preserving mylist.lst)
     wipe_user_session_dir($userdir, $user);
 
+    // Generate unique dataset epoch token for 100% cache isolation across dataset loads
+    $dataset_id = substr(md5($path . '|' . microtime(true) . '|' . mt_rand()), 0, 10);
+    @file_put_contents($userdir . $user . '/dataset.id', $dataset_id);
+    @chgrp($userdir . $user . '/dataset.id', 'www-data');
+    @chmod($userdir . $user . '/dataset.id', 0664);
+    $_SESSION['dataset_id'] = $dataset_id;
+    bump_workspace_epoch($userdir, $user);
+
     // Pre-populate tmp<N>.png symlinks from process/ cache if present
     if (!empty($path)) {
         populate_workspace_tmp_links($path, $userdir, $user);
@@ -48,7 +56,7 @@ if ($log != "") {
         $fcs = @file_get_contents($gdllogfile);
     }
 
-    if (stripos($fcs, $readystring) !== false) {
+    if (stripos($fcs, $readystring) !== false || stripos($fcs, 'READY') !== false) {
         if (!empty($path)) {
             sync_process_preview_dir($path, $userdir, $user);
         }
@@ -80,7 +88,7 @@ if (!isset($prog)) {
     $prog = 0.01;
 }
 
-header('Refresh: ' . ($qout) . '; url=launcher.php?path=' . urlencode($path) . '&log=reload', true, 303);
+header('Refresh: ' . ($qout) . '; url=launcher.php?path=' . urlencode($path) . '&log=reload');
 
 require('head.php');
 
@@ -103,6 +111,9 @@ echo "<FORM method=GET>";
 		if (textArea) {
 			textArea.scrollTop = textArea.scrollHeight;
 		}
+		setTimeout(function() {
+			window.location.href = "launcher.php?path=<?php echo urlencode($path); ?>&log=reload";
+		}, <?php echo max(500, intval($qout * 1000)); ?>);
 	</script>
 
 </body>

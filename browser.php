@@ -462,6 +462,9 @@ if (isset($_POST['load_sxm'])) {
         }
     }
     if (!empty($sxm_files)) {
+        if (!is_dir($userdir . $user)) {
+            @mkdir($userdir . $user, 0775, true);
+        }
         @unlink($userdir . $user . "/mylist.lst");
         file_put_contents($userdir . $user . "/mylist.lst", implode("\n", $sxm_files));
         
@@ -478,6 +481,9 @@ if (isset($_POST['load_sxm'])) {
 
 if ($open === "Open") {
     if (!empty($selected_checked_files)) {
+        if (!is_dir($userdir . $user)) {
+            @mkdir($userdir . $user, 0775, true);
+        }
         @unlink($userdir . $user . "/mylist.lst");
         $fullcheckr = array();
         $meta_dir_for_path = get_meta_dir($path, $user);
@@ -1113,7 +1119,7 @@ if ($mode === 'Preview') {
 
                 $w_attr = 'width="' . $cached_w . '" height="' . $cached_h . '"';
                 $ar_css = 'aspect-ratio: ' . $cached_w . ' / ' . $cached_h . '; ';
-                $hash = @filemtime($img_file);
+                $hash = get_image_cache_hash($img_file);
                 $real_src = 'serve_image.php?file=' . urlencode($img_file) . '&v=' . $hash;
                 $view_url = 'viewfile.php?file=' . urlencode_path($img_file);
 
